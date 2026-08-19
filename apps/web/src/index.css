@@ -135,27 +135,6 @@ button:not(:disabled):active {
 
 /* ---------- 组件语言升级(超越 dsh 的精致度) ---------- */
 
-/* 会话渐变头像:按 id 哈希取 8 组品牌渐变之一 */
-.avatar-grad {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 0.5rem;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.avatar-grad.g0 { background: linear-gradient(135deg, #8b96ff, #535dde); }
-.avatar-grad.g1 { background: linear-gradient(135deg, #6ee7b7, #0d9488); }
-.avatar-grad.g2 { background: linear-gradient(135deg, #fca5c5, #d43d6e); }
-.avatar-grad.g3 { background: linear-gradient(135deg, #fcd34d, #d97706); }
-.avatar-grad.g4 { background: linear-gradient(135deg, #93c5fd, #2563eb); }
-.avatar-grad.g5 { background: linear-gradient(135deg, #c4b5fd, #7c3aed); }
-.avatar-grad.g6 { background: linear-gradient(135deg, #a5f3fc, #0891b2); }
-.avatar-grad.g7 { background: linear-gradient(135deg, #fdba74, #ea580c); }
-
 /* 顶栏胶囊控件:模型/权限一键切换(dsh 语义,更精致的形) */
 .pill {
   display: inline-flex;

@@ -1,19 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import type { SessionMeta } from '../types'
-import { IconSearch, IconFork, IconPencil } from './Icon'
+import { IconSearch, IconFork, IconPencil, IconChat } from './Icon'
 
 interface Props {
   onOpenSession: (id: string, fork?: boolean) => void
   onNewSession: () => void
   onRename: (id: string, title: string) => void
-}
-
-/** 会话渐变头像:id 哈希 → 8 组品牌渐变 + 首字母 */
-function avatarClass(id: string): string {
-  let h = 0
-  for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return `avatar-grad g${h % 8}`
 }
 
 function timeAgo(iso: string | null): string {
@@ -127,7 +120,11 @@ function SessionRow({
     >
       {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent" />}
       <div className="flex items-center gap-2.5">
-        <span className={avatarClass(s.id)}>{(s.title || 'C').trim().charAt(0).toUpperCase()}</span>
+        <IconChat
+          width={14}
+          height={14}
+          className={`shrink-0 ${active ? 'text-accent' : 'text-text-faint'}`}
+        />
         <div className="min-w-0 flex-1">
           {editing ? (
             <input
@@ -157,25 +154,27 @@ function SessionRow({
         </div>
       </div>
       {!editing && (
-        <div className="absolute right-2 top-1/2 hidden -translate-y-1/2 gap-0.5 rounded-md border border-border bg-panel p-0.5 shadow-sm group-hover:flex">
+        <div className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 gap-0.5 group-hover:flex">
           <button
             aria-label="重命名会话"
+            title="重命名"
             onClick={(e) => {
               e.stopPropagation()
               setDraft(s.title)
               setEditing(true)
             }}
-            className="icon-btn !size-6"
+            className="grid size-6 place-items-center rounded text-text-faint hover:text-text"
           >
             <IconPencil width={12} height={12} />
           </button>
           <button
             aria-label="分叉会话"
+            title="从此分叉"
             onClick={(e) => {
               e.stopPropagation()
               onFork()
             }}
-            className="icon-btn !size-6"
+            className="grid size-6 place-items-center rounded text-text-faint hover:text-text"
           >
             <IconFork width={12} height={12} />
           </button>
