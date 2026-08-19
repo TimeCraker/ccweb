@@ -27,21 +27,8 @@ export default function MessageStream() {
   }, [entries, busy])
 
   if (entries.length === 0) {
-    return (
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        <div className="grid h-full place-items-center">
-          <div className="text-center">
-            <div className="mx-auto mb-4 grid size-12 place-items-center rounded-xl border border-border bg-panel text-xl">
-              ⌘
-            </div>
-            <h2 className="text-base font-medium">开始新对话</h2>
-            <p className="mt-1 text-sm text-text-dim">
-              输入任务,回车发送 · Esc 中断 · 完整 ~/.claude 配置自动生效
-            </p>
-          </div>
-        </div>
-      </div>
-    )
+    // 空态由 App 层的 hero 布局接管(居中品牌 + 大输入框)
+    return <div className="flex-1" />
   }
 
   return (

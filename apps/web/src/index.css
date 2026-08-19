@@ -133,6 +133,106 @@ button:not(:disabled):active {
   border-color: var(--color-border-strong);
 }
 
+/* ---------- 组件语言升级(超越 dsh 的精致度) ---------- */
+
+/* 会话渐变头像:按 id 哈希取 8 组品牌渐变之一 */
+.avatar-grad {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.avatar-grad.g0 { background: linear-gradient(135deg, #8b96ff, #535dde); }
+.avatar-grad.g1 { background: linear-gradient(135deg, #6ee7b7, #0d9488); }
+.avatar-grad.g2 { background: linear-gradient(135deg, #fca5c5, #d43d6e); }
+.avatar-grad.g3 { background: linear-gradient(135deg, #fcd34d, #d97706); }
+.avatar-grad.g4 { background: linear-gradient(135deg, #93c5fd, #2563eb); }
+.avatar-grad.g5 { background: linear-gradient(135deg, #c4b5fd, #7c3aed); }
+.avatar-grad.g6 { background: linear-gradient(135deg, #a5f3fc, #0891b2); }
+.avatar-grad.g7 { background: linear-gradient(135deg, #fdba74, #ea580c); }
+
+/* 顶栏胶囊控件:模型/权限一键切换(dsh 语义,更精致的形) */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.75rem;
+  padding: 0 0.625rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  color: var(--color-text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--dur-fast) var(--ease-soft), color var(--dur-fast) var(--ease-soft),
+    background-color var(--dur-fast) var(--ease-soft);
+}
+.pill:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+.pill.active {
+  border-color: color-mix(in srgb, var(--color-accent) 45%, transparent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+/* 图标按钮 */
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-soft), background-color var(--dur-fast) var(--ease-soft);
+}
+.icon-btn:hover {
+  color: var(--color-text);
+  background: var(--color-panel-2);
+}
+
+/* 面板层次阴影(暗色下用 inset 高光替代重投影) */
+.surface-card {
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 4%, transparent),
+    0 1px 2px rgb(0 0 0 / 0.18);
+}
+html:not(.dark) .surface-card {
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 1px 3px rgb(20 20 40 / 0.06);
+}
+
+/* 主输入框:焦点光晕渐升 */
+.composer-shell {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-panel);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  transition: border-color var(--dur-mid) var(--ease-soft), box-shadow var(--dur-mid) var(--ease-soft);
+}
+.composer-shell:focus-within {
+  border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-accent) 12%, transparent),
+    0 2px 8px rgb(0 0 0 / 0.16);
+}
+
+/* hero 空态品牌光晕 */
+.hero-glow {
+  background:
+    radial-gradient(420px 220px at 50% 30%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 70%);
+}
+
 /* 无障碍:尊重 reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,

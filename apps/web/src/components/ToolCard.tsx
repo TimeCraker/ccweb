@@ -1,18 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import type { ToolBlock } from '../render/blocks'
+import {
+  IconTerminal,
+  IconFile,
+  IconEdit,
+  IconSearch,
+  IconGlobe,
+  IconSparkle,
+} from './Icon'
 
 const RESULT_LIMIT = 2000
 
-const TOOL_META: Record<string, { icon: string; label: (i: Record<string, unknown>) => string }> = {
-  Bash: { icon: '$', label: (i) => String(i.command ?? '').slice(0, 120) },
-  Read: { icon: '◉', label: (i) => String(i.file_path ?? i.path ?? '') },
-  Write: { icon: '✎', label: (i) => String(i.file_path ?? i.path ?? '') },
-  Edit: { icon: '✂', label: (i) => String(i.file_path ?? i.path ?? '') },
-  Glob: { icon: '⌘', label: (i) => String(i.pattern ?? '') },
-  Grep: { icon: '⌕', label: (i) => String(i.pattern ?? '') },
-  WebSearch: { icon: '⌗', label: (i) => String(i.query ?? '') },
-  WebFetch: { icon: '⇲', label: (i) => String(i.url ?? '') },
-  Task: { icon: '⑃', label: (i) => String(i.description ?? i.prompt ?? '') },
+const TOOL_META: Record<string, { icon: ReactNode; label: (i: Record<string, unknown>) => string }> = {
+  Bash: { icon: <IconTerminal width={12} height={12} />, label: (i) => String(i.command ?? '').slice(0, 120) },
+  Read: { icon: <IconFile width={12} height={12} />, label: (i) => String(i.file_path ?? i.path ?? '') },
+  Write: { icon: <IconFile width={12} height={12} />, label: (i) => String(i.file_path ?? i.path ?? '') },
+  Edit: { icon: <IconEdit width={12} height={12} />, label: (i) => String(i.file_path ?? i.path ?? '') },
+  Glob: { icon: <IconSearch width={12} height={12} />, label: (i) => String(i.pattern ?? '') },
+  Grep: { icon: <IconSearch width={12} height={12} />, label: (i) => String(i.pattern ?? '') },
+  WebSearch: { icon: <IconGlobe width={12} height={12} />, label: (i) => String(i.query ?? '') },
+  WebFetch: { icon: <IconGlobe width={12} height={12} />, label: (i) => String(i.url ?? '') },
+  Task: { icon: <IconSparkle width={12} height={12} />, label: (i) => String(i.description ?? i.prompt ?? '') },
 }
 
 const STATUS_BADGE = {
@@ -46,8 +54,8 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
         aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-panel-2"
       >
-        <span className="grid size-5 shrink-0 place-items-center rounded border border-border font-mono text-[11px] text-text-dim">
-          {meta?.icon ?? '⚙'}
+        <span className="grid size-5 shrink-0 place-items-center rounded border border-border bg-panel-2 text-text-dim">
+          {meta?.icon ?? <IconSparkle width={12} height={12} />}
         </span>
         <span className="font-mono text-xs font-medium text-text-dim">{block.toolName}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-faint">

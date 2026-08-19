@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { WsClient } from './ws'
 import { useStore } from './store'
 import Sidebar from './components/Sidebar'
+import TopBar from './components/TopBar'
 import MessageStream from './components/MessageStream'
 import Composer from './components/Composer'
 import MetricsBar from './components/MetricsBar'
@@ -9,13 +10,15 @@ import PermissionCard from './components/PermissionCard'
 import ContextPanel from './components/ContextPanel'
 import CommandPalette from './components/CommandPalette'
 import SettingsModal from './components/SettingsModal'
+import { BrandMark } from './components/Icon'
 
 export default function App() {
   const wsRef = useRef<WsClient | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const empty = useStore((s) => s.entries.length === 0)
 
-  // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+N 新建会话(与命令面板 hint 一致)
+  // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+N 新建会话
   const newSessionRef = useRef<() => void>(() => {})
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -118,7 +121,7 @@ export default function App() {
     }
   }, [])
 
-  // 连接建立/会话切换后刷新会话列表与设置快照(model 兜底显示)
+  // 连接建立后刷新会话列表与设置快照
   useEffect(() => {
     const unsub = useStore.subscribe((s, prev) => {
       if (s.conn === 'open' && prev.conn !== 'open') {
@@ -142,7 +145,6 @@ export default function App() {
     useStore.getState().resolvePermissionLocal(requestId)
     wsRef.current?.send({ t: 'permission.resolve', requestId, allow, always })
   }
-
   const openSession = (id: string, fork = false) => {
     wsRef.current?.send({ t: 'session.open', sessionId: id, fork })
   }
@@ -153,17 +155,46 @@ export default function App() {
   const renameSession = (id: string, title: string) => {
     wsRef.current?.send({ t: 'session.rename', sessionId: id, title })
   }
+  const patchSettings = (patch: Record<string, unknown>) => {
+    wsRef.current?.send({ t: 'settings.patch', patch })
+  }
+
+  const composer = (
+    <Composer onSend={send} onInterrupt={interrupt} hero={empty} />
+  )
 
   return (
-    <div className="flex h-full">
-      <Sidebar onOpenSession={openSession} onNewSession={newSession} onRename={renameSession} />
-      <main className="flex min-w-0 flex-1 flex-col border-l border-border">
-        <MessageStream />
-        <PermissionCard onResolve={resolvePermission} />
-        <MetricsBar />
-        <Composer onSend={send} onInterrupt={interrupt} />
-      </main>
-      <ContextPanel />
+    <div className="flex h-full flex-col">
+      <TopBar onOpenSettings={() => setSettingsOpen(true)} onPatch={patchSettings} />
+      <div className="flex min-h-0 flex-1">
+        <Sidebar onOpenSession={openSession} onNewSession={newSession} onRename={renameSession} />
+        <main className="flex min-w-0 flex-1 flex-col border-l border-border">
+          {empty ? (
+            <div className="hero-glow flex flex-1 flex-col items-center justify-center overflow-y-auto px-6">
+              <BrandMark size={56} />
+              <h1 className="mt-5 text-xl font-semibold tracking-tight">今天做点什么?</h1>
+              <p className="mt-1.5 text-sm text-text-dim">
+                完整 ~/.claude 配置已就绪 · 你的 skills / memory / MCP 自动生效
+              </p>
+              <div className="mt-7 w-full max-w-2xl">{composer}</div>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-text-faint">
+                <Chip k="Ctrl K" v="命令面板" />
+                <Chip k="Ctrl N" v="新建会话" />
+                <Chip k="Esc" v="中断生成" />
+                <Chip k="Ctrl ," v="设置" />
+              </div>
+            </div>
+          ) : (
+            <>
+              <MessageStream />
+              <PermissionCard onResolve={resolvePermission} />
+              <MetricsBar />
+              {composer}
+            </>
+          )}
+        </main>
+        <ContextPanel />
+      </div>
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -177,5 +208,14 @@ export default function App() {
         send={(m) => wsRef.current?.send(m as { t: string })}
       />
     </div>
+  )
+}
+
+function Chip({ k, v }: { k: string; v: string }) {
+  return (
+    <span className="flex items-center gap-1.5 rounded-md border border-border bg-panel px-2 py-1">
+      <kbd className="font-mono text-[10px] text-text-dim">{k}</kbd>
+      <span>{v}</span>
+    </span>
   )
 }

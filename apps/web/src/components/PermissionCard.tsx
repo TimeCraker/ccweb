@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { diffLines } from 'diff'
 import { useStore } from '../store'
+import { IconWarn } from './Icon'
 
 interface Props {
   onResolve: (requestId: string, allow: boolean, always?: boolean) => void
@@ -29,8 +30,8 @@ export default function PermissionCard({ onResolve }: Props) {
         }`}
       >
         <div className="flex items-center gap-2">
-          <span className={`grid size-6 place-items-center rounded-md text-xs ${dangerous ? 'bg-danger/15 text-danger' : 'bg-warn/15 text-warn'}`}>
-            {dangerous ? '⛔' : '⚠'}
+          <span className={`grid size-6 place-items-center rounded-md ${dangerous ? 'bg-danger/15 text-danger' : 'bg-warn/15 text-warn'}`}>
+            <IconWarn width={14} height={14} />
           </span>
           <span className="text-sm font-medium">{dangerous ? '高危操作需要确认' : '操作需要确认'}</span>
           <span className="rounded bg-border px-1.5 py-0.5 font-mono text-[11px] text-text-dim">
