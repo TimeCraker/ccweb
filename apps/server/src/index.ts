@@ -2,9 +2,10 @@ import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { WebSocketServer } from 'ws'
-import { clientMessageSchema, type ServerMessage } from './protocol.js'
+import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
 import { AgentSession } from './agent.js'
 import { fetchHistory, listSessionMetas } from './sessions.js'
+import { runtimeSettings, listEndpointTemplates } from './settings.js'
 
 const PORT = Number(process.env.CCWEB_PORT ?? 3477)
 
@@ -87,7 +88,7 @@ wss.on('connection', (ws) => {
     return agent
   }
 
-  ws.on('message', (raw) => {
+  ws.on('message', async (raw) => {
     let parsed: unknown
     try {
       parsed = JSON.parse(String(raw))
@@ -154,6 +155,38 @@ wss.on('connection', (ws) => {
         // SDK renameSession 0.3.x 不可用;标题由列表 summary 兜底,P3 接 customTitle
         void pushSessionList()
         break
+      case 'settings.get':
+        emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
+        break
+      case 'settings.patch': {
+        const p = msg.patch
+        if (p.model !== undefined) runtimeSettings.model = p.model
+        if (p.permissionMode !== undefined) runtimeSettings.permissionMode = p.permissionMode
+        if (p.effort !== undefined) runtimeSettings.effort = p.effort
+        if (p.endpointTemplate !== undefined) {
+          if (runtimeSettings.endpointTemplate !== p.endpointTemplate) {
+            // 端点是子进程 env:当前会话作废,新会话生效
+            runtimeSettings.endpointTemplate = p.endpointTemplate
+            currentSession = null
+          }
+        }
+        currentSession?.applySettings({
+          model: p.model ?? undefined,
+          permissionMode: p.permissionMode ?? undefined,
+        })
+        emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
+        break
+      }
+      case 'mcp.status': {
+        const agent = currentSession
+        if (!agent) {
+          emit({ t: 'mcpStatus', seq: 0, servers: [] })
+          break
+        }
+        const servers = await agent.mcpStatus()
+        emit({ t: 'mcpStatus', seq: 0, servers })
+        break
+      }
       case 'ping':
         if (msg.lastSeq != null) replaySince(msg.lastSeq)
         emit({ t: 'pong', seq: 0 })
@@ -166,6 +199,18 @@ wss.on('connection', (ws) => {
     emit({ t: 'sessions', seq: 0, sessions })
   }
 })
+
+function settingsSnapshot(): SettingsSnapshot {
+  const endpoints = listEndpointTemplates()
+  return {
+    model: runtimeSettings.model,
+    permissionMode: runtimeSettings.permissionMode,
+    effort: runtimeSettings.effort,
+    endpointTemplate: runtimeSettings.endpointTemplate,
+    currentEndpoint: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+    endpoints,
+  }
+}
 
 process.on('SIGINT', () => {
   console.log('[ccweb] shutting down')

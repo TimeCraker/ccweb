@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { WsClient } from './ws'
 import { useStore } from './store'
 import Sidebar from './components/Sidebar'
@@ -7,9 +7,28 @@ import Composer from './components/Composer'
 import MetricsBar from './components/MetricsBar'
 import PermissionCard from './components/PermissionCard'
 import ContextPanel from './components/ContextPanel'
+import CommandPalette from './components/CommandPalette'
+import SettingsModal from './components/SettingsModal'
 
 export default function App() {
   const wsRef = useRef<WsClient | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+B 侧栏折叠
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+      } else if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+        e.preventDefault()
+        setSettingsOpen(true)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => {
     const store = useStore.getState()
@@ -29,6 +48,12 @@ export default function App() {
           break
         case 'sessions':
           if (msg.sessions) s.setSessions(msg.sessions)
+          break
+        case 'settings':
+          if (msg.settings) s.setSettings(msg.settings)
+          break
+        case 'mcpStatus':
+          if (msg.servers) s.setMcp(msg.servers)
           break
         case 'history':
           if (msg.messages) s.replayHistory(msg.messages)
@@ -130,6 +155,18 @@ export default function App() {
         <Composer onSend={send} onInterrupt={interrupt} />
       </main>
       <ContextPanel />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onNewSession={newSession}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSession={openSession}
+      />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        send={(m) => wsRef.current?.send(m as { t: string })}
+      />
     </div>
   )
 }

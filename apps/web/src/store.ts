@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SessionMetrics, SessionMeta } from './types'
+import type { SessionMetrics, SessionMeta, SettingsSnapshot } from './types'
 import {
   type Entry,
   type TurnEntry,
@@ -36,10 +36,14 @@ interface AppState {
   permissions: PermissionRequest[]
   error: string | null
   busy: boolean
+  settings: SettingsSnapshot | null
+  mcpServers: Array<{ name: string; status: string }>
 
   setConn: (c: ConnState) => void
   applyInit: (p: { sessionId: string | null; model: string | null; endpoint: string | null }) => void
   setSessions: (list: SessionMeta[]) => void
+  setSettings: (s: SettingsSnapshot) => void
+  setMcp: (list: Array<{ name: string; status: string }>) => void
   appendUser: (text: string) => void
   onBlockStart: (ev: { blockType: 'thinking' | 'text' | 'tool_use'; index: number; toolUseId?: string; toolName?: string }) => void
   onDelta: (ev: { kind: 'text' | 'thinking' | 'tool_input'; text: string; toolUseId?: string }) => void
@@ -69,10 +73,14 @@ export const useStore = create<AppState>((set) => ({
   permissions: [],
   error: null,
   busy: false,
+  settings: null,
+  mcpServers: [],
 
   setConn: (conn) => set({ conn }),
   applyInit: ({ sessionId, model, endpoint }) => set({ sessionId, model, endpoint }),
   setSessions: (sessions) => set({ sessions }),
+  setSettings: (settings) => set({ settings }),
+  setMcp: (mcpServers) => set({ mcpServers }),
   appendUser: (text) =>
     set((s) => ({
       entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text }],

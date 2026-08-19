@@ -2,6 +2,7 @@ import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Query, SDKUserMessage, PermissionResult } from '@anthropic-ai/claude-agent-sdk'
 import type { ServerMessage } from './protocol.js'
 import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metrics.js'
+import { runtimeSettings, endpointEnv } from './settings.js'
 
 /**
  * Agent 桥接层(SPEC §2)
@@ -15,9 +16,13 @@ import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metri
  * - 单发模式 error result 后还会 throw:for-await 外套 try/catch
  */
 
-/** 构建 agent 子进程 env —— 整体替换语义,必须展开 process.env(否则丢 PATH) */
+/** 构建 agent 子进程 env —— 整体替换语义,必须展开 process.env(否则丢 PATH);
+ * 运行时设置(端点模板/effort)叠加其上,新会话生效 */
 export function buildAgentEnv(): Record<string, string | undefined> {
-  return { ...process.env }
+  const extra = endpointEnv(runtimeSettings.endpointTemplate)
+  const env: Record<string, string | undefined> = { ...process.env, ...extra }
+  if (runtimeSettings.effort) env.CLAUDE_CODE_EFFORT_LEVEL = runtimeSettings.effort
+  return env
 }
 
 /** 推送到前端的消息出口 */
@@ -153,6 +158,41 @@ export class AgentSession {
   /** 软中断:仅流式输入模式可用;进程存活、会话可继续 */
   async interrupt(): Promise<void> {
     await this.q?.interrupt()
+  }
+
+  /** 热切设置:模型/权限模式即时生效(q 方法);其余新会话生效 */
+  applySettings(patch: {
+    model?: string | null
+    permissionMode?: string | null
+  }): void {
+    if (patch.model != null) {
+      void (this.q as unknown as { setModel?: (m: string) => Promise<void> })?.setModel?.(patch.model)
+    }
+    if (patch.permissionMode != null) {
+      void (this.q as unknown as { setPermissionMode?: (p: string) => Promise<void> })?.setPermissionMode?.(
+        patch.permissionMode,
+      )
+    }
+  }
+
+  /** MCP 服务器状态(设置页展示) */
+  async mcpStatus(): Promise<Array<{ name: string; status: string }>> {
+    try {
+      const status = await (
+        this.q as unknown as { mcpServerStatus?: () => Promise<Record<string, unknown>> }
+      )?.mcpServerStatus?.()
+      if (status && typeof status === 'object') {
+        return Object.entries(status).map(([name, v]) => ({
+          name,
+          status: typeof v === 'object' && v && 'status' in (v as object)
+            ? String((v as { status: unknown }).status)
+            : String(v),
+        }))
+      }
+    } catch {
+      // 查询失败按空处理
+    }
+    return []
   }
 
   resolvePermission(

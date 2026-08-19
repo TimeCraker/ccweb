@@ -24,6 +24,17 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('session.list') }),
   z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional() }),
   z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
+  z.object({ t: z.literal('settings.get') }),
+  z.object({
+    t: z.literal('settings.patch'),
+    patch: z.object({
+      model: z.string().nullable().optional(),
+      permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'bypassPermissions']).nullable().optional(),
+      effort: z.enum(['low', 'medium', 'high', 'max']).nullable().optional(),
+      endpointTemplate: z.string().nullable().optional(),
+    }),
+  }),
+  z.object({ t: z.literal('mcp.status') }),
   z.object({ t: z.literal('ping'), lastSeq: z.number().int().optional() }),
 ])
 
@@ -65,6 +76,8 @@ export type ServerMessage =
   | { t: 'context'; seq: number; sessionId: string; usage: unknown }
   | { t: 'sessions'; seq: number; sessions: SessionMeta[] }
   | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
+  | { t: 'settings'; seq: number; settings: SettingsSnapshot }
+  | { t: 'mcpStatus'; seq: number; servers: Array<{ name: string; status: string }> }
   | { t: 'cleared'; seq: number }
   | { t: 'error'; seq: number; code: string; message: string; retry?: boolean }
   | { t: 'pong'; seq: number }
@@ -75,6 +88,16 @@ export interface SessionMeta {
   title: string
   lastModified: string | null
   gitBranch: string | null
+}
+
+/** 设置快照(下发前端;端点只带 name/url,无凭证) */
+export interface SettingsSnapshot {
+  model: string | null
+  permissionMode: string | null
+  effort: string | null
+  endpointTemplate: string | null
+  currentEndpoint: string | null
+  endpoints: Array<{ key: string; name: string; baseUrl: string | null }>
 }
 
 /** 底栏指标条(SPEC §5 口径) */

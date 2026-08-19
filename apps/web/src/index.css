@@ -18,6 +18,20 @@
   --font-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
 }
 
+/* 浅色主题覆盖(跟随 .dark 类切换;变量在暗色为基准) */
+html:not(.dark) {
+  --color-bg: #f7f7fa;
+  --color-panel: #ffffff;
+  --color-panel-2: #f0f0f4;
+  --color-border: #e4e4ea;
+  --color-border-strong: #d4d4dd;
+  --color-text: #1a1a24;
+  --color-text-dim: #5a5a68;
+  --color-text-faint: #8a8a96;
+  --color-accent: #535dde;
+  --color-accent-hover: #4248c9;
+}
+
 html,
 body,
 #root {

@@ -19,6 +19,15 @@ export interface SessionMeta {
   gitBranch: string | null
 }
 
+export interface SettingsSnapshot {
+  model: string | null
+  permissionMode: string | null
+  effort: string | null
+  endpointTemplate: string | null
+  currentEndpoint: string | null
+  endpoints: Array<{ key: string; name: string; baseUrl: string | null }>
+}
+
 export interface ServerMessage {
   t: string
   seq?: number
@@ -40,6 +49,8 @@ export interface ServerMessage {
   usage?: unknown
   sessions?: SessionMeta[]
   messages?: unknown[]
+  settings?: SettingsSnapshot
+  servers?: Array<{ name: string; status: string }>
   code?: string
   message?: string
   retry?: boolean
