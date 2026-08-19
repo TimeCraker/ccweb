@@ -31,7 +31,10 @@ const STATUS_BADGE = {
 } as const
 
 export default function ToolCard({ block }: { block: ToolBlock }) {
+  // dsh 对齐:命令/读文件类工具完成后默认展开(过程可见);其余默认收起
   const [open, setOpen] = useState(false)
+  const autoExpand = block.toolName === 'Bash' && (block.status === 'done' || block.status === 'error')
+  const effectiveOpen = open || autoExpand
   const meta = TOOL_META[block.toolName]
   const badge = STATUS_BADGE[block.status]
   const summary = useMemo(() => {
@@ -51,7 +54,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
     <div className="tool-card my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
+        aria-expanded={effectiveOpen}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-panel-2"
       >
         <span className="grid size-5 shrink-0 place-items-center rounded border border-border bg-panel-2 text-text-dim">
@@ -65,10 +68,10 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
           <span className="size-3 shrink-0 animate-spin rounded-full border border-accent border-t-transparent" />
         )}
         <span className={`shrink-0 text-[10px] ${badge.cls}`}>{badge.text}</span>
-        <span className={`shrink-0 text-text-faint transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
+        <span className={`shrink-0 text-text-faint transition-transform ${effectiveOpen ? 'rotate-90' : ''}`}>▸</span>
       </button>
 
-      <div className={`tool-expand ${open ? 'open' : ''}`}>
+      <div className={`tool-expand ${effectiveOpen ? 'open' : ''}`}>
         <div>
           <div className="border-t border-border px-3 py-2">
             <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">参数</p>

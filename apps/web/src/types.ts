@@ -25,7 +25,13 @@ export interface SettingsSnapshot {
   effort: string | null
   endpointTemplate: string | null
   currentEndpoint: string | null
+  currentModel: string | null
   endpoints: Array<{ key: string; name: string; baseUrl: string | null }>
+  workspaces: Array<{ dir: string; sessions: number; lastModified: string | null }>
+  workspace: string | null
+  skills: Array<{ name: string; description: string }>
+  rules: Array<{ name: string; size: number }>
+  claudeMd: string | null
 }
 
 export interface ServerMessage {

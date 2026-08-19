@@ -24,6 +24,10 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('session.list') }),
   z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional() }),
   z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
+  z.object({
+    t: z.literal('workspace.set'),
+    dir: z.string().min(1),
+  }),
   z.object({ t: z.literal('settings.get') }),
   z.object({
     t: z.literal('settings.patch'),
@@ -96,8 +100,16 @@ export interface SettingsSnapshot {
   permissionMode: string | null
   effort: string | null
   endpointTemplate: string | null
+  /** 真实生效端点(读 ~/.claude/settings.json,非进程 env) */
   currentEndpoint: string | null
+  /** 真实生效模型(settings.json env.ANTHROPIC_MODEL) */
+  currentModel: string | null
   endpoints: Array<{ key: string; name: string; baseUrl: string | null }>
+  workspaces: Array<{ dir: string; sessions: number; lastModified: string | null }>
+  workspace: string | null
+  skills: Array<{ name: string; description: string }>
+  rules: Array<{ name: string; size: number }>
+  claudeMd: string | null
 }
 
 /** 底栏指标条(SPEC §5 口径) */

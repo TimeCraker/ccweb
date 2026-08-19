@@ -17,6 +17,10 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const empty = useStore((s) => s.entries.length === 0)
+  const snap = useStore((s) => s.settings)
+  const settingsMeta = [snap?.currentModel, snap?.currentEndpoint ? hostOf(snap.currentEndpoint) : null]
+    .filter(Boolean)
+    .join(' · ')
 
   // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+N 新建会话
   const newSessionRef = useRef<() => void>(() => {})
@@ -163,9 +167,17 @@ export default function App() {
     <Composer onSend={send} onInterrupt={interrupt} hero={empty} />
   )
 
+  const setWorkspace = (dir: string) => {
+    wsRef.current?.send({ t: 'workspace.set', dir })
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <TopBar onOpenSettings={() => setSettingsOpen(true)} onPatch={patchSettings} />
+      <TopBar
+        onOpenSettings={() => setSettingsOpen(true)}
+        onPatch={patchSettings}
+        onSetWorkspace={setWorkspace}
+      />
       <div className="flex min-h-0 flex-1">
         <Sidebar onOpenSession={openSession} onNewSession={newSession} onRename={renameSession} />
         <main className="flex min-w-0 flex-1 flex-col border-l border-border">
@@ -177,7 +189,10 @@ export default function App() {
                 完整 ~/.claude 配置已就绪 · 你的 skills / memory / MCP 自动生效
               </p>
               <div className="mt-7 w-full max-w-2xl">{composer}</div>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-text-faint">
+              <p className="mt-3 text-[11px] text-text-faint">
+                <span className="font-mono">{settingsMeta}</span>
+              </p>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-text-faint">
                 <Chip k="Ctrl K" v="命令面板" />
                 <Chip k="Ctrl N" v="新建会话" />
                 <Chip k="Esc" v="中断生成" />
@@ -218,4 +233,12 @@ function Chip({ k, v }: { k: string; v: string }) {
       <span>{v}</span>
     </span>
   )
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return url
+  }
 }

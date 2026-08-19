@@ -9,7 +9,15 @@ import { WebSocketServer } from 'ws'
 import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
 import { AgentSession } from './agent.js'
 import { fetchHistory, listSessionMetas, renameSessionMeta } from './sessions.js'
-import { runtimeSettings, listEndpointTemplates } from './settings.js'
+import {
+  runtimeSettings,
+  listEndpointTemplates,
+  readActiveEnv,
+  listWorkspaces,
+  listUserSkills,
+  listUserRules,
+  readClaudeMd,
+} from './settings.js'
 
 const PORT = Number(process.env.CCWEB_PORT ?? 3477)
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -93,7 +101,7 @@ wss.on('connection', (ws) => {
 
   function getOrCreateSession(sessionId?: string, fork = false): AgentSession {
     if (!sessionId) {
-      const agent = createTrackedAgent({})
+      const agent = createTrackedAgent({ cwd: runtimeSettings.workspace ?? undefined })
       currentSession = agent
       return agent
     }
@@ -102,7 +110,11 @@ wss.on('connection', (ws) => {
       currentSession = existing
       return existing
     }
-    const agent = createTrackedAgent({ resume: sessionId, fork })
+    const agent = createTrackedAgent({
+      resume: sessionId,
+      fork,
+      cwd: runtimeSettings.workspace ?? undefined,
+    })
     agent.sessionId = fork ? null : sessionId
     registry.set(sessionId, agent)
     currentSession = agent
@@ -183,6 +195,15 @@ wss.on('connection', (ws) => {
       case 'settings.get':
         emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
         break
+      case 'workspace.set': {
+        runtimeSettings.workspace = msg.dir
+        // 切工作区 = 会话上下文切换:清当前会话,列表按新工作区拉
+        currentSession = null
+        emit({ t: 'cleared', seq: 0 })
+        await pushSessionList()
+        emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
+        break
+      }
       case 'settings.patch': {
         const p = msg.patch
         if (p.model !== undefined) runtimeSettings.model = p.model
@@ -220,20 +241,26 @@ wss.on('connection', (ws) => {
   })
 
   async function pushSessionList(): Promise<void> {
-    const sessions = await listSessionMetas(process.cwd())
+    const sessions = await listSessionMetas(runtimeSettings.workspace ?? process.cwd())
     emit({ t: 'sessions', seq: 0, sessions })
   }
 })
 
 function settingsSnapshot(): SettingsSnapshot {
-  const endpoints = listEndpointTemplates()
+  const activeEnv = readActiveEnv()
   return {
     model: runtimeSettings.model,
     permissionMode: runtimeSettings.permissionMode,
     effort: runtimeSettings.effort,
     endpointTemplate: runtimeSettings.endpointTemplate,
-    currentEndpoint: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
-    endpoints,
+    currentEndpoint: activeEnv.ANTHROPIC_BASE_URL ?? process.env.ANTHROPIC_BASE_URL ?? null,
+    currentModel: activeEnv.ANTHROPIC_MODEL ?? null,
+    endpoints: listEndpointTemplates(),
+    workspaces: listWorkspaces(),
+    workspace: runtimeSettings.workspace,
+    skills: listUserSkills().map(({ name, description }) => ({ name, description })),
+    rules: listUserRules(),
+    claudeMd: readClaudeMd(),
   }
 }
 
