@@ -1,0 +1,275 @@
+import { query } from '@anthropic-ai/claude-agent-sdk'
+import type { Query, SDKUserMessage, PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+import type { ServerMessage } from './protocol.js'
+import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metrics.js'
+
+/**
+ * Agent 桥接层(SPEC §2)
+ *
+ * 已核实的 SDK 事实与对应实现决策:
+ * - 流式输入模式(prompt 传 AsyncGenerator):软中断 interrupt() 仅此模式可用
+ * - includePartialMessages → stream_event:text_delta 打字机
+ * - canUseTool 可无限期挂起:推 permission.ask 等 WS 回执 resolve
+ * - env 是整体替换语义:必须 { ...process.env, … } 展开
+ * - per-step output_tokens 是占位符:指标只信 result.modelUsage
+ * - 单发模式 error result 后还会 throw:for-await 外套 try/catch
+ */
+
+/** 构建 agent 子进程 env —— 整体替换语义,必须展开 process.env(否则丢 PATH) */
+export function buildAgentEnv(): Record<string, string | undefined> {
+  return { ...process.env }
+}
+
+/** 推送到前端的消息出口 */
+export type Emit = (msg: ServerMessage) => void
+
+/** 手动驱动的 prompt 异步队列(流式输入模式) */
+class PromptQueue {
+  private buffered: SDKUserMessage[] = []
+  private wakeup: (() => void) | null = null
+  private closed = false
+
+  push(msg: SDKUserMessage): void {
+    this.buffered.push(msg)
+    this.wakeup?.()
+  }
+
+  close(): void {
+    this.closed = true
+    this.wakeup?.()
+  }
+
+  async *stream(): AsyncGenerator<SDKUserMessage> {
+    while (true) {
+      if (this.buffered.length > 0) {
+        yield this.buffered.shift()!
+        continue
+      }
+      if (this.closed) return
+      await new Promise<void>((resolve) => {
+        this.wakeup = resolve
+      })
+      this.wakeup = null
+    }
+  }
+}
+
+/** canUseTool 挂起闸门:WS 回执 resolve */
+class PermissionGate {
+  private pending = new Map<
+    string,
+    { toolName: string; input: Record<string, unknown>; resolve: (r: PermissionResult) => void }
+  >()
+
+  wait(
+    requestId: string,
+    toolName: string,
+    input: Record<string, unknown>,
+    onAsk: (requestId: string, toolName: string, input: Record<string, unknown>) => void,
+  ): Promise<PermissionResult> {
+    onAsk(requestId, toolName, input)
+    return new Promise((resolve) => {
+      this.pending.set(requestId, { toolName, input, resolve })
+    })
+  }
+
+  resolve(requestId: string, allow: boolean, updatedInput?: Record<string, unknown>): boolean {
+    const entry = this.pending.get(requestId)
+    if (!entry) return false
+    this.pending.delete(requestId)
+    if (allow) {
+      entry.resolve({ behavior: 'allow', updatedInput })
+    } else {
+      entry.resolve({ behavior: 'deny', message: 'User denied this action in ccweb.' })
+    }
+    return true
+  }
+
+  /** 断线重连后重放所有挂起中的审批 */
+  replay(onAsk: (requestId: string, toolName: string, input: Record<string, unknown>) => void): void {
+    for (const [requestId, entry] of this.pending) {
+      onAsk(requestId, entry.toolName, entry.input)
+    }
+  }
+}
+
+export class AgentSession {
+  readonly promptQueue = new PromptQueue()
+  private readonly gate = new PermissionGate()
+  private readonly acc: MetricsAccumulator = newAccumulator()
+  private q: Query | undefined
+  private started = false
+
+  sessionId: string | null = null
+
+  constructor(
+    private readonly emit: Emit,
+    private readonly opts: { cwd?: string } = {},
+  ) {}
+
+  /** 首次调用时启动底层 query(流式输入模式,常驻多轮) */
+  ensureStarted(): void {
+    if (this.started) return
+    this.started = true
+    void this.run()
+  }
+
+  send(text: string): void {
+    this.ensureStarted()
+    const content = [{ type: 'text' as const, text }]
+    // 首条消息无 session_id(SDK 分配);后续带 session_id 续在同一会话
+    const msg: SDKUserMessage = {
+      type: 'user',
+      session_id: this.sessionId ?? crypto.randomUUID(),
+      message: { role: 'user', content },
+      parent_tool_use_id: null,
+      uuid: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+    }
+    this.acc.turns += 1
+    this.emitMetrics()
+    this.promptQueue.push(msg)
+  }
+
+  /** 软中断:仅流式输入模式可用;进程存活、会话可继续 */
+  async interrupt(): Promise<void> {
+    await this.q?.interrupt()
+  }
+
+  resolvePermission(
+    requestId: string,
+    allow: boolean,
+    updatedInput?: Record<string, unknown>,
+  ): boolean {
+    const ok = this.gate.resolve(requestId, allow, updatedInput)
+    if (ok) this.emit({ t: 'permission.resolved', seq: 0, requestId, allow })
+    return ok
+  }
+
+  private async run(): Promise<void> {
+    try {
+      const q = query({
+        prompt: this.promptQueue.stream(),
+        options: {
+          includePartialMessages: true,
+          settingSources: ['user', 'project', 'local'],
+          env: buildAgentEnv(),
+          ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
+          canUseTool: async (
+            toolName: string,
+            input: Record<string, unknown>,
+            ctx: { toolUseID: string },
+          ): Promise<PermissionResult> => {
+            const { toolUseID } = ctx
+            return this.gate.wait(toolUseID, toolName, input, (id, name, inp) => {
+              this.emit({
+                t: 'permission.ask',
+                seq: 0,
+                requestId: id,
+                sessionId: this.sessionId ?? '',
+                toolName: name,
+                input: inp,
+              })
+            })
+          },
+        },
+      })
+      this.q = q
+      for await (const msg of q) {
+        this.handle(msg as Record<string, unknown>)
+      }
+    } catch (err) {
+      this.emit({
+        t: 'error',
+        seq: 0,
+        code: 'agent_crashed',
+        message: err instanceof Error ? err.message : String(err),
+        retry: true,
+      })
+    }
+  }
+
+  private handle(msg: Record<string, unknown>): void {
+    const type = msg.type as string
+    const subtype = msg.subtype as string | undefined
+
+    if (type === 'system' && subtype === 'init') {
+      this.sessionId = (msg.session_id as string) ?? this.sessionId
+      this.emit({
+        t: 'init',
+        seq: 0,
+        sessionId: this.sessionId,
+        model: (msg.model as string) ?? null,
+        endpoint: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+      })
+      return
+    }
+
+    if (type === 'stream_event') {
+      const event = msg.event as Record<string, unknown> | undefined
+      const delta = event?.delta as Record<string, unknown> | undefined
+      // TTFT 实时字段:message_start 事件上携带
+      if (event?.type === 'message_start' && typeof msg.ttft_ms === 'number') {
+        this.acc.ttftMs = msg.ttft_ms
+        this.emitMetrics()
+      }
+      if (event?.type === 'content_block_delta' && delta?.type === 'text_delta') {
+        this.emit({
+          t: 'delta',
+          seq: 0,
+          sessionId: this.sessionId ?? '',
+          kind: 'text',
+          text: delta.text as string,
+        })
+      }
+      return
+    }
+
+    if (type === 'result' && subtype === 'success') {
+      applyResult(this.acc, msg)
+      this.emitMetrics()
+    }
+
+    // 完整消息(message/result)一律转发,前端负责渲染其余类型
+    if (this.sessionId) {
+      this.emit({ t: 'message', seq: 0, sessionId: this.sessionId, sdkMessage: msg })
+    }
+  }
+
+  private emitMetrics(): void {
+    if (!this.sessionId) return
+    this.emit({ t: 'metrics', seq: 0, sessionId: this.sessionId, metrics: computeMetrics(this.acc) })
+  }
+}
+
+/** result 消息落库:modelUsage 权威累计 + 本轮回转速度 */
+function applyResult(acc: MetricsAccumulator, result: Record<string, unknown>): void {
+  const modelUsage = result.modelUsage as
+    | Record<string, { inputTokens?: number; outputTokens?: number; cacheReadInputTokens?: number; cacheCreationInputTokens?: number }>
+    | undefined
+  if (modelUsage) {
+    let input = 0
+    let output = 0
+    let cacheRead = 0
+    let cacheCreation = 0
+    for (const u of Object.values(modelUsage)) {
+      input += u.inputTokens ?? 0
+      output += u.outputTokens ?? 0
+      cacheRead += u.cacheReadInputTokens ?? 0
+      cacheCreation += u.cacheCreationInputTokens ?? 0
+    }
+    acc.inputTokens = input
+    acc.outputTokens = output
+    acc.cacheReadTokens = cacheRead
+    acc.cacheCreationTokens = cacheCreation
+  }
+  if (typeof result.total_cost_usd === 'number') acc.totalCostUsd = result.total_cost_usd
+  if (typeof result.ttft_ms === 'number') acc.ttftMs = result.ttft_ms
+
+  // 本轮回转输出速度:主循环 output ÷ (duration - ttft)
+  const usage = result.usage as { output_tokens?: number } | undefined
+  const durationMs = typeof result.duration_ms === 'number' ? result.duration_ms : null
+  if (usage?.output_tokens && durationMs && acc.ttftMs != null && durationMs > acc.ttftMs) {
+    acc.tokensPerSecond = (usage.output_tokens / (durationMs - acc.ttftMs)) * 1000
+  }
+}

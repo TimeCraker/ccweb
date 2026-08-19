@@ -1,0 +1,66 @@
+@import 'tailwindcss';
+
+/* ccweb 设计 token —— Linear 系:暗色、灰阶层次、单 accent、1px 精细边框 */
+@theme {
+  --color-bg: #0b0b10;
+  --color-panel: #121218;
+  --color-panel-2: #17171f;
+  --color-border: #1f1f2a;
+  --color-border-strong: #2c2c3a;
+  --color-text: #e9e9ef;
+  --color-text-dim: #8b8b98;
+  --color-text-faint: #5c5c68;
+  --color-accent: #6e79f0;
+  --color-accent-hover: #828cf5;
+  --color-ok: #4ade80;
+  --color-warn: #facc15;
+  --color-danger: #f87171;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 打字机光标 */
+.stream-caret::after {
+  content: '▍';
+  color: var(--color-accent);
+  animation: caret-blink 1s steps(2) infinite;
+}
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 滚动条(细腻 1px 系) */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a3a4a;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea {
+  field-sizing: content;
+}
