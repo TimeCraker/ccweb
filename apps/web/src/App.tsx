@@ -171,7 +171,7 @@ export default function App() {
         <main className="flex min-w-0 flex-1 flex-col border-l border-border">
           {empty ? (
             <div className="hero-glow flex flex-1 flex-col items-center justify-center overflow-y-auto px-6">
-              <BrandMark size={56} />
+              <BrandMark size={56} uid="hero" />
               <h1 className="mt-5 text-xl font-semibold tracking-tight">今天做点什么?</h1>
               <p className="mt-1.5 text-sm text-text-dim">
                 完整 ~/.claude 配置已就绪 · 你的 skills / memory / MCP 自动生效

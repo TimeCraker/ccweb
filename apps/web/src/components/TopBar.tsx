@@ -21,7 +21,7 @@ export default function TopBar({ onOpenSettings, onPatch }: Props) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-panel px-4">
       <div className="flex items-center gap-2.5">
-        <BrandMark size={22} />
+        <BrandMark size={22} uid="top" />
         <span className="text-sm font-semibold tracking-tight">ccweb</span>
       </div>
       <div className="mx-1 h-4 w-px bg-border" />

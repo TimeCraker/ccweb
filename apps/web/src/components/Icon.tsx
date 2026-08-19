@@ -157,24 +157,67 @@ export const IconSparkle = (p: P) => (
   </svg>
 )
 
-/** 品牌徽标:渐变 C 形轨道 */
-export function BrandMark({ size = 24 }: { size?: number }) {
+/**
+ * 品牌徽标 —— 概念:C 形轨道环抱一枚终端光标。
+ * Web 壳(弧)包裹 AI 核心(光标);多层深度:深空底板 + 金属弧光 + 发光光标。
+ * 多实例共存:渐变 id 加实例后缀避免 SVG 冲突。
+ */
+export function BrandMark({ size = 24, uid = 'a' }: { size?: number; uid?: string }) {
+  const p = (n: string) => `${n}-${uid}`
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden>
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden>
       <defs>
-        <linearGradient id="ccweb-g" x1="4" y1="4" x2="28" y2="28">
-          <stop offset="0" stopColor="#8b96ff" />
-          <stop offset="1" stopColor="#535dde" />
+        <linearGradient id={p('plate')} x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#283058" />
+          <stop offset="1" stopColor="#131834" />
+        </linearGradient>
+        <linearGradient id={p('arc')} x1="10" y1="10" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#b9c2ff" />
+          <stop offset="0.55" stopColor="#7c88f4" />
+          <stop offset="1" stopColor="#4a53c9" />
+        </linearGradient>
+        <radialGradient id={p('glow')} cx="0.78" cy="0.5" r="0.5">
+          <stop offset="0" stopColor="#aab4ff" stopOpacity="0.85" />
+          <stop offset="1" stopColor="#8b96ff" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id={p('cursor')} x1="24" y1="16" x2="32" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#f2f4ff" />
+          <stop offset="1" stopColor="#c4ccff" />
         </linearGradient>
       </defs>
-      <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="url(#ccweb-g)" />
+
+      {/* 底板:深空渐变 + 顶部内高光 */}
+      <rect x="1.5" y="1.5" width="37" height="37" rx="10.5" fill={`url(#${p('plate')})`} />
+      <rect
+        x="2.5"
+        y="2.5"
+        width="35"
+        height="35"
+        rx="9.5"
+        stroke="#ffffff"
+        strokeOpacity="0.1"
+        fill="none"
+      />
+
+      {/* C 形轨道:缺口右上,金属渐变弧 */}
       <path
-        d="M21.5 11.5a7 7 0 1 0 0 9"
-        stroke="#fff"
-        strokeWidth="2.6"
+        d="M26.5 14a9.5 9.5 0 1 0 0 12"
+        stroke={`url(#${p('arc')})`}
+        strokeWidth="3.4"
         strokeLinecap="round"
         fill="none"
       />
+
+      {/* 终端光标:C 开口处的发光圆角方块 */}
+      <circle cx="27" cy="20" r="7" fill={`url(#${p('glow')})`} />
+      <rect x="24.6" y="17.6" width="4.8" height="4.8" rx="1.3" fill={`url(#${p('cursor')})`} />
     </svg>
   )
 }
+
+/** favicon 数据 URI(与 BrandMark 同款,内联进 index.html) */
+export const FAVICON_URI =
+  'data:image/svg+xml,' +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="p" x1="4" y1="2" x2="36" y2="38" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#283058"/><stop offset="1" stop-color="#131834"/></linearGradient><linearGradient id="a" x1="10" y1="10" x2="28" y2="30" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#b9c2ff"/><stop offset=".55" stop-color="#7c88f4"/><stop offset="1" stop-color="#4a53c9"/></linearGradient><radialGradient id="g" cx=".78" cy=".5" r=".5"><stop offset="0" stop-color="#aab4ff" stop-opacity=".85"/><stop offset="1" stop-color="#8b96ff" stop-opacity="0"/></radialGradient></defs><rect x="1.5" y="1.5" width="37" height="37" rx="10.5" fill="url(#p)"/><rect x="2.5" y="2.5" width="35" height="35" rx="9.5" stroke="#fff" stroke-opacity=".1"/><path d="M26.5 14a9.5 9.5 0 1 0 0 12" stroke="url(#a)" stroke-width="3.4" stroke-linecap="round"/><circle cx="27" cy="20" r="7" fill="url(#g)"/><rect x="24.6" y="17.6" width="4.8" height="4.8" rx="1.3" fill="#e8ecff"/></svg>`,
+  )
