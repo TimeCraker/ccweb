@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
 import { AgentSession } from './agent.js'
-import { fetchHistory, listSessionMetas, renameSessionMeta } from './sessions.js'
+import { fetchHistory, listSessionMetas, renameSessionMeta, deleteSessionMeta } from './sessions.js'
 import {
   runtimeSettings,
   listEndpointTemplates,
@@ -17,6 +17,7 @@ import {
   listUserSkills,
   listUserRules,
   readClaudeMd,
+  listSlashCommands,
 } from './settings.js'
 
 const PORT = Number(process.env.CCWEB_PORT ?? 3477)
@@ -175,6 +176,7 @@ wss.on('connection', (ws) => {
           sessionId: agent.sessionId,
           model: null,
           endpoint: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+          slashCommands: [],
         })
         emit({ t: 'cleared', seq: 0 })
         // 历史回放:归一化消息流供前端渲染模型重放
@@ -195,6 +197,15 @@ wss.on('connection', (ws) => {
       case 'settings.get':
         emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
         break
+      case 'session.delete': {
+        const ok = await deleteSessionMeta(msg.sessionId)
+        if (!ok) {
+          emit({ t: 'error', seq: 0, code: 'delete_failed', message: 'deleteSession failed.' })
+        }
+        if (currentSession?.sessionId === msg.sessionId) currentSession = null
+        await pushSessionList()
+        break
+      }
       case 'workspace.set': {
         runtimeSettings.workspace = msg.dir
         // 切工作区 = 会话上下文切换:清当前会话,列表按新工作区拉
@@ -261,6 +272,7 @@ function settingsSnapshot(): SettingsSnapshot {
     skills: listUserSkills().map(({ name, description }) => ({ name, description })),
     rules: listUserRules(),
     claudeMd: readClaudeMd(),
+    slashCommands: listSlashCommands(runtimeSettings.workspace),
   }
 }
 

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ToolBlock } from '../render/blocks'
 import {
   IconTerminal,
@@ -8,6 +8,20 @@ import {
   IconGlobe,
   IconSparkle,
 } from './Icon'
+
+/** 执行中耗时(dsh 对齐:长命令不像卡死) */
+function useElapsed(active: boolean): string {
+  const [sec, setSec] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    const start = Date.now()
+    setSec(0)
+    const t = setInterval(() => setSec(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [active])
+  if (!active) return ''
+  return sec >= 60 ? `${Math.floor(sec / 60)}m${sec % 60}s` : `${sec}s`
+}
 
 const RESULT_LIMIT = 2000
 
@@ -35,6 +49,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
   const [open, setOpen] = useState(false)
   const autoExpand = block.toolName === 'Bash' && (block.status === 'done' || block.status === 'error')
   const effectiveOpen = open || autoExpand
+  const elapsed = useElapsed(block.status === 'running' || block.status === 'streaming')
   const meta = TOOL_META[block.toolName]
   const badge = STATUS_BADGE[block.status]
   const summary = useMemo(() => {
@@ -67,7 +82,10 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
         {block.status === 'running' && (
           <span className="size-3 shrink-0 animate-spin rounded-full border border-accent border-t-transparent" />
         )}
-        <span className={`shrink-0 text-[10px] ${badge.cls}`}>{badge.text}</span>
+        <span className={`shrink-0 font-mono text-[10px] ${badge.cls}`}>
+          {badge.text}
+          {elapsed ? ` ${elapsed}` : ''}
+        </span>
         <span className={`shrink-0 text-text-faint transition-transform ${effectiveOpen ? 'rotate-90' : ''}`}>▸</span>
       </button>
 

@@ -212,3 +212,34 @@ export function readClaudeMd(): string | null {
     return null
   }
 }
+
+/**
+ * 斜杠命令:直扫 ~/.claude/commands 与工作区 .claude/commands(连接即有,无需 spawn);
+ * SDK init 的 slash_commands 到达后由前端合并(补内置命令)。
+ */
+export function listSlashCommands(workspace?: string | null): Array<{ name: string; description: string }> {
+  const out: Array<{ name: string; description: string }> = []
+  const scan = (dir: string) => {
+    let files: string[]
+    try {
+      files = readdirSync(dir).filter((f) => f.endsWith('.md'))
+    } catch {
+      return
+    }
+    for (const f of files) {
+      const name = f.replace(/\.md$/, '')
+      let description = ''
+      try {
+        const md = readFileSync(join(dir, f), 'utf8')
+        const m = md.match(/^description:\s*(.+)$/m)
+        if (m?.[1]) description = m[1].trim().slice(0, 100)
+      } catch {
+        // 描述可选
+      }
+      out.push({ name, description })
+    }
+  }
+  scan(join(CC_DIR, 'commands'))
+  if (workspace) scan(join(workspace, '.claude', 'commands'))
+  return out
+}

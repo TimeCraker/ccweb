@@ -32,6 +32,7 @@ export interface SettingsSnapshot {
   skills: Array<{ name: string; description: string }>
   rules: Array<{ name: string; size: number }>
   claudeMd: string | null
+  slashCommands: Array<{ name: string; description: string }>
 }
 
 export interface ServerMessage {
@@ -40,6 +41,7 @@ export interface ServerMessage {
   sessionId?: string | null
   model?: string | null
   endpoint?: string | null
+  slashCommands?: Array<{ name: string; description: string }>
   action?: 'start' | 'stop'
   blockType?: 'thinking' | 'text' | 'tool_use'
   index?: number

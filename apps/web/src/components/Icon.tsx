@@ -125,6 +125,18 @@ export const IconPencil = (p: P) => (
   </svg>
 )
 
+export const IconTrash = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6" />
+  </svg>
+)
+
+export const IconRefresh = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
+  </svg>
+)
+
 export const IconBrain = (p: P) => (
   <svg {...base(p)}>
     <path d="M12 5a3 3 0 1 0-5.9.8 3 3 0 0 0-1.9 5.4A3 3 0 0 0 6 17a3 3 0 0 0 6 1M12 5a3 3 0 1 1 5.9.8 3 3 0 0 1 1.9 5.4A3 3 0 0 1 18 17a3 3 0 0 1-6 1M12 5v14" />

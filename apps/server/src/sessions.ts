@@ -1,4 +1,4 @@
-import { listSessions, getSessionMessages, renameSession } from '@anthropic-ai/claude-agent-sdk'
+import { listSessions, getSessionMessages, renameSession, deleteSession } from '@anthropic-ai/claude-agent-sdk'
 import type { SessionMeta } from './protocol.js'
 
 /**
@@ -71,6 +71,15 @@ export async function renameSessionMeta(sessionId: string, title: string): Promi
       sessionId,
       title,
     )
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function deleteSessionMeta(sessionId: string): Promise<boolean> {
+  try {
+    await (deleteSession as unknown as (id: string, opts?: unknown) => Promise<unknown>)(sessionId)
     return true
   } catch {
     return false

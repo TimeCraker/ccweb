@@ -16,17 +16,24 @@ interface Props {
   onNewSession: () => void
   onOpenSettings: () => void
   onOpenSession: (id: string) => void
+  onSetWorkspace: (dir: string) => void
 }
 
-/** 命令面板(Ctrl+K):动作 + 会话跳转,全键盘操作 */
+const EMPTY_WORKSPACES: Array<{ dir: string; sessions: number; lastModified: string | null }> = []
+
+/** 命令面板(Ctrl+K):动作 + 工作区 + 会话跳转,全键盘操作 */
 export default function CommandPalette({
   open,
   onClose,
   onNewSession,
   onOpenSettings,
   onOpenSession,
+  onSetWorkspace,
 }: Props) {
   const sessions = useStore((s) => s.sessions)
+  // 注意:zustand selector 必须返回稳定引用;派生默认值放 selector 外(否则 React #185)
+  const settings = useStore((s) => s.settings)
+  const workspaces = settings?.workspaces ?? EMPTY_WORKSPACES
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -47,17 +54,26 @@ export default function CommandPalette({
       { id: 'theme', label: t('palette.cmd.theme'), run: toggleTheme },
       { id: 'lang', label: t('palette.cmd.lang'), run: toggleLocale },
     ]
+    const wsList: Cmd[] = workspaces.slice(0, 10).map((w) => {
+      const parts = w.dir.split(/[\\/]/).filter(Boolean)
+      return {
+        id: `w:${w.dir}`,
+        label: `切换工作区:${parts[parts.length - 1] ?? w.dir}`,
+        hint: 'workspace',
+        run: () => onSetWorkspace(w.dir),
+      }
+    })
     const sess: Cmd[] = sessions.slice(0, 20).map((s) => ({
       id: `s:${s.id}`,
       label: s.title || '(no title)',
       hint: 'session',
       run: () => onOpenSession(s.id),
     }))
-    const all = [...cmds, ...sess]
+    const all = [...cmds, ...wsList, ...sess]
     if (!q) return all
     const needle = q.toLowerCase()
     return all.filter((c) => c.label.toLowerCase().includes(needle))
-  }, [q, sessions, onNewSession, onOpenSettings, onOpenSession])
+  }, [q, sessions, workspaces, onNewSession, onOpenSettings, onOpenSession, onSetWorkspace])
 
   if (!open) return null
 
@@ -109,14 +125,15 @@ export default function CommandPalette({
           )}
           {items.map((c, i) => {
             const prev = items[i - 1]
-            const isSession = c.id.startsWith('s:')
-            const prevIsSession = prev?.id.startsWith('s:')
-            const showGroup = isSession !== prevIsSession
+            const kind = c.id.startsWith('s:') ? 's' : c.id.startsWith('w:') ? 'w' : 'c'
+            const prevKind = prev ? (prev.id.startsWith('s:') ? 's' : prev.id.startsWith('w:') ? 'w' : 'c') : ''
+            const showGroup = kind !== prevKind
+            const groupLabel = kind === 's' ? t('palette.sessions') : kind === 'w' ? '工作区' : t('palette.commands')
             return (
               <div key={c.id}>
                 {showGroup && (
                   <p className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-text-faint">
-                    {isSession ? t('palette.sessions') : t('palette.commands')}
+                    {groupLabel}
                   </p>
                 )}
                 <button

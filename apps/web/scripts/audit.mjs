@@ -41,6 +41,15 @@ const connOk = await page.locator('text=已连接').isVisible().catch(() => fals
 if (!connOk) issues.push('初始连接状态未显示"已连接"')
 
 console.log('== 2. 发送真实消息(流式) ==')
+await page.fill('textarea', '/')
+await page.waitForTimeout(800)
+const slashPanel = await page
+  .locator('.absolute.bottom-full')
+  .first()
+  .isVisible()
+  .catch(() => false)
+console.log(`  斜杠补全面板: ${slashPanel ? '可见 ✓' : '未出现 ✗'}`)
+if (!slashPanel) issues.push('输入 / 未弹出命令补全')
 await page.fill('textarea', '用一句话介绍你自己,不要使用任何工具。')
 await page.keyboard.press('Enter')
 // 等助手回复开始(打字机文本出现)

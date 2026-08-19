@@ -262,6 +262,11 @@ export class AgentSession {
         sessionId: this.sessionId,
         model: (msg.model as string) ?? null,
         endpoint: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+        slashCommands: Array.isArray(msg.slash_commands)
+          ? (msg.slash_commands as Array<{ name?: string; description?: string }>)
+              .map((c) => ({ name: c.name ?? '', description: c.description ?? '' }))
+              .filter((c) => c.name !== '')
+          : [],
       })
       return
     }

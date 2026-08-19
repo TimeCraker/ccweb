@@ -10,6 +10,7 @@ import PermissionCard from './components/PermissionCard'
 import ContextPanel from './components/ContextPanel'
 import CommandPalette from './components/CommandPalette'
 import SettingsModal from './components/SettingsModal'
+import Toast from './components/Toast'
 import { BrandMark } from './components/Icon'
 
 export default function App() {
@@ -56,12 +57,24 @@ export default function App() {
             model: msg.model ?? null,
             endpoint: msg.endpoint ?? null,
           })
+          if (msg.slashCommands?.length) {
+            const existing = s.slashCommands
+            const merged = [...existing]
+            for (const c of msg.slashCommands) {
+              if (!merged.some((x) => x.name === c.name)) merged.push(c)
+            }
+            s.setSlashCommands(merged)
+          }
           break
         case 'sessions':
           if (msg.sessions) s.setSessions(msg.sessions)
           break
         case 'settings':
-          if (msg.settings) s.setSettings(msg.settings)
+          if (msg.settings) {
+            s.setSettings(msg.settings)
+            // 斜杠命令:settings 提供(连接即有);SDK init 到达时合并去重(补内置)
+            if (msg.settings.slashCommands?.length) s.setSlashCommands(msg.settings.slashCommands)
+          }
           break
         case 'mcpStatus':
           if (msg.servers) s.setMcp(msg.servers)
@@ -153,11 +166,21 @@ export default function App() {
     wsRef.current?.send({ t: 'session.open', sessionId: id, fork })
   }
   const newSession = () => {
+    // 生成中先中断,避免直接丢弃进行中的回合
+    if (useStore.getState().busy) interrupt()
     wsRef.current?.send({ t: 'session.new' })
   }
   newSessionRef.current = newSession
   const renameSession = (id: string, title: string) => {
     wsRef.current?.send({ t: 'session.rename', sessionId: id, title })
+  }
+  const deleteSession = (id: string) => {
+    wsRef.current?.send({ t: 'session.delete', sessionId: id })
+  }
+  const regenerate = () => {
+    const { entries } = useStore.getState()
+    const lastUser = [...entries].reverse().find((e) => e.type === 'user')
+    if (lastUser && lastUser.type === 'user') send(lastUser.text)
   }
   const patchSettings = (patch: Record<string, unknown>) => {
     wsRef.current?.send({ t: 'settings.patch', patch })
@@ -179,7 +202,12 @@ export default function App() {
         onSetWorkspace={setWorkspace}
       />
       <div className="flex min-h-0 flex-1">
-        <Sidebar onOpenSession={openSession} onNewSession={newSession} onRename={renameSession} />
+        <Sidebar
+          onOpenSession={openSession}
+          onNewSession={newSession}
+          onRename={renameSession}
+          onDelete={deleteSession}
+        />
         <main className="flex min-w-0 flex-1 flex-col border-l border-border">
           {empty ? (
             <div className="hero-glow flex flex-1 flex-col items-center justify-center overflow-y-auto px-6">
@@ -201,7 +229,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              <MessageStream />
+              <MessageStream onRegenerate={regenerate} />
               <PermissionCard onResolve={resolvePermission} />
               <MetricsBar />
               {composer}
@@ -216,12 +244,14 @@ export default function App() {
         onNewSession={newSession}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenSession={openSession}
+        onSetWorkspace={setWorkspace}
       />
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         send={(m) => wsRef.current?.send(m as { t: string })}
       />
+      <Toast />
     </div>
   )
 }

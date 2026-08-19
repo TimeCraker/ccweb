@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import type { SessionMeta } from '../types'
-import { IconSearch, IconFork, IconPencil, IconChat } from './Icon'
+import { IconSearch, IconFork, IconPencil, IconChat, IconTrash } from './Icon'
 
 interface Props {
   onOpenSession: (id: string, fork?: boolean) => void
   onNewSession: () => void
   onRename: (id: string, title: string) => void
+  onDelete: (id: string) => void
 }
 
 function timeAgo(iso: string | null): string {
@@ -22,7 +23,7 @@ function timeAgo(iso: string | null): string {
   return `${d} 天前`
 }
 
-export default function Sidebar({ onOpenSession, onNewSession, onRename }: Props) {
+export default function Sidebar({ onOpenSession, onNewSession, onRename, onDelete }: Props) {
   const conn = useStore((s) => s.conn)
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.sessionId)
@@ -81,6 +82,7 @@ export default function Sidebar({ onOpenSession, onNewSession, onRename }: Props
             onOpen={() => onOpenSession(s.id)}
             onFork={() => onOpenSession(s.id, true)}
             onRename={(title) => onRename(s.id, title)}
+            onDelete={() => onDelete(s.id)}
           />
         ))}
       </div>
@@ -101,12 +103,14 @@ function SessionRow({
   onOpen,
   onFork,
   onRename,
+  onDelete,
 }: {
   s: SessionMeta
   active: boolean
   onOpen: () => void
   onFork: () => void
   onRename: (title: string) => void
+  onDelete: (id: string) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(s.title)
@@ -177,6 +181,19 @@ function SessionRow({
             className="grid size-6 place-items-center rounded text-text-faint hover:text-text"
           >
             <IconFork width={12} height={12} />
+          </button>
+          <button
+            aria-label="删除会话"
+            title="删除(不可恢复)"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (window.confirm(`删除会话「${s.title || s.id.slice(0, 8)}」?此操作不可恢复。`)) {
+                onDelete(s.id)
+              }
+            }}
+            className="grid size-6 place-items-center rounded text-text-faint hover:text-danger"
+          >
+            <IconTrash width={12} height={12} />
           </button>
         </div>
       )}

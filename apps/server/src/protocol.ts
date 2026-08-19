@@ -24,6 +24,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('session.list') }),
   z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional() }),
   z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
+  z.object({ t: z.literal('session.delete'), sessionId: z.string() }),
   z.object({
     t: z.literal('workspace.set'),
     dir: z.string().min(1),
@@ -47,7 +48,14 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>
 // ---------- S→C ----------
 
 export type ServerMessage =
-  | { t: 'init'; seq: number; sessionId: string | null; model: string | null; endpoint: string | null }
+  | {
+      t: 'init'
+      seq: number
+      sessionId: string | null
+      model: string | null
+      endpoint: string | null
+      slashCommands: Array<{ name: string; description: string }>
+    }
   | {
       t: 'delta'
       seq: number
@@ -110,6 +118,7 @@ export interface SettingsSnapshot {
   skills: Array<{ name: string; description: string }>
   rules: Array<{ name: string; size: number }>
   claudeMd: string | null
+  slashCommands: Array<{ name: string; description: string }>
 }
 
 /** 底栏指标条(SPEC §5 口径) */

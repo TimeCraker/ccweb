@@ -12,7 +12,11 @@ import ToolCard from './ToolCard'
  * 注意:zustand selector 必须返回稳定引用(派生数组放 useMemo),
  * 返回新数组引用会触发 React18 无限重渲染(#185)。
  */
-export default function MessageStream() {
+interface StreamProps {
+  onRegenerate?: () => void
+}
+
+export default function MessageStream({ onRegenerate }: StreamProps) {
   const rawEntries = useStore((s) => s.entries)
   const entries = useMemo(() => visibleEntries(rawEntries), [rawEntries])
   const busy = useStore((s) => s.busy)
@@ -43,7 +47,16 @@ export default function MessageStream() {
         itemContent={(_, e) => (
           <div className="px-6 py-1.5">
             <div className="mx-auto max-w-3xl">
-              {e.type === 'user' ? <UserRow key={e.id} text={e.text} /> : <TurnView key={e.id} turn={e} />}
+              {e.type === 'user' ? (
+                <UserRow key={e.id} text={e.text} />
+              ) : (
+                <TurnView
+                  key={e.id}
+                  turn={e}
+                  canRegenerate={!e.done ? false : e.id === entries[entries.length - 1]?.id && !!onRegenerate}
+                  onRegenerate={onRegenerate}
+                />
+              )}
             </div>
           </div>
         )}
@@ -63,7 +76,15 @@ function UserRow({ text }: { text: string }) {
   )
 }
 
-function TurnView({ turn }: { turn: TurnEntry }) {
+function TurnView({
+  turn,
+  canRegenerate,
+  onRegenerate,
+}: {
+  turn: TurnEntry
+  canRegenerate?: boolean
+  onRegenerate?: () => void
+}) {
   const lastTextStreaming = (() => {
     for (let i = turn.blocks.length - 1; i >= 0; i--) {
       const b = turn.blocks[i]
@@ -74,10 +95,21 @@ function TurnView({ turn }: { turn: TurnEntry }) {
   })()
 
   return (
-    <div className="space-y-1">
+    <div className="group/turn space-y-1">
       {turn.blocks.map((b, i) => (
         <BlockView key={i} block={b} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
       ))}
+      {canRegenerate && onRegenerate && (
+        <button
+          onClick={onRegenerate}
+          className="mt-1 flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] text-text-faint opacity-0 transition-opacity hover:text-text-dim group-hover/turn:opacity-100"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
+          </svg>
+          重新生成
+        </button>
+      )}
     </div>
   )
 }
