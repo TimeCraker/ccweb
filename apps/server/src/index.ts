@@ -66,7 +66,7 @@ wss.on('connection', (ws) => {
         void agent.interrupt()
         break
       case 'permission.resolve':
-        if (!agent.resolvePermission(msg.requestId, msg.allow, msg.updatedInput)) {
+        if (!agent.resolvePermission(msg.requestId, msg.allow, msg.always ?? false, msg.updatedInput)) {
           emit({ t: 'error', seq: 0, code: 'permission_not_found', message: 'No pending permission with that id.' })
         }
         break

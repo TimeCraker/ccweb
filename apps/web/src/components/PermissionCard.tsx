@@ -1,62 +1,103 @@
+import { useMemo } from 'react'
+import { diffLines } from 'diff'
 import { useStore } from '../store'
 
 interface Props {
-  onResolve: (requestId: string, allow: boolean) => void
+  onResolve: (requestId: string, allow: boolean, always?: boolean) => void
 }
 
-/** P0 基础审批卡;P1 升级:diff 高亮/命令解释/总是允许 */
+/** 危险命令模式(命令解释 + 高危标红) */
+const DANGEROUS = /\b(rm\s+-rf|del\s+\/[sq]|format|mkfs|shutdown|reboot|git\s+push\s+--force|git\s+reset\s+--hard|DROP\s+TABLE|truncate\s+table)\b/i
+
 export default function PermissionCard({ onResolve }: Props) {
   const permissions = useStore((s) => s.permissions)
   const p = permissions[permissions.length - 1]
   if (!p) return null
 
   const command = typeof p.input.command === 'string' ? p.input.command : null
-  const file =
-    typeof p.input.file_path === 'string'
-      ? p.input.file_path
-      : typeof p.input.path === 'string'
-        ? p.input.path
-        : null
+  const file = typeof p.input.file_path === 'string' ? p.input.file_path : null
+  const oldStr = typeof p.input.old_string === 'string' ? p.input.old_string : null
+  const newStr = typeof p.input.new_string === 'string' ? p.input.new_string : null
+  const isEdit = oldStr != null && newStr != null
+  const dangerous = command != null && DANGEROUS.test(command)
 
   return (
     <div className="mx-auto mb-2 max-w-3xl px-6">
-      <div className="rounded-xl border border-warn/40 bg-panel-2 p-4 shadow-lg">
+      <div
+        className={`rounded-xl border p-4 shadow-lg backdrop-blur ${
+          dangerous ? 'border-danger/50 bg-danger/5' : 'border-warn/40 bg-panel-2/95'
+        }`}
+      >
         <div className="flex items-center gap-2">
-          <span className="grid size-6 place-items-center rounded-md bg-warn/15 text-xs text-warn">
-            ⚠
+          <span className={`grid size-6 place-items-center rounded-md text-xs ${dangerous ? 'bg-danger/15 text-danger' : 'bg-warn/15 text-warn'}`}>
+            {dangerous ? '⛔' : '⚠'}
           </span>
-          <span className="text-sm font-medium">操作需要确认</span>
+          <span className="text-sm font-medium">{dangerous ? '高危操作需要确认' : '操作需要确认'}</span>
           <span className="rounded bg-border px-1.5 py-0.5 font-mono text-[11px] text-text-dim">
             {p.toolName}
           </span>
         </div>
 
+        {file && <p className="mt-2 truncate font-mono text-xs text-text-dim" title={file}>{file}</p>}
         {command && (
           <pre className="mt-3 overflow-x-auto rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-text-dim">
             {command}
           </pre>
         )}
-        {file && !command && (
-          <p className="mt-3 truncate font-mono text-xs text-text-dim" title={file}>
-            {file}
-          </p>
+        {isEdit && <EditDiff oldStr={oldStr} newStr={newStr} />}
+        {!command && !isEdit && !file && (
+          <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-text-dim">
+            {JSON.stringify(p.input, null, 2)}
+          </pre>
         )}
 
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            onClick={() => onResolve(p.requestId, false)}
-            className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-danger hover:text-danger"
-          >
-            拒绝
-          </button>
-          <button
-            onClick={() => onResolve(p.requestId, true)}
-            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover"
-          >
-            允许
-          </button>
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-[11px] text-text-faint">请确认后继续</p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onResolve(p.requestId, false)}
+              className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-danger hover:text-danger"
+            >
+              拒绝
+            </button>
+            <button
+              onClick={() => onResolve(p.requestId, true, true)}
+              className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-accent hover:text-accent"
+            >
+              总是允许
+            </button>
+            <button
+              onClick={() => onResolve(p.requestId, true)}
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover"
+            >
+              允许
+            </button>
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+/** Edit 工具行级 diff:删除红 / 新增绿 */
+function EditDiff({ oldStr, newStr }: { oldStr: string; newStr: string }) {
+  const parts = useMemo(() => diffLines(oldStr, newStr), [oldStr, newStr])
+  return (
+    <pre className="mt-3 max-h-56 overflow-auto rounded-lg border border-border bg-bg font-mono text-xs leading-relaxed">
+      {parts.map((part, i) => (
+        <span
+          key={i}
+          className={
+            part.added
+              ? 'block bg-ok/10 px-3 text-ok'
+              : part.removed
+                ? 'block bg-danger/10 px-3 text-danger line-through decoration-danger/40'
+                : 'block px-3 text-text-faint'
+          }
+        >
+          {part.value.replace(/\n$/, '')}
+        </span>
+      ))}
+    </pre>
   )
 }

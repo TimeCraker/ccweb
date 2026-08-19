@@ -17,6 +17,8 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
     requestId: z.string(),
     allow: z.boolean(),
     updatedInput: z.record(z.string(), z.unknown()).optional(),
+    /** 会话级总是允许该工具(server 侧 allowlist,后续同工具自动放行) */
+    always: z.boolean().optional(),
   }),
   z.object({ t: z.literal('session.new') }),
   z.object({ t: z.literal('session.list') }),
@@ -29,7 +31,24 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>
 
 export type ServerMessage =
   | { t: 'init'; seq: number; sessionId: string | null; model: string | null; endpoint: string | null }
-  | { t: 'delta'; seq: number; sessionId: string; kind: 'text' | 'thinking'; text: string }
+  | {
+      t: 'delta'
+      seq: number
+      sessionId: string
+      kind: 'text' | 'thinking' | 'tool_input'
+      text: string
+      toolUseId?: string
+    }
+  | {
+      t: 'block'
+      seq: number
+      sessionId: string
+      action: 'start' | 'stop'
+      blockType: 'thinking' | 'text' | 'tool_use'
+      index: number
+      toolUseId?: string
+      toolName?: string
+    }
   | { t: 'message'; seq: number; sessionId: string; sdkMessage: unknown }
   | {
       t: 'permission.ask'
@@ -41,6 +60,7 @@ export type ServerMessage =
     }
   | { t: 'permission.resolved'; seq: number; requestId: string; allow: boolean }
   | { t: 'metrics'; seq: number; sessionId: string; metrics: SessionMetrics }
+  | { t: 'context'; seq: number; sessionId: string; usage: unknown }
   | { t: 'error'; seq: number; code: string; message: string; retry?: boolean }
   | { t: 'pong'; seq: number }
 

@@ -64,3 +64,130 @@ body {
 textarea {
   field-sizing: content;
 }
+
+/* ---------- markdown 渲染(消息流内) ---------- */
+.md > :first-child {
+  margin-top: 0;
+}
+.md > :last-child {
+  margin-bottom: 0;
+}
+.md p {
+  margin: 0.5em 0;
+  line-height: 1.7;
+}
+.md h1,
+.md h2,
+.md h3,
+.md h4 {
+  margin: 1em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.md h1 {
+  font-size: 1.25em;
+}
+.md h2 {
+  font-size: 1.15em;
+}
+.md h3 {
+  font-size: 1.05em;
+}
+.md ul,
+.md ol {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+  line-height: 1.7;
+}
+.md ul {
+  list-style: disc;
+}
+.md ol {
+  list-style: decimal;
+}
+.md li::marker {
+  color: var(--color-text-faint);
+}
+.md a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+.md a:hover {
+  text-decoration: underline;
+}
+.md blockquote {
+  margin: 0.5em 0;
+  border-left: 2px solid var(--color-border-strong);
+  padding-left: 1em;
+  color: var(--color-text-dim);
+}
+.md code {
+  border-radius: 4px;
+  background: var(--color-panel-2);
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.md pre {
+  margin: 0.6em 0;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg);
+  padding: 0.75em 1em;
+  line-height: 1.6;
+}
+.md pre code {
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+}
+.md table {
+  margin: 0.6em 0;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.md th,
+.md td {
+  border: 1px solid var(--color-border);
+  padding: 0.35em 0.7em;
+  text-align: left;
+}
+.md th {
+  background: var(--color-panel-2);
+  font-weight: 600;
+}
+.md hr {
+  margin: 1em 0;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+}
+/* highlight.js 暗色(与主题一致的低调配色) */
+.md .hljs-keyword,
+.md .hljs-selector-tag,
+.md .hljs-meta {
+  color: #c792ea;
+}
+.md .hljs-string,
+.md .hljs-attr {
+  color: #c3e88d;
+}
+.md .hljs-number,
+.md .hljs-literal {
+  color: #f78c6c;
+}
+.md .hljs-title,
+.md .hljs-name,
+.md .hljs-function {
+  color: #82aaff;
+}
+.md .hljs-comment,
+.md .hljs-quote {
+  color: var(--color-text-faint);
+  font-style: italic;
+}
+.md .hljs-built_in,
+.md .hljs-type {
+  color: #ffcb6b;
+}

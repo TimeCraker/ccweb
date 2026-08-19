@@ -6,6 +6,7 @@ import MessageStream from './components/MessageStream'
 import Composer from './components/Composer'
 import MetricsBar from './components/MetricsBar'
 import PermissionCard from './components/PermissionCard'
+import ContextPanel from './components/ContextPanel'
 
 export default function App() {
   const wsRef = useRef<WsClient | null>(null)
@@ -26,16 +27,37 @@ export default function App() {
             endpoint: msg.endpoint ?? null,
           })
           break
+        case 'block':
+          if (msg.action === 'start') {
+            s.onBlockStart({
+              blockType: msg.blockType ?? 'text',
+              index: msg.index ?? 0,
+              toolUseId: msg.toolUseId,
+              toolName: msg.toolName,
+            })
+          } else {
+            s.onBlockStop(msg.index ?? 0)
+          }
+          break
         case 'delta':
-          if (msg.kind === 'text' && msg.text) s.appendDelta(msg.text)
+          if (msg.text) {
+            s.onDelta({ kind: msg.kind ?? 'text', text: msg.text, toolUseId: msg.toolUseId })
+          }
           break
         case 'message': {
-          const sm = msg.sdkMessage as { type?: string; subtype?: string } | undefined
-          if (sm?.type === 'result') s.finishStream()
+          const sm = msg.sdkMessage as { type?: string } | undefined
+          if (sm?.type === 'assistant') s.onAssistantMessage(msg.sdkMessage)
+          else if (sm?.type === 'user') s.onUserMessage(msg.sdkMessage)
+          else if (sm?.type === 'result') s.finishTurn()
           break
         }
         case 'metrics':
           if (msg.metrics) s.setMetrics(msg.metrics)
+          break
+        case 'context':
+          if (msg.usage && typeof msg.usage === 'object') {
+            s.setContext(msg.usage as Record<string, unknown>)
+          }
           break
         case 'permission.ask':
           if (msg.requestId && msg.toolName) {
@@ -66,9 +88,9 @@ export default function App() {
     wsRef.current?.send({ t: 'interrupt' })
     useStore.getState().setBusy(false)
   }
-  const resolvePermission = (requestId: string, allow: boolean) => {
+  const resolvePermission = (requestId: string, allow: boolean, always = false) => {
     useStore.getState().resolvePermissionLocal(requestId)
-    wsRef.current?.send({ t: 'permission.resolve', requestId, allow })
+    wsRef.current?.send({ t: 'permission.resolve', requestId, allow, always })
   }
 
   return (
@@ -80,6 +102,7 @@ export default function App() {
         <MetricsBar />
         <Composer onSend={send} onInterrupt={interrupt} />
       </main>
+      <ContextPanel />
     </div>
   )
 }

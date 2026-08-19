@@ -54,12 +54,14 @@ class PromptQueue {
   }
 }
 
-/** canUseTool 挂起闸门:WS 回执 resolve */
+/** canUseTool 挂起闸门:WS 回执 resolve + 会话级工具 allowlist */
 class PermissionGate {
   private pending = new Map<
     string,
     { toolName: string; input: Record<string, unknown>; resolve: (r: PermissionResult) => void }
   >()
+  /** 会话内"总是允许"的工具名集合 */
+  readonly alwaysAllow = new Set<string>()
 
   wait(
     requestId: string,
@@ -67,16 +69,25 @@ class PermissionGate {
     input: Record<string, unknown>,
     onAsk: (requestId: string, toolName: string, input: Record<string, unknown>) => void,
   ): Promise<PermissionResult> {
+    if (this.alwaysAllow.has(toolName)) {
+      return Promise.resolve({ behavior: 'allow' })
+    }
     onAsk(requestId, toolName, input)
     return new Promise((resolve) => {
       this.pending.set(requestId, { toolName, input, resolve })
     })
   }
 
-  resolve(requestId: string, allow: boolean, updatedInput?: Record<string, unknown>): boolean {
+  resolve(
+    requestId: string,
+    allow: boolean,
+    always: boolean,
+    updatedInput?: Record<string, unknown>,
+  ): boolean {
     const entry = this.pending.get(requestId)
     if (!entry) return false
     this.pending.delete(requestId)
+    if (allow && always) this.alwaysAllow.add(entry.toolName)
     if (allow) {
       entry.resolve({ behavior: 'allow', updatedInput })
     } else {
@@ -101,6 +112,9 @@ export class AgentSession {
   private started = false
 
   sessionId: string | null = null
+  /** 最近 content_block_start(tool_use) 的 id——input_json_delta 只有 index,按最近 tool 块归属 */
+  private activeToolUseId: string | null = null
+  private contextTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(
     private readonly emit: Emit,
@@ -139,9 +153,10 @@ export class AgentSession {
   resolvePermission(
     requestId: string,
     allow: boolean,
+    always = false,
     updatedInput?: Record<string, unknown>,
   ): boolean {
-    const ok = this.gate.resolve(requestId, allow, updatedInput)
+    const ok = this.gate.resolve(requestId, allow, always, updatedInput)
     if (ok) this.emit({ t: 'permission.resolved', seq: 0, requestId, allow })
     return ok
   }
@@ -206,33 +221,104 @@ export class AgentSession {
     }
 
     if (type === 'stream_event') {
-      const event = msg.event as Record<string, unknown> | undefined
-      const delta = event?.delta as Record<string, unknown> | undefined
-      // TTFT 实时字段:message_start 事件上携带
-      if (event?.type === 'message_start' && typeof msg.ttft_ms === 'number') {
-        this.acc.ttftMs = msg.ttft_ms
-        this.emitMetrics()
-      }
-      if (event?.type === 'content_block_delta' && delta?.type === 'text_delta') {
-        this.emit({
-          t: 'delta',
-          seq: 0,
-          sessionId: this.sessionId ?? '',
-          kind: 'text',
-          text: delta.text as string,
-        })
-      }
+      this.handleStreamEvent(msg)
       return
     }
 
     if (type === 'result' && subtype === 'success') {
       applyResult(this.acc, msg)
       this.emitMetrics()
+      void this.pushContextUsage()
     }
 
     // 完整消息(message/result)一律转发,前端负责渲染其余类型
     if (this.sessionId) {
       this.emit({ t: 'message', seq: 0, sessionId: this.sessionId, sdkMessage: msg })
+    }
+  }
+
+  /** stream_event 细分转发:块边界(thinking/text/tool_use)+ 三类增量 */
+  private handleStreamEvent(msg: Record<string, unknown>): void {
+    const event = msg.event as Record<string, unknown> | undefined
+    if (!event) return
+    const sid = this.sessionId ?? ''
+
+    if (event.type === 'message_start' && typeof msg.ttft_ms === 'number') {
+      this.acc.ttftMs = msg.ttft_ms
+      this.emitMetrics()
+      return
+    }
+
+    if (event.type === 'content_block_start') {
+      const block = event.content_block as Record<string, unknown> | undefined
+      const blockType = block?.type as string | undefined
+      if (blockType === 'thinking' || blockType === 'text' || blockType === 'tool_use') {
+        if (blockType === 'tool_use' && typeof block?.id === 'string') {
+          this.activeToolUseId = block.id
+        }
+        this.emit({
+          t: 'block',
+          seq: 0,
+          sessionId: sid,
+          action: 'start',
+          blockType,
+          index: event.index as number,
+          toolUseId: block?.id as string | undefined,
+          toolName: block?.name as string | undefined,
+        })
+      }
+      return
+    }
+
+    if (event.type === 'content_block_stop') {
+      this.emit({
+        t: 'block',
+        seq: 0,
+        sessionId: sid,
+        action: 'stop',
+        blockType: 'text', // stop 不区分;前端按 index 对齐
+        index: event.index as number,
+      })
+      return
+    }
+
+    if (event.type === 'content_block_delta') {
+      const delta = event.delta as Record<string, unknown> | undefined
+      if (!delta) return
+      if (delta.type === 'text_delta') {
+        this.emit({ t: 'delta', seq: 0, sessionId: sid, kind: 'text', text: delta.text as string })
+      } else if (delta.type === 'thinking_delta') {
+        this.emit({ t: 'delta', seq: 0, sessionId: sid, kind: 'thinking', text: delta.thinking as string })
+      } else if (delta.type === 'input_json_delta') {
+        this.emit({
+          t: 'delta',
+          seq: 0,
+          sessionId: sid,
+          kind: 'tool_input',
+          text: delta.partial_json as string,
+          toolUseId: this.activeToolUseId ?? undefined,
+        })
+      }
+      return
+    }
+  }
+
+  /** 上下文水位:事件驱动(result 后)+ 会话进行中低频轮询 */
+  private async pushContextUsage(): Promise<void> {
+    const q = this.q
+    if (!q || typeof (q as unknown as { getContextUsage?: unknown }).getContextUsage !== 'function') {
+      return
+    }
+    try {
+      const usage = await (q as unknown as { getContextUsage: () => Promise<unknown> }).getContextUsage()
+      if (usage && this.sessionId) {
+        this.emit({ t: 'context', seq: 0, sessionId: this.sessionId, usage })
+        if (!this.contextTimer) {
+          this.contextTimer = setInterval(() => void this.pushContextUsage(), 15_000)
+        }
+      }
+    } catch {
+      // 上下文探测失败不影响主流程
     }
   }
 

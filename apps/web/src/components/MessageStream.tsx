@@ -1,8 +1,12 @@
-import { useEffect, useRef } from 'react'
-import { useStore } from '../store'
+import { useEffect, useRef, useState } from 'react'
+import { useStore, visibleEntries } from '../store'
+import type { Block, TurnEntry } from '../render/blocks'
+import Markdown from './Markdown'
+import ThinkingBlock from './ThinkingBlock'
+import ToolCard from './ToolCard'
 
 export default function MessageStream() {
-  const entries = useStore((s) => s.entries)
+  const entries = useStore((s) => visibleEntries(s.entries))
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -26,24 +30,78 @@ export default function MessageStream() {
       ) : (
         <div className="mx-auto max-w-3xl space-y-4">
           {entries.map((e) =>
-            e.role === 'user' ? (
-              <div key={e.id} className="flex justify-end">
+            e.type === 'user' ? (
+              <div key={e.id} className="group flex justify-end">
                 <div className="max-w-[80%] whitespace-pre-wrap rounded-xl rounded-br-sm border border-border-strong bg-panel-2 px-4 py-2.5">
                   {e.text}
                 </div>
+                <CopyButton text={e.text} className="ml-1.5 opacity-0 transition-opacity group-hover:opacity-100" />
               </div>
             ) : (
-              <div
-                key={e.id}
-                className={`whitespace-pre-wrap leading-relaxed ${e.streaming ? 'stream-caret' : ''}`}
-              >
-                {e.text || '…'}
-              </div>
+              <TurnView key={e.id} turn={e} />
             ),
           )}
           <div ref={bottomRef} />
         </div>
       )}
     </div>
+  )
+}
+
+function TurnView({ turn }: { turn: TurnEntry }) {
+  const lastTextStreaming = (() => {
+    for (let i = turn.blocks.length - 1; i >= 0; i--) {
+      const b = turn.blocks[i]
+      if (b && b.kind === 'text') return b.streaming
+      if (b && b.kind === 'tool') return false
+    }
+    return false
+  })()
+
+  return (
+    <div className="space-y-1">
+      {turn.blocks.map((b, i) => (
+        <BlockView key={i} block={b} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
+      ))}
+    </div>
+  )
+}
+
+function BlockView({ block, isLastText }: { block: Block; isLastText: boolean }) {
+  const [copied, setCopied] = useState(false)
+  if (block.kind === 'thinking') return <ThinkingBlock block={block} />
+  if (block.kind === 'tool') return <ToolCard block={block} />
+  return (
+    <div className={`group relative ${isLastText ? 'stream-caret' : ''}`}>
+      <Markdown text={block.text || '…'} />
+      {!block.streaming && block.text && (
+        <button
+          onClick={() => {
+            void navigator.clipboard.writeText(block.text)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1200)
+          }}
+          className="absolute -right-14 top-0 rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint opacity-0 transition-opacity hover:text-text group-hover:opacity-100"
+        >
+          {copied ? '已复制' : '复制'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function CopyButton({ text, className }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => {
+        void navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1200)
+      }}
+      className={`self-center rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint transition-colors hover:text-text ${className ?? ''}`}
+    >
+      {copied ? '已复制' : '复制'}
+    </button>
   )
 }

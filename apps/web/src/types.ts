@@ -18,14 +18,19 @@ export interface ServerMessage {
   sessionId?: string | null
   model?: string | null
   endpoint?: string | null
-  kind?: 'text' | 'thinking'
+  action?: 'start' | 'stop'
+  blockType?: 'thinking' | 'text' | 'tool_use'
+  index?: number
+  kind?: 'text' | 'thinking' | 'tool_input'
   text?: string
+  toolUseId?: string
+  toolName?: string
   sdkMessage?: unknown
   requestId?: string
-  toolName?: string
   input?: Record<string, unknown>
   allow?: boolean
   metrics?: SessionMetrics
+  usage?: unknown
   code?: string
   message?: string
   retry?: boolean
