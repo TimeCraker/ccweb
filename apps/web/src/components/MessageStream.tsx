@@ -7,16 +7,19 @@ import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
 import { copyText } from '../clipboard'
+import { IconFork } from './Icon'
 
 interface StreamProps {
   onRegenerate?: () => void
+  /** 消息级 fork:从用户消息行分叉(SDK 为会话级 fork,从现会话末尾复制) */
+  onForkFromMessage?: () => void
 }
 
 /**
  * 消息流:虚拟滚动 + 钉底跟随(dsh 语义:非钉底不跟随 + 浮动回底按钮)。
  * zustand selector 一律稳定引用(派生放 useMemo,防 React #185)。
  */
-export default function MessageStream({ onRegenerate }: StreamProps) {
+export default function MessageStream({ onRegenerate, onForkFromMessage }: StreamProps) {
   const rawEntries = useStore((s) => s.entries)
   const entries = useMemo(() => visibleEntries(rawEntries), [rawEntries])
   const busy = useStore((s) => s.busy)
@@ -49,7 +52,7 @@ export default function MessageStream({ onRegenerate }: StreamProps) {
           <div className="px-6 py-1.5">
             <div className="mx-auto max-w-3xl">
               {e.type === 'user' ? (
-                <UserRow key={e.id} text={e.text} />
+                <UserRow key={e.id} text={e.text} onFork={onForkFromMessage} />
               ) : (
                 <TurnView
                   key={e.id}
@@ -100,8 +103,9 @@ function RunningTimer({ startedAt }: { startedAt: number }) {
   )
 }
 
-/** 用户消息:`/命令` `@提及` chip 化装饰(dsh projectUserText 对齐) */
-function UserRow({ text }: { text: string }) {
+/** 用户消息:`/命令` `@提及` chip 化装饰(dsh projectUserText 对齐);hover 可复制/分叉 */
+function UserRow({ text, onFork }: { text: string; onFork?: () => void }) {
+  useLocale()
   return (
     <div className="animate-msg-in group flex justify-end">
       <div className="max-w-[80%] rounded-xl rounded-br-sm border border-border-strong bg-panel-2 px-4 py-2.5">
@@ -123,6 +127,16 @@ function UserRow({ text }: { text: string }) {
           return <span key={i}>{tok}</span>
         })}
       </div>
+      {onFork && (
+        <button
+          onClick={onFork}
+          aria-label={t('ms.fork')}
+          title={t('ms.fork')}
+          className="ml-1.5 grid size-6 shrink-0 place-items-center self-center rounded-md border border-border bg-panel text-text-faint opacity-0 transition-opacity focus-visible:opacity-100 hover:text-text group-hover:opacity-100"
+        >
+          <IconFork width={12} height={12} />
+        </button>
+      )}
       <CopyBtn text={text} className="ml-1.5 self-center opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100" />
     </div>
   )

@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws'
 import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
 import { AgentSession } from './agent.js'
 import { fetchHistory, listSessionMetas, renameSessionMeta, deleteSessionMeta } from './sessions.js'
+import { searchWorkspaceFiles } from './files.js'
 import {
   runtimeSettings,
   listEndpointTemplates,
@@ -85,10 +86,10 @@ wss.on('connection', (ws) => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg))
   }
 
-  /** 重连对账:重放 lastSeq 之后的缺口(历史/元数据消息不重放) */
+  /** 重连对账:重放 lastSeq 之后的缺口(历史/元数据/瞬态补全结果不重放) */
   function replaySince(lastSeq: number): void {
     for (const m of ring) {
-      if ((m.seq ?? 0) > lastSeq && m.t !== 'history' && m.t !== 'sessions') {
+      if ((m.seq ?? 0) > lastSeq && m.t !== 'history' && m.t !== 'sessions' && m.t !== 'files') {
         emitRaw(m)
       }
     }
@@ -189,6 +190,10 @@ wss.on('connection', (ws) => {
         break
       case 'session.list':
         void pushSessionList()
+        break
+      case 'files.search':
+        // @文件补全:工作区扫描(同步,已 try/catch 兜底)
+        emit({ t: 'files', seq: 0, files: searchWorkspaceFiles(msg.query) })
         break
       case 'session.open': {
         const agent = getOrCreateSession(msg.sessionId, msg.fork ?? false)

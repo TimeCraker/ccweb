@@ -36,6 +36,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
     t: z.literal('workspace.set'),
     dir: z.string().min(1),
   }),
+  z.object({ t: z.literal('files.search'), query: z.string() }),
   z.object({ t: z.literal('settings.get') }),
   z.object({
     t: z.literal('settings.patch'),
@@ -94,6 +95,7 @@ export type ServerMessage =
   | { t: 'metrics'; seq: number; sessionId: string; metrics: SessionMetrics }
   | { t: 'context'; seq: number; sessionId: string; usage: unknown }
   | { t: 'sessions'; seq: number; sessions: SessionMeta[] }
+  | { t: 'files'; seq: number; files: string[] }
   | { t: 'queue'; seq: number; items: Array<{ uuid: string; text: string }> }
   | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
   | { t: 'settings'; seq: number; settings: SettingsSnapshot }

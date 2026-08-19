@@ -87,6 +87,9 @@ export default function App() {
         case 'sessions':
           if (msg.sessions) s.setSessions(msg.sessions)
           break
+        case 'files':
+          if (msg.files) s.setFileResults(msg.files)
+          break
         case 'settings':
           if (msg.settings) {
             s.setSettings(msg.settings)
@@ -248,9 +251,18 @@ export default function App() {
   const patchSettings = (patch: Record<string, unknown>) => {
     wsRef.current?.send({ t: 'settings.patch', patch })
   }
+  /** 消息级 fork 入口:SDK 仅支持会话级 fork(从末尾),故从现会话分叉即可 */
+  const forkFromMessage = () => {
+    const sid = useStore.getState().sessionId
+    if (sid) openSession(sid, true)
+  }
+  /** @文件补全:server 侧工作区扫描 */
+  const searchFiles = (query: string) => {
+    wsRef.current?.send({ t: 'files.search', query })
+  }
 
   const composer = (
-    <Composer onSend={send} onInterrupt={interrupt} hero={empty} />
+    <Composer onSend={send} onInterrupt={interrupt} onSearchFiles={searchFiles} hero={empty} />
   )
 
   const setWorkspace = (dir: string) => {
@@ -300,7 +312,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              <MessageStream onRegenerate={regenerate} />
+              <MessageStream onRegenerate={regenerate} onForkFromMessage={forkFromMessage} />
               <QueueDock onDelete={(uuid) => wsRef.current?.send({ t: 'queue.delete', uuid })} />
               <PermissionCard onResolve={resolvePermission} />
               <MetricsBar />

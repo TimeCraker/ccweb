@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { t, useLocale } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
+import { ansiToSegments } from '../ansi'
 import {
   IconTerminal,
   IconFile,
@@ -69,6 +70,14 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
 
   const result = block.resultText
   const truncated = result != null && result.length > RESULT_LIMIT
+  // ANSI 着色(Bash 输出):含转义时切带色 span 渲染,否则原样
+  const display =
+    result != null
+      ? truncated
+        ? `${result.slice(0, RESULT_LIMIT)}\n…${t('tl.truncated')}`
+        : result
+      : ''
+  const hasAnsi = result != null && result.includes('\x1b')
 
   return (
     <div className="tool-card my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
@@ -115,8 +124,17 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
                     : 'border-border bg-bg text-text-dim'
                 }`}
               >
-                {truncate(result, RESULT_LIMIT)}
-                {truncated ? `\n…${t('tl.truncated')}` : ''}
+                {hasAnsi
+                  ? ansiToSegments(display).map((seg, i) => (
+                      <span
+                        key={i}
+                        style={seg.fg ? { color: seg.fg } : undefined}
+                        className={seg.bold ? 'font-bold' : undefined}
+                      >
+                        {seg.text}
+                      </span>
+                    ))
+                  : display}
               </pre>
             </div>
           )}

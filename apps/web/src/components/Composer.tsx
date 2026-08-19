@@ -1,23 +1,28 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
-import { IconSend, IconStop } from './Icon'
+import { IconSend, IconStop, IconFile } from './Icon'
+import Lightbox from './Lightbox'
 
 interface Props {
   onSend: (text: string, images?: string[]) => void
   onInterrupt: () => void
+  /** @文件补全:向 server 发起工作区文件搜索 */
+  onSearchFiles?: (query: string) => void
   /** hero 模式:空态居中大输入框 */
   hero?: boolean
 }
 
-export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
+export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = false }: Props) {
   const [text, setText] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [slashSel, setSlashSel] = useState(0)
+  const [fileSel, setFileSel] = useState(0)
+  const [lightbox, setLightbox] = useState<string | null>(null)
   useLocale()
   const busy = useStore((s) => s.busy)
   const slashCommands = useStore((s) => s.slashCommands)
-  useLocale()
+  const fileResults = useStore((s) => s.fileResults)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -47,9 +52,30 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
       .slice(0, 8)
   }, [text, slashCommands])
 
+  /** @文件补全:末词以 @ 开头(词边界检测,行首或空白后)时激活 */
+  const atQuery = useMemo(() => {
+    const m = /(?:^|\s)@([^\s@]*)$/.exec(text)
+    return m ? (m[1] ?? '') : null
+  }, [text])
+
+  /** 客户端再过滤一次(server 结果可能滞后于输入),与斜杠面板同款交互 */
+  const fileMatches = useMemo(() => {
+    if (atQuery == null) return []
+    const q = atQuery.toLowerCase()
+    return fileResults.filter((f) => f.toLowerCase().includes(q)).slice(0, 15)
+  }, [atQuery, fileResults])
+
+  // 激活词变化:防抖发起搜索 + 重置选中项
+  useEffect(() => {
+    setFileSel(0)
+    if (atQuery == null || !onSearchFiles) return
+    const h = setTimeout(() => onSearchFiles(atQuery), 200)
+    return () => clearTimeout(h)
+  }, [atQuery, onSearchFiles])
+
   const submit = () => {
     const txt = text.trim()
-    // busy 时 Enter = 排队发送(dsh Queue 语义),不吞输入
+    // busy 时 Enter = 排队发送(dsh Queue 语义),不吞输入;@路径 原样保留(Claude 自行理解)
     if (!txt && images.length === 0) return
     onSend(txt || t('cp.imageOnly'), images.length ? images : undefined)
     setText('')
@@ -59,6 +85,13 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
   const pickSlash = (name: string) => {
     setText(`/${name} `)
     setSlashSel(0)
+    taRef.current?.focus()
+  }
+
+  /** 选中文件:把末尾 @词 替换为 @相对路径 (带尾空格,结束补全态) */
+  const pickFile = (path: string) => {
+    setText((prev) => prev.replace(/@[^\s@]*$/, `@${path} `))
+    setFileSel(0)
     taRef.current?.focus()
   }
 
@@ -82,14 +115,35 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
             ))}
           </div>
         )}
+        {fileMatches.length > 0 && (
+          <div className="animate-pop-in absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-border-strong bg-panel p-1.5 shadow-2xl">
+            {fileMatches.map((f, i) => (
+              <button
+                key={f}
+                onClick={() => pickFile(f)}
+                onMouseEnter={() => setFileSel(i)}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left ${
+                  i === fileSel ? 'bg-panel-2' : ''
+                }`}
+              >
+                <IconFile width={12} height={12} className="shrink-0 text-accent" />
+                <span className="truncate font-mono text-[11px] text-text-dim" title={f}>
+                  {f}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
         {images.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
             {images.map((src, i) => (
               <div key={i} className="group relative">
                 <img
                   src={src}
-                  alt={`attachment ${i + 1}`}
-                  className="size-16 rounded-lg border border-border object-cover"
+                  alt={`${t('cp.previewImage')} ${i + 1}`}
+                  title={t('cp.previewImage')}
+                  onClick={() => setLightbox(src)}
+                  className="size-16 cursor-zoom-in rounded-lg border border-border object-cover transition-opacity hover:opacity-85"
                 />
                 <button
                   onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
@@ -165,6 +219,22 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
                   pickSlash(slashMatches[slashSel]?.name ?? '')
                   return
                 }
+              } else if (fileMatches.length > 0) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  setFileSel((s) => Math.min(s + 1, fileMatches.length - 1))
+                  return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setFileSel((s) => Math.max(s - 1, 0))
+                  return
+                }
+                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+                  e.preventDefault()
+                  pickFile(fileMatches[fileSel] ?? fileMatches[0] ?? '')
+                  return
+                }
               }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -201,6 +271,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
           <p className="mt-2 text-center text-[11px] text-text-faint">{t('cp.hint')}</p>
         )}
       </div>
+      {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>
   )
 }

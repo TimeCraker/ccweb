@@ -43,6 +43,8 @@ interface AppState {
   settings: SettingsSnapshot | null
   mcpServers: Array<{ name: string; status: string }>
   slashCommands: Array<{ name: string; description: string }>
+  /** @文件补全结果(server files.search 的相对路径列表,≤15) */
+  fileResults: string[]
   /** 排队待处理消息(dsh QueueDock 对齐) */
   queue: Array<{ uuid: string; text: string }>
 
@@ -52,6 +54,7 @@ interface AppState {
   setSettings: (s: SettingsSnapshot) => void
   setMcp: (list: Array<{ name: string; status: string }>) => void
   setSlashCommands: (list: Array<{ name: string; description: string }>) => void
+  setFileResults: (files: string[]) => void
   setQueue: (items: Array<{ uuid: string; text: string }>) => void
   appendUser: (text: string) => void
   onBlockStart: (ev: { blockType: 'thinking' | 'text' | 'tool_use'; index: number; toolUseId?: string; toolName?: string }) => void
@@ -87,6 +90,7 @@ export const useStore = create<AppState>((set) => ({
   settings: null,
   mcpServers: [],
   slashCommands: [],
+  fileResults: [],
   queue: [],
 
   setConn: (conn) => set({ conn }),
@@ -95,6 +99,7 @@ export const useStore = create<AppState>((set) => ({
   setSettings: (settings) => set({ settings }),
   setMcp: (mcpServers) => set({ mcpServers }),
   setSlashCommands: (slashCommands) => set({ slashCommands }),
+  setFileResults: (fileResults) => set({ fileResults }),
   setQueue: (queue) => set({ queue }),
   appendUser: (text) =>
     set((s) => ({

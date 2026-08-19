@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
 import type { SessionMeta } from '../types'
@@ -12,6 +12,30 @@ interface Props {
   onRename: (id: string, title: string) => void
   onDelete: (id: string) => void
   onExport: () => void
+}
+
+// ---------- 拖拽排序(纯前端,localStorage 持久化) ----------
+
+const ORDER_KEY = 'ccweb.sessionOrder'
+
+function readSessionOrder(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as unknown
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+/** 稳定排序:order 里的按序,不在 order 里的按原序追加(派生放 selector 外,防 React #185) */
+function applySessionOrder(sessions: SessionMeta[], order: string[]): SessionMeta[] {
+  if (order.length === 0) return sessions
+  const pos = new Map(order.map((id, i) => [id, i]))
+  const known = sessions.filter((s) => pos.has(s.id))
+  if (known.length === 0) return sessions
+  const rest = sessions.filter((s) => !pos.has(s.id))
+  known.sort((a, b) => (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0))
+  return [...known, ...rest]
 }
 
 function timeAgo(iso: string | null): string {
@@ -40,7 +64,45 @@ export default function Sidebar({
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.sessionId)
   const [query, setQuery] = useState('')
+  // 拖拽排序状态(hooks 全部在 collapsed 早退之前,防 React #300)
+  const [order, setOrder] = useState<string[]>(() => readSessionOrder())
+  const [dragId, setDragId] = useState<string | null>(null)
+  const dragIdRef = useRef<string | null>(null)
   useLocale()
+
+  // 顺序变更即写回(挂载时回写同值,无副作用)
+  useEffect(() => {
+    try {
+      localStorage.setItem(ORDER_KEY, JSON.stringify(order))
+    } catch {
+      // 隐私模式等写入失败忽略
+    }
+  }, [order])
+
+  const handleItemDragStart = (id: string) => {
+    dragIdRef.current = id
+    setDragId(id)
+  }
+
+  /** 拖动项 hover 到目标行:交换两者顺序(交换后光标下即拖动项自身,重复事件自然空转) */
+  const handleItemDragOver = (targetId: string) => {
+    const dragged = dragIdRef.current
+    if (!dragged || dragged === targetId) return
+    setOrder((prev) => {
+      const ids = applySessionOrder(sessions, prev).map((s) => s.id)
+      const i = ids.indexOf(dragged)
+      const j = ids.indexOf(targetId)
+      if (i === -1 || j === -1 || i === j) return prev
+      ids[i] = targetId
+      ids[j] = dragged
+      return ids
+    })
+  }
+
+  const handleItemDragEnd = () => {
+    dragIdRef.current = null
+    setDragId(null)
+  }
 
   /** 折叠态:窄条,仅图标(悬停展开省略;Ctrl+B 切换) */
   if (collapsed) {
@@ -74,9 +136,10 @@ export default function Sidebar({
     )
   }
 
+  const ordered = applySessionOrder(sessions, order)
   const filtered = query
-    ? sessions.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
-    : sessions
+    ? ordered.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
+    : ordered
 
   const connDot =
     conn === 'open' ? 'bg-ok' : conn === 'connecting' ? 'bg-warn animate-pulse' : 'bg-danger'
@@ -107,7 +170,15 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-2">
+      {/* 列表容器统一处理 dragover/drop(允许放置 + move 光标);行级 dragover 驱动换序 */}
+      <div
+        className="flex-1 overflow-y-auto px-2 pb-2"
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+        }}
+        onDrop={(e) => e.preventDefault()}
+      >
         {filtered.length === 0 && (
           <p className="px-2 py-6 text-center text-xs text-text-faint">
             {query ? t('sb.noMatch') : t('sb.none')}
@@ -118,6 +189,10 @@ export default function Sidebar({
             key={s.id}
             s={s}
             active={s.id === activeId}
+            dragging={s.id === dragId}
+            onItemDragStart={handleItemDragStart}
+            onItemDragOver={handleItemDragOver}
+            onItemDragEnd={handleItemDragEnd}
             onOpen={() => onOpenSession(s.id)}
             onFork={() => onOpenSession(s.id, true)}
             onRename={(title) => onRename(s.id, title)}
@@ -150,6 +225,10 @@ export default function Sidebar({
 function SessionRow({
   s,
   active,
+  dragging,
+  onItemDragStart,
+  onItemDragOver,
+  onItemDragEnd,
   onOpen,
   onFork,
   onRename,
@@ -157,6 +236,10 @@ function SessionRow({
 }: {
   s: SessionMeta
   active: boolean
+  dragging?: boolean
+  onItemDragStart: (id: string) => void
+  onItemDragOver: (id: string) => void
+  onItemDragEnd: () => void
   onOpen: () => void
   onFork: () => void
   onRename: (title: string) => void
@@ -171,6 +254,17 @@ function SessionRow({
       role="button"
       tabIndex={editing ? -1 : 0}
       aria-current={active ? 'true' : undefined}
+      draggable={!editing}
+      onDragStart={(e) => {
+        e.dataTransfer.setData('text/plain', s.id)
+        e.dataTransfer.effectAllowed = 'move'
+        onItemDragStart(s.id)
+      }}
+      onDragOver={(e) => {
+        e.preventDefault()
+        onItemDragOver(s.id)
+      }}
+      onDragEnd={onItemDragEnd}
       onKeyDown={(e) => {
         if (!editing && (e.key === 'Enter' || e.key === ' ')) {
           e.preventDefault()
@@ -179,7 +273,7 @@ function SessionRow({
       }}
       className={`group relative mb-0.5 cursor-pointer rounded-lg px-2.5 py-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent/50 ${
         active ? 'bg-panel-2' : 'hover:bg-panel-2/60'
-      }`}
+      } ${dragging ? 'opacity-40' : ''}`}
       onClick={() => !editing && onOpen()}
     >
       {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent" />}

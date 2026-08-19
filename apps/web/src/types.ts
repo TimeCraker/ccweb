@@ -56,6 +56,7 @@ export interface ServerMessage {
   metrics?: SessionMetrics
   usage?: unknown
   sessions?: SessionMeta[]
+  files?: string[]
   messages?: unknown[]
   settings?: SettingsSnapshot
   servers?: Array<{ name: string; status: string }>
