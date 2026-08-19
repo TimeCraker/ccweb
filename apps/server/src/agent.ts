@@ -1,5 +1,12 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
-import type { Query, SDKUserMessage, PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  Query,
+  SDKUserMessage,
+  PermissionResult,
+  SpawnOptions,
+  SpawnedProcess,
+} from '@anthropic-ai/claude-agent-sdk'
+import { spawn, spawnSync } from 'node:child_process'
 
 /** user content 块(text/image)——SDK 类型对 content 要求 ContentBlockParam */
 type UserContentBlock =
@@ -121,6 +128,8 @@ export class AgentSession {
   private q: Query | undefined
   private started = false
   private readonly abortController = new AbortController()
+  /** 自定义 spawn 捕获的子进程 pid(树杀入口;dsh 借鉴:Windows 不信任优雅退出) */
+  private childPid: number | null = null
 
   sessionId: string | null = null
   /** 最近 content_block_start(tool_use) 的 id——input_json_delta 只有 index,按最近 tool 块归属 */
@@ -174,12 +183,44 @@ export class AgentSession {
     await this.q?.interrupt()
   }
 
-  /** 彻底终止:杀掉底层 query/子进程(会话不可再续,重新开始需新建)。
-   * abortController 对空闲等输入的 query 不生效,需显式 close() 结束流 */
+  /**
+   * 彻底终止(dsh disposeClaudeCodeChild 顺序):close 流 → 树级强杀。
+   * Windows 经验(dsh spawn.ts):优雅退出不可信,taskkill /T /F 是唯一原语;
+   * 资源释放以子进程死亡为准,不以 close 事件为准。
+   */
   abort(): void {
     this.abortController.abort()
     void (this.q as unknown as { close?: () => Promise<void> } | undefined)?.close?.()
     this.promptQueue.close()
+    this.killTree()
+  }
+
+  /** 树级终止:Windows taskkill /T /F;POSIX 进程组 SIGKILL 兜底单杀 */
+  private killTree(): void {
+    const pid = this.childPid
+    this.childPid = null
+    if (!pid) return
+    try {
+      if (process.platform === 'win32') {
+        // 参数数组直传(无 shell),pid 为内部数字无注入面
+        spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+          stdio: 'ignore',
+          windowsHide: true,
+        })
+      } else {
+        try {
+          process.kill(-pid, 'SIGKILL')
+        } catch {
+          try {
+            process.kill(pid, 'SIGKILL')
+          } catch {
+            // 已退出
+          }
+        }
+      }
+    } catch {
+      // 进程已不在(正常退出后的 retire)——静默
+    }
   }
 
   /** 热切设置:模型/权限模式即时生效(q 方法);其余新会话生效 */
@@ -236,6 +277,17 @@ export class AgentSession {
           includePartialMessages: true,
           settingSources: ['user', 'project', 'local'],
           abortController: this.abortController,
+          // 接管 spawn:记录 pid 供树杀(dsh ManagedClaudeCodeProcess 借鉴)
+          spawnClaudeCodeProcess: (opts: SpawnOptions): SpawnedProcess => {
+            const cp = spawn(opts.command, opts.args, {
+              cwd: opts.cwd,
+              env: opts.env,
+              stdio: ['pipe', 'pipe', 'pipe'],
+              windowsHide: true,
+            })
+            this.childPid = cp.pid ?? null
+            return cp
+          },
           env: buildAgentEnv(),
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
           ...(this.opts.resume ? { resume: this.opts.resume } : {}),

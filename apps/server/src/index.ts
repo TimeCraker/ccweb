@@ -178,7 +178,7 @@ wss.on('connection', (ws) => {
         }
         break
       case 'session.new':
-        currentSession = null
+        retireCurrent()
         emit({ t: 'cleared', seq: 0 })
         void pushSessionList()
         break
