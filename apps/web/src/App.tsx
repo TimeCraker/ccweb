@@ -20,6 +20,11 @@ export default function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const empty = useStore((s) => s.entries.length === 0)
   const busy = useStore((s) => s.busy)
+  const conn = useStore((s) => s.conn)
+  // 仅"曾连上过又断开"才显示重连横幅(首连的 connecting 安静)
+  const everConnected = useRef(false)
+  if (conn === 'open') everConnected.current = true
+  const connBanner = conn !== 'open' && everConnected.current
   const snap = useStore((s) => s.settings)
   const settingsMeta = [snap?.currentModel, snap?.currentEndpoint ? hostOf(snap.currentEndpoint) : null]
     .filter(Boolean)
@@ -148,12 +153,19 @@ export default function App() {
     }
   }, [])
 
-  // 连接(含重连)后补拉会话列表与设置快照 —— server 重启场景侧栏不再空白
+  // 连接(含重连)后:补拉列表/设置 + 恢复上次会话(刷新不再丢对话)
   useEffect(() => {
     const unsub = useStore.subscribe((s, prev) => {
       if (s.conn === 'open' && prev.conn !== 'open') {
         wsRef.current?.send({ t: 'session.list' })
         wsRef.current?.send({ t: 'settings.get' })
+        const last = localStorage.getItem('ccweb.lastSession')
+        if (last && !s.entries.length) wsRef.current?.send({ t: 'session.open', sessionId: last })
+      }
+      // 持久化当前会话,供刷新恢复
+      if (s.sessionId !== prev.sessionId) {
+        if (s.sessionId) localStorage.setItem('ccweb.lastSession', s.sessionId)
+        else localStorage.removeItem('ccweb.lastSession')
       }
     })
     return unsub
@@ -237,6 +249,13 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* 断线重连通栏(dsh 对齐):仅断开且正在重连时显示 */}
+      {connBanner && (
+        <div className="animate-fade-in flex h-7 shrink-0 items-center justify-center gap-2 bg-warn/15 px-4 text-[11px] text-warn" role="status">
+          <span className="size-1.5 animate-pulse rounded-full bg-warn" />
+          连接已断开,正在重连…
+        </div>
+      )}
       <TopBar
         onOpenSettings={() => setSettingsOpen(true)}
         onPatch={patchSettings}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../store'
 import type { SessionMeta } from '../types'
 import { IconSearch, IconFork, IconPencil, IconChat, IconTrash } from './Icon'
@@ -72,12 +72,6 @@ export default function Sidebar({
     )
   }
 
-  useEffect(() => {
-    if (conn === 'open') {
-      // 会话列表由 App 层在 open 时拉取;这里仅订阅
-    }
-  }, [conn])
-
   const filtered = query
     ? sessions.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
     : sessions
@@ -94,7 +88,7 @@ export default function Sidebar({
           className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-panel-2 px-3 py-2 text-xs font-medium transition-colors hover:border-accent hover:text-accent"
         >
           新建会话
-          <span className="font-mono text-[10px] text-text-faint">⌘N</span>
+          <span className="font-mono text-[10px] text-text-faint">Ctrl N</span>
         </button>
         <div className="relative mt-2">
           <IconSearch
@@ -171,7 +165,16 @@ function SessionRow({
 
   return (
     <div
-      className={`group relative mb-0.5 cursor-pointer rounded-lg px-2.5 py-2 transition-colors ${
+      role="button"
+      tabIndex={editing ? -1 : 0}
+      aria-current={active ? 'true' : undefined}
+      onKeyDown={(e) => {
+        if (!editing && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className={`group relative mb-0.5 cursor-pointer rounded-lg px-2.5 py-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent/50 ${
         active ? 'bg-panel-2' : 'hover:bg-panel-2/60'
       }`}
       onClick={() => !editing && onOpen()}

@@ -212,6 +212,23 @@ html:not(.dark) .surface-card {
     radial-gradient(420px 220px at 50% 30%, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 70%);
 }
 
+/* 浅色主题代码块保持深底(hljs 暗色配色在浅底对比度不足 1.3-2.3:1,不可读) */
+html:not(.dark) .codeblock pre,
+html:not(.dark) .md pre {
+  background: #16161e;
+  border-color: #2c2c3a;
+}
+html:not(.dark) .codeblock {
+  border-color: #2c2c3a;
+}
+html:not(.dark) .codeblock > div:first-child {
+  background: #1d1d27;
+  border-color: #2c2c3a;
+}
+html:not(.dark) .md pre code {
+  color: #e9e9ef;
+}
+
 /* 无障碍:尊重 reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,

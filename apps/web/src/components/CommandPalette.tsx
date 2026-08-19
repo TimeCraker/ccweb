@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, useLocale, toggleLocale } from '../i18n'
-import { toggleTheme } from '../theme'
+import { cycleTheme } from '../theme'
 
 interface Cmd {
   id: string
@@ -37,7 +37,14 @@ export default function CommandPalette({
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
   useLocale()
+
+  // 高亮项滚入可视区(dsh MenuView 对齐)
+  useEffect(() => {
+    const el = listRef.current?.querySelector<HTMLElement>(`button:nth-of-type(${sel + 1})`) ?? null
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [sel])
 
   useEffect(() => {
     if (open) {
@@ -49,9 +56,9 @@ export default function CommandPalette({
 
   const items = useMemo<Cmd[]>(() => {
     const cmds: Cmd[] = [
-      { id: 'new', label: t('palette.cmd.newSession'), hint: '⌘N', run: onNewSession },
-      { id: 'settings', label: t('palette.cmd.settings'), hint: '⌘,', run: onOpenSettings },
-      { id: 'theme', label: t('palette.cmd.theme'), run: toggleTheme },
+      { id: 'new', label: t('palette.cmd.newSession'), hint: 'Ctrl N', run: onNewSession },
+      { id: 'settings', label: t('palette.cmd.settings'), hint: 'Ctrl ,', run: onOpenSettings },
+      { id: 'theme', label: t('palette.cmd.theme'), run: cycleTheme },
       { id: 'lang', label: t('palette.cmd.lang'), run: toggleLocale },
     ]
     const wsList: Cmd[] = workspaces.slice(0, 10).map((w) => {
@@ -119,7 +126,7 @@ export default function CommandPalette({
           placeholder={t('palette.placeholder')}
           className="w-full border-b border-border bg-transparent px-4 py-3 text-sm outline-none placeholder:text-text-faint"
         />
-        <div className="max-h-72 overflow-y-auto p-1.5">
+        <div className="max-h-72 overflow-y-auto p-1.5" ref={listRef}>
           {items.length === 0 && (
             <p className="px-3 py-6 text-center text-xs text-text-faint">{t('palette.empty')}</p>
           )}

@@ -45,10 +45,13 @@ const STATUS_BADGE = {
 } as const
 
 export default function ToolCard({ block }: { block: ToolBlock }) {
-  // dsh 对齐:命令/读文件类工具完成后默认展开(过程可见);其余默认收起
+  // dsh 对齐:Bash 完成后自动展开一次;用户手动操作后完全交还控制权
+  const [userTouched, setUserTouched] = useState(false)
+  const [autoOpen, setAutoOpen] = useState(false)
   const [open, setOpen] = useState(false)
-  const autoExpand = block.toolName === 'Bash' && (block.status === 'done' || block.status === 'error')
-  const effectiveOpen = open || autoExpand
+  const isBashDone = block.toolName === 'Bash' && (block.status === 'done' || block.status === 'error')
+  if (isBashDone && !autoOpen) setAutoOpen(true)
+  const effectiveOpen = userTouched ? open : open || autoOpen
   const elapsed = useElapsed(block.status === 'running' || block.status === 'streaming')
   const meta = TOOL_META[block.toolName]
   const badge = STATUS_BADGE[block.status]
@@ -68,7 +71,10 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
   return (
     <div className="tool-card my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setUserTouched(true)
+          setOpen((v) => !v)
+        }}
         aria-expanded={effectiveOpen}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-panel-2"
       >

@@ -5,44 +5,43 @@ import type { Block, TurnEntry } from '../render/blocks'
 import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
+import { copyText } from '../clipboard'
 
-/**
- * 消息流:react-virtuoso 虚拟滚动(10k+ 消息 60fps,SPEC §3.4 质量门),
- * followOutput 流式期间自动吸底,用户上滚即停止跟随。
- * 注意:zustand selector 必须返回稳定引用(派生数组放 useMemo),
- * 返回新数组引用会触发 React18 无限重渲染(#185)。
- */
 interface StreamProps {
   onRegenerate?: () => void
 }
 
+/**
+ * 消息流:虚拟滚动 + 钉底跟随(dsh 语义:非钉底不跟随 + 浮动回底按钮)。
+ * zustand selector 一律稳定引用(派生放 useMemo,防 React #185)。
+ */
 export default function MessageStream({ onRegenerate }: StreamProps) {
   const rawEntries = useStore((s) => s.entries)
   const entries = useMemo(() => visibleEntries(rawEntries), [rawEntries])
   const busy = useStore((s) => s.busy)
+  const turnStartedAt = useStore((s) => s.turnStartedAt)
   const virtuoso = useRef<VirtuosoHandle>(null)
-  const range = useRef({ visibleRange: null as { startIndex: number; endIndex: number } | null })
+  const [atBottom, setAtBottom] = useState(true)
+  const range = useRef({ startIndex: 0, endIndex: 0 })
 
   useEffect(() => {
     if (entries.length === 0) return
-    const r = range.current.visibleRange
-    const nearBottom = r ? entries.length - 1 - r.endIndex <= 2 : true
-    if (nearBottom) virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'auto' })
-  }, [entries, busy])
+    if (atBottom) virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'auto' })
+  }, [entries, busy, atBottom])
 
   if (entries.length === 0) {
-    // 空态由 App 层的 hero 布局接管(居中品牌 + 大输入框)
     return <div className="flex-1" />
   }
 
   return (
-    <div className="flex-1" role="log" aria-label="conversation">
+    <div className="relative flex-1" role="log" aria-label="conversation">
       <Virtuoso
         ref={virtuoso}
         data={entries}
         className="h-full"
+        atBottomStateChange={(b: boolean) => setAtBottom(b)}
         rangeChanged={(r) => {
-          range.current.visibleRange = { startIndex: r.startIndex, endIndex: r.endIndex }
+          range.current = { startIndex: r.startIndex, endIndex: r.endIndex }
         }}
         itemContent={(_, e) => (
           <div className="px-6 py-1.5">
@@ -61,17 +60,67 @@ export default function MessageStream({ onRegenerate }: StreamProps) {
           </div>
         )}
       />
+      {/* 运行计时行(dsh 对齐):≥15s 才出现,aria-live */}
+      {busy && turnStartedAt && Date.now() - turnStartedAt > 15_000 && (
+        <div className="pointer-events-none absolute bottom-2 left-0 right-0">
+          <RunningTimer startedAt={turnStartedAt} />
+        </div>
+      )}
+      {/* 回到底部(dsh 对齐):非钉底时浮动 */}
+      {!atBottom && (
+        <button
+          onClick={() => virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'smooth' })}
+          aria-label="回到底部"
+          className="animate-pop-in absolute bottom-4 left-1/2 grid size-9 -translate-x-1/2 place-items-center rounded-full border border-border-strong bg-panel text-text-dim shadow-xl hover:text-text"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14m0 0 6-6m-6 6-6-6" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }
 
+/** ≥15s 运行计时(1s tick) */
+function RunningTimer({ startedAt }: { startedAt: number }) {
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const sec = Math.floor((now - startedAt) / 1000)
+  return (
+    <p aria-live="polite" className="px-6 pb-1 text-center text-[11px] text-text-faint">
+      正在处理… {sec >= 60 ? `${Math.floor(sec / 60)}m${sec % 60}s` : `${sec}s`}
+    </p>
+  )
+}
+
+/** 用户消息:`/命令` `@提及` chip 化装饰(dsh projectUserText 对齐) */
 function UserRow({ text }: { text: string }) {
   return (
     <div className="animate-msg-in group flex justify-end">
-      <div className="max-w-[80%] whitespace-pre-wrap rounded-xl rounded-br-sm border border-border-strong bg-panel-2 px-4 py-2.5">
-        {text}
+      <div className="max-w-[80%] rounded-xl rounded-br-sm border border-border-strong bg-panel-2 px-4 py-2.5">
+        {text.split(/(\s+)/).map((tok, i) => {
+          const m = /^(\/[a-zA-Z][\w-]*|@[a-zA-Z][\w.-]*)$/.exec(tok)
+          if (m) {
+            const isCmd = tok.startsWith('/')
+            return (
+              <span
+                key={i}
+                className={`mx-0.5 rounded px-1.5 py-0.5 font-mono text-[11px] ${
+                  isCmd ? 'bg-accent/15 text-accent' : 'bg-ok/15 text-ok'
+                }`}
+              >
+                {tok}
+              </span>
+            )
+          }
+          return <span key={i}>{tok}</span>
+        })}
       </div>
-      <CopyBtn text={text} className="ml-1.5 self-center opacity-0 transition-opacity group-hover:opacity-100" />
+      <CopyBtn text={text} className="ml-1.5 self-center opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100" />
     </div>
   )
 }
@@ -99,17 +148,26 @@ function TurnView({
       {turn.blocks.map((b, i) => (
         <BlockView key={i} block={b} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
       ))}
-      {canRegenerate && onRegenerate && (
-        <button
-          onClick={onRegenerate}
-          className="mt-1 flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] text-text-faint opacity-0 transition-opacity hover:text-text-dim group-hover/turn:opacity-100"
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
-          </svg>
-          重新生成
-        </button>
-      )}
+      <div className="flex items-center gap-2">
+        {turn.tail && (
+          <p className="font-mono text-[10px] tabular text-text-faint">
+            ⏱ {turn.tail.totalS.toFixed(1)}s
+            {turn.tail.ttftMs != null && ` · TTFT ${(turn.tail.ttftMs / 1000).toFixed(2)}s`}
+            {turn.tail.tps != null && ` · ${turn.tail.tps.toFixed(0)} tok/s`}
+          </p>
+        )}
+        {canRegenerate && onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] text-text-faint opacity-0 transition-opacity focus-visible:opacity-100 hover:text-text-dim group-hover/turn:opacity-100"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
+            </svg>
+            重新生成
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -123,13 +181,13 @@ function BlockView({ block, isLastText }: { block: Block; isLastText: boolean })
       <Markdown text={block.text || '…'} />
       {!block.streaming && block.text && (
         <button
-          aria-label="copy message"
           onClick={() => {
-            void navigator.clipboard.writeText(block.text)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1200)
+            void copyText(block.text).then(() => {
+              setCopied(true)
+              setTimeout(() => setCopied(false), 1200)
+            })
           }}
-          className="absolute -right-14 top-0 rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint opacity-0 transition-opacity hover:text-text group-hover:opacity-100"
+          className="absolute -right-14 top-0 rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint opacity-0 transition-opacity focus-visible:opacity-100 hover:text-text group-hover:opacity-100"
         >
           {copied ? '已复制' : '复制'}
         </button>
@@ -142,11 +200,11 @@ function CopyBtn({ text, className }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <button
-      aria-label="copy message"
       onClick={() => {
-        void navigator.clipboard.writeText(text)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 1200)
+        void copyText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1200)
+        })
       }}
       className={`rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint transition-colors hover:text-text ${className ?? ''}`}
     >

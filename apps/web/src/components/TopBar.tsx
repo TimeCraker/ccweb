@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { BrandMark, IconGear, IconMoon, IconSun, IconChevron, IconGauge, IconSparkle } from './Icon'
-import { toggleTheme, useTheme } from '../theme'
+import { cycleTheme, useThemeMode } from '../theme'
 
 interface Props {
   onOpenSettings: () => void
@@ -14,7 +14,7 @@ const PERMISSIONS = ['default', 'acceptEdits', 'plan', 'bypassPermissions']
 
 /** 顶栏:品牌 + 工作区切换(dsh 语义)· 模型/权限一键切换 */
 export default function TopBar({ onOpenSettings, onPatch, onSetWorkspace }: Props) {
-  const theme = useTheme()
+  const { mode, resolved } = useThemeMode()
   const model = useStore((s) => s.model ?? s.settings?.model ?? s.settings?.currentModel)
   const permissionMode = useStore((s) => s.settings?.permissionMode ?? 'default')
   const settings = useStore((s) => s.settings)
@@ -58,11 +58,20 @@ export default function TopBar({ onOpenSettings, onPatch, onSetWorkspace }: Prop
         />
         <button
           className="icon-btn"
-          aria-label="toggle theme"
-          onClick={toggleTheme}
-          title={theme === 'dark' ? '浅色模式' : '深色模式'}
+          aria-label="cycle theme"
+          onClick={cycleTheme}
+          title={`主题:${mode === 'system' ? `跟随系统(当前 ${resolved === 'dark' ? '深' : '浅'})` : mode === 'dark' ? '深色' : '浅色'} — 点击切换`}
         >
-          {theme === 'dark' ? <IconSun width={15} height={15} /> : <IconMoon width={15} height={15} />}
+          {mode === 'system' ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+          ) : resolved === 'dark' ? (
+            <IconSun width={15} height={15} />
+          ) : (
+            <IconMoon width={15} height={15} />
+          )}
         </button>
         <button className="icon-btn" aria-label="settings" onClick={onOpenSettings} title="设置 (Ctrl+,)">
           <IconGear width={15} height={15} />

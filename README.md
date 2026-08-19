@@ -6,22 +6,25 @@
 
 ![command palette (Ctrl+K)](docs/screenshots/palette.png)
 
-English introduction below ↓
-
 ---
 
-## 为什么 / Why
+## 中文
+
+### 为什么
 
 终端里的 Claude Code 很强,但缺少图形化的会话管理与观测。ccweb 用官方 **Claude Agent SDK** 驱动真正的 Claude Code 子进程,补上这一层:
 
-- 🖥 **完整 GUI**:会话侧边栏(搜索 / resume / fork / 历史回放)、markdown + 代码高亮、工具调用卡片、thinking 折叠
+- 🖥 **完整 GUI**:会话侧栏(搜索 / resume / fork / 删除 / 重命名 / 历史回放)、markdown + 代码高亮、工具调用卡片(命令输出默认展开)、thinking 折叠
 - 📊 **实时指标条**:轮数 / TTFT / tokens/s / 缓存命中率 / 成本估算(口径以 SDK `result.modelUsage` 为权威)
+- 🧭 **上下文水位**:环形图 + Token 构成三色条,高水位(>85%)主动警示
 - 🛡 **可视化审批**:Edit 显示行级 diff(红删绿增)、高危命令标红、"总是允许"(会话级)
-- ⚙️ **全图形设置**:模型热切换、effort、权限模式、**API 端点模板**(兼容 `cc-toolkit/settings/*.json`,凭证不出本地)
-- ⌨️ **键盘优先**:`Ctrl+K` 命令面板 / `Enter` 发送 / `Esc` 中断 / `Ctrl+,` 设置
-- 🌓 深浅双主题 · 中英双语 · 断线自动重连对账
+- ⚙️ **全图形设置**:模型热切换、effort、权限模式、**API 端点模板**(凭证不出本地)、Skills / 规则 / CLAUDE.md 查看
+- 🖼 **图片支持**:粘贴 / 拖放 / 选择截图直接进对话(CC 视觉能力)
+- 💾 对话一键导出 Markdown
+- ⌨️ **键盘优先**:`Ctrl+K` 命令面板 · `Ctrl+N` 新建 · `Ctrl+B` 折叠侧栏 · `Esc` 中断 · `/` 斜杠命令补全
+- 🌓 深浅双主题 · 中英双语 UI · 断线自动重连对账
 
-## 快速开始 / Quick Start
+### 快速开始
 
 ```bash
 # 需要 Node.js 20+(SDK 自带 claude 二进制,无需单独安装 Claude Code CLI)
@@ -32,6 +35,32 @@ pnpm install && pnpm build && node apps/server/bin/ccweb.mjs
 ```
 
 浏览器打开 `http://127.0.0.1:3477`。API 端点沿用你环境里的 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN`(或经设置页切换模板)。
+
+---
+
+## English
+
+**ccweb** is a professional, open-source web console for Claude Code — built on the official **Claude Agent SDK**, it drives a real Claude Code runtime behind a full GUI: sessions, live metrics, visual approvals, and complete settings. Your entire `~/.claude` setup (memory / skills / rules / MCP) applies automatically.
+
+- 🖥 **Full GUI** — session sidebar (search / resume / fork / delete / rename / history replay), markdown + syntax highlighting, tool-call cards (command output auto-expanded), collapsible thinking
+- 📊 **Live metrics** — turns / TTFT / tokens-per-second / cache-hit rate / cost, sourced from SDK `result.modelUsage` (no estimates)
+- 🧭 **Context gauge** — usage ring + token-composition bar, proactive warning above 85%
+- 🛡 **Visual approvals** — line-level diffs for edits, dangerous commands flagged, session-scoped "always allow"
+- ⚙️ **Everything configurable** — model hot-swap, effort, permission mode, endpoint templates (credentials never leave your machine), skills & rules & CLAUDE.md inspector
+- 🖼 **Images** — paste, drag, or pick screenshots straight into the conversation
+- 💾 One-click Markdown export
+- ⌨️ **Keyboard-first** — `Ctrl+K` palette · `Ctrl+N` new session · `Ctrl+B` collapse sidebar · `Esc` interrupt · `/` slash-command autocomplete
+- 🌓 Dark & light themes · bilingual UI · auto-reconnect with message reconciliation
+
+### Quick start
+
+```bash
+npx ccweb-console   # Node 20+; bundles its own claude binary
+```
+
+Open `http://127.0.0.1:3477`. Endpoint credentials come from your environment (`ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN`) or any template in Settings.
+
+---
 
 ## 架构 / Architecture
 

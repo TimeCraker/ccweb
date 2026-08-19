@@ -1,0 +1,49 @@
+{
+  "consoleLogs": [
+    "[console.error] Error: Minified React error #300; visit https://reactjs.org/docs/error-decoder.html?invariant=300 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.\n    at Cu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:17589)\n    at Bu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:3158)\n    at om (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:45419)\n    at tm (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40247)\n    at Cb (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40175)\n    at $s (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40028)\n    at ec (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:36323)\n    at Xp (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:37135)\n    at ei (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:3273)\n    at http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:34634",
+    "[console.error] [ccweb] UI crashed: Error: Minified React error #300; visit https://reactjs.org/docs/error-decoder.html?invariant=300 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.\n    at Cu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:17589)\n    at Bu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:3158)\n    at om (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:45419)\n    at tm (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40247)\n    at Cb (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40175)\n    at $s (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40028)\n    at ec (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:36323)\n    at Xp (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:37135)\n    at ei (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:3273)\n    at http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:34634"
+  ],
+  "pageErrors": [],
+  "failedRequests": [],
+  "checks": {
+    "overflow700": {
+      "scrollW": 700,
+      "clientW": 700,
+      "overflow": false
+    },
+    "closePos": {
+      "btn": {
+        "x": 955,
+        "y": 185,
+        "w": 28,
+        "h": 28
+      },
+      "dialog": {
+        "x": 280,
+        "y": 170,
+        "w": 720,
+        "h": 560
+      },
+      "insideDialog": true
+    },
+    "copyBtnCheck": {
+      "x": 1010,
+      "right": 1048,
+      "vw": 1280
+    },
+    "hljsLight": {
+      "spanColor": "rgb(199, 146, 234)",
+      "preBg": "rgb(11, 11, 16)",
+      "preBorder": "rgb(31, 31, 42)"
+    },
+    "sendDisabled": {
+      "disabled": true,
+      "attachmentCount": 1
+    },
+    "crashCheck": {
+      "hasErrorBoundary": true,
+      "bodySnippet": "界面发生错误\n\nMinified React error #300; visit https://reactjs.org/docs/error-decoder.html?invariant=300 for the full message "
+    },
+    "selVisible": null
+  }
+}

@@ -36,6 +36,10 @@ interface AppState {
   permissions: PermissionRequest[]
   error: string | null
   busy: boolean
+  /** 本轮开始时间戳(运行计时行 + turn 尾统计) */
+  turnStartedAt: number | null
+  /** 上一轮完成时的统计(turn 尾渲染) */
+  lastTurnStats: { totalS: number; ttftMs: number | null; tps: number | null } | null
   settings: SettingsSnapshot | null
   mcpServers: Array<{ name: string; status: string }>
   slashCommands: Array<{ name: string; description: string }>
@@ -75,6 +79,8 @@ export const useStore = create<AppState>((set) => ({
   permissions: [],
   error: null,
   busy: false,
+  turnStartedAt: null,
+  lastTurnStats: null,
   settings: null,
   mcpServers: [],
   slashCommands: [],
@@ -89,6 +95,8 @@ export const useStore = create<AppState>((set) => ({
     set((s) => ({
       entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text }],
       busy: true,
+      turnStartedAt: Date.now(),
+      lastTurnStats: null,
     })),
   onBlockStart: (ev) => set((s) => ({ entries: applyBlockStart(s.entries, ev) })),
   onDelta: (ev) => set((s) => ({ entries: applyDelta(s.entries, ev) })),
@@ -107,11 +115,19 @@ export const useStore = create<AppState>((set) => ({
   finishTurn: () =>
     set((s) => {
       const t = currentTurn(s.entries)
-      if (!t) return { busy: false }
+      const totalS = s.turnStartedAt ? (Date.now() - s.turnStartedAt) / 1000 : 0
+      const stats = {
+        totalS,
+        ttftMs: s.metrics?.ttftMs ?? null,
+        tps: s.metrics?.tokensPerSecond ?? null,
+      }
+      if (!t) return { busy: false, turnStartedAt: null, lastTurnStats: stats }
       const entries = s.entries.map((e) =>
-        e.type === 'turn' && e.id === (t as TurnEntry).id ? { ...e, done: true } : e,
+        e.type === 'turn' && e.id === (t as TurnEntry).id
+          ? { ...e, done: true, tail: stats }
+          : e,
       )
-      return { entries, busy: false }
+      return { entries, busy: false, turnStartedAt: null, lastTurnStats: stats }
     }),
   /** 历史回放:顺序跑渲染模型(user 文本入列、assistant 对账、tool_result 回填) */
   replayHistory: (messages) => {

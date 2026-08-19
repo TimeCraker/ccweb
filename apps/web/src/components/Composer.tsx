@@ -185,7 +185,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
           ) : (
             <button
               onClick={submit}
-              disabled={!text.trim()}
+              disabled={!text.trim() && images.length === 0}
               aria-label="发送"
               className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-white transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-35"
             >

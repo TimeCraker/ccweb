@@ -1,0 +1,64 @@
+{
+  "consoleLogs": [
+    "[console.error] Error: Minified React error #300; visit https://reactjs.org/docs/error-decoder.html?invariant=300 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.\n    at Cu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:17589)\n    at Bu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:3158)\n    at om (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:45419)\n    at tm (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40247)\n    at Cb (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40175)\n    at $s (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40028)\n    at ec (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:36323)\n    at Xp (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:37135)\n    at ei (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:3273)\n    at http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:34634",
+    "[console.error] [ccweb] UI crashed: Error: Minified React error #300; visit https://reactjs.org/docs/error-decoder.html?invariant=300 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.\n    at Cu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:17589)\n    at Bu (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:3158)\n    at om (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:45419)\n    at tm (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40247)\n    at Cb (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40175)\n    at $s (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:40028)\n    at ec (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:36323)\n    at Xp (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:37135)\n    at ei (http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:38:3273)\n    at http://127.0.0.1:3477/assets/index-Ca6JtF7R.js:40:34634"
+  ],
+  "pageErrors": [],
+  "selVis": {
+    "itemCount": 29,
+    "selVis": {
+      "foundActive": true,
+      "visibleInList": false,
+      "btnBottom": 736,
+      "listBottom": 469,
+      "text": "用一句话介绍你自己,不要用工具session"
+    }
+  },
+  "toolcard": {
+    "toolBefore": null,
+    "toolAfter1": null,
+    "toolAfter2": null
+  },
+  "permShown": false,
+  "lightSample": {
+    "bodyBg": "rgb(247, 247, 250)",
+    "preBg": "rgb(247, 247, 250)",
+    "preText": "rgb(26, 26, 36)",
+    "tokens": [
+      {
+        "cls": "hljs-keyword",
+        "color": "rgb(199, 146, 234)",
+        "text": "const"
+      },
+      {
+        "cls": "hljs-title function_",
+        "color": "rgb(130, 170, 255)",
+        "text": "greet"
+      },
+      {
+        "cls": "hljs-params",
+        "color": "rgb(26, 26, 36)",
+        "text": "name"
+      },
+      {
+        "cls": "hljs-string",
+        "color": "rgb(195, 232, 141)",
+        "text": "`Hello, ${na"
+      },
+      {
+        "cls": "hljs-subst",
+        "color": "rgb(195, 232, 141)",
+        "text": "${name}"
+      },
+      {
+        "cls": "hljs-keyword",
+        "color": "rgb(199, 146, 234)",
+        "text": "const"
+      }
+    ]
+  },
+  "crash1": "界面发生错误\n\nMinified React error #300; visit https://reactjs.org/docs/error-decoder.html?invariant=300 f",
+  "copyBtnFocus": {
+    "exists": false
+  }
+}

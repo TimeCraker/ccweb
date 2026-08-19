@@ -1,44 +1,60 @@
 import { useSyncExternalStore } from 'react'
 
-export type Theme = 'dark' | 'light'
+/** 主题三态(dsh 对齐):dark / light / system(跟随系统,实时响应变化) */
+export type ThemeMode = 'dark' | 'light' | 'system'
+export type ResolvedTheme = 'dark' | 'light'
 
 const listeners = new Set<() => void>()
 
-function readInitial(): Theme {
+function systemPrefers(): ResolvedTheme {
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
+}
+
+function readInitial(): ThemeMode {
   const saved = localStorage.getItem('ccweb.theme')
-  if (saved === 'dark' || saved === 'light') {
-    applyClass(saved)
-    return saved
-  }
-  const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches
-  const initial: Theme = prefersLight ? 'light' : 'dark'
-  applyClass(initial)
-  return initial
+  if (saved === 'dark' || saved === 'light' || saved === 'system') return saved
+  return 'system'
 }
 
-function applyClass(theme: Theme): void {
-  document.documentElement.classList.toggle('dark', theme === 'dark')
+function applyClass(mode: ThemeMode): ResolvedTheme {
+  const resolved = mode === 'system' ? systemPrefers() : mode
+  document.documentElement.classList.toggle('dark', resolved === 'dark')
+  return resolved
 }
 
-let current: Theme = readInitial()
+let current: ThemeMode = readInitial()
+let resolved: ResolvedTheme = applyClass(current)
 
-export function setTheme(theme: Theme): void {
-  current = theme
-  localStorage.setItem('ccweb.theme', theme)
-  applyClass(theme)
+// system 模式下跟随系统实时变化
+window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
+  if (current === 'system') resolved = applyClass('system')
+  for (const cb of listeners) cb()
+})
+
+export function setTheme(mode: ThemeMode): void {
+  current = mode
+  localStorage.setItem('ccweb.theme', mode)
+  resolved = applyClass(mode)
   for (const cb of listeners) cb()
 }
 
-export function toggleTheme(): void {
-  setTheme(current === 'dark' ? 'light' : 'dark')
+/** 循环切换:dark → light → system → dark */
+export function cycleTheme(): void {
+  setTheme(current === 'dark' ? 'light' : current === 'light' ? 'system' : 'dark')
 }
 
-export function useTheme(): Theme {
-  return useSyncExternalStore(
+export function useThemeMode(): { mode: ThemeMode; resolved: ResolvedTheme } {
+  const mode = useSyncExternalStore(
     (cb) => {
       listeners.add(cb)
       return () => listeners.delete(cb)
     },
     () => current,
   )
+  return { mode, resolved }
+}
+
+/** 兼容旧用法 */
+export function useTheme(): ResolvedTheme {
+  return useThemeMode().resolved
 }

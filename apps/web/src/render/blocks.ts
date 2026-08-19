@@ -38,6 +38,8 @@ export interface TurnEntry {
   id: string
   blocks: Block[]
   done: boolean
+  /** turn 尾统计(dsh TurnTail 对齐):完成时填 */
+  tail?: { totalS: number; ttftMs: number | null; tps: number | null }
 }
 
 export type Entry = UserEntry | TurnEntry
