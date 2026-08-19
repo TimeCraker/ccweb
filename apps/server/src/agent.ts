@@ -120,6 +120,7 @@ export class AgentSession {
   private readonly acc: MetricsAccumulator = newAccumulator()
   private q: Query | undefined
   private started = false
+  private readonly abortController = new AbortController()
 
   sessionId: string | null = null
   /** 最近 content_block_start(tool_use) 的 id——input_json_delta 只有 index,按最近 tool 块归属 */
@@ -171,6 +172,11 @@ export class AgentSession {
   /** 软中断:仅流式输入模式可用;进程存活、会话可继续 */
   async interrupt(): Promise<void> {
     await this.q?.interrupt()
+  }
+
+  /** 彻底终止:杀掉底层 query/子进程(会话不可再续,重新开始需新建) */
+  abort(): void {
+    this.abortController.abort()
   }
 
   /** 热切设置:模型/权限模式即时生效(q 方法);其余新会话生效 */
@@ -226,6 +232,7 @@ export class AgentSession {
         options: {
           includePartialMessages: true,
           settingSources: ['user', 'project', 'local'],
+          abortController: this.abortController,
           env: buildAgentEnv(),
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
           ...(this.opts.resume ? { resume: this.opts.resume } : {}),

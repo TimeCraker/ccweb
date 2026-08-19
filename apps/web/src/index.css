@@ -229,6 +229,19 @@ html:not(.dark) .md pre code {
   color: #e9e9ef;
 }
 
+/* 代码块不得撑破消息列(flex 子项 min-width + 内容宽约束) */
+.md {
+  min-width: 0;
+}
+.codeblock {
+  max-width: 100%;
+  overflow: hidden;
+}
+.codeblock pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* 无障碍:尊重 reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,

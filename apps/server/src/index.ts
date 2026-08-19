@@ -148,6 +148,11 @@ wss.on('connection', (ws) => {
       case 'interrupt':
         void currentSession?.interrupt()
         break
+      case 'abort':
+        currentSession?.abort()
+        currentSession = null
+        emit({ t: 'cleared', seq: 0 })
+        break
       case 'permission.resolve':
         if (
           !currentSession?.resolvePermission(
