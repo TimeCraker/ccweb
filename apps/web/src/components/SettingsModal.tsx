@@ -47,7 +47,7 @@ export default function SettingsModal({ open, onClose, send }: Props) {
     if (open) send({ t: 'settings.get' })
   }, [open, send])
 
-  // 焦点陷阱 + Esc(WAI-ARIA dialog)
+  // 焦点陷阱:打开聚焦首控件;Tab 循环不出弹窗;Esc 关闭(WAI-ARIA dialog)
   useEffect(() => {
     if (!open) return
     const box = boxRef.current
@@ -57,6 +57,21 @@ export default function SettingsModal({ open, onClose, send }: Props) {
       if (e.key === 'Escape') {
         e.stopPropagation()
         onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusables = box.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select, [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusables.length === 0) return
+      const list = Array.from(focusables)
+      const idx = list.indexOf(document.activeElement as HTMLElement)
+      if (e.shiftKey && idx <= 0) {
+        e.preventDefault()
+        list[list.length - 1]?.focus()
+      } else if (!e.shiftKey && idx === list.length - 1) {
+        e.preventDefault()
+        list[0]?.focus()
       }
     }
     box.addEventListener('keydown', onKey)
@@ -77,14 +92,16 @@ export default function SettingsModal({ open, onClose, send }: Props) {
         className="animate-pop-in flex h-[560px] max-h-[90vh] w-[720px] max-w-[94vw] overflow-hidden rounded-xl border border-border-strong bg-panel shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 左侧 tab 导航 */}
-        <nav className="w-40 shrink-0 border-r border-border bg-panel-2/40 p-2">
+        {/* 左侧 tab 导航(ARIA tabs) */}
+        <nav className="w-40 shrink-0 border-r border-border bg-panel-2/40 p-2" role="tablist" aria-label="settings sections">
           <p className="px-2 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wider text-text-faint">
             设置
           </p>
           {TABS.map((x) => (
             <button
               key={x.id}
+              role="tab"
+              aria-selected={tab === x.id}
               onClick={() => setTab(x.id)}
               className={`mb-0.5 w-full rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
                 tab === x.id ? 'bg-panel-2 font-medium text-accent' : 'text-text-dim hover:text-text'

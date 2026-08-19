@@ -48,7 +48,7 @@ export default function Sidebar({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
         </button>
         <div className="my-1 h-px w-6 bg-border" />
-        <div className="flex-1 overflow-y-auto py-1">
+        <div className="flex-1 overflow-y-auto py-1" title={sessions.length > 15 ? `共 ${sessions.length} 个会话,展开侧栏查看全部` : undefined}>
           {sessions.slice(0, 15).map((s) => (
             <button
               key={s.id}
@@ -202,7 +202,11 @@ function SessionRow({
                   setEditing(false)
                 }
               }}
-              onBlur={() => setEditing(false)}
+              onBlur={() => {
+                // 失焦即提交(不再丢草稿);Esc 恢复由 onKeyDown 处理
+                if (draft.trim() && draft !== s.title) onRename(draft.trim())
+                setEditing(false)
+              }}
               className="w-full rounded border border-accent bg-bg px-1.5 py-0.5 text-xs outline-none"
             />
           ) : (

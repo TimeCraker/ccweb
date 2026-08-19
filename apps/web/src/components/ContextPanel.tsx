@@ -29,7 +29,7 @@ export default function ContextPanel() {
   const circumference = 2 * Math.PI * 26
 
   return (
-    <aside className="hidden w-52 shrink-0 flex-col border-l border-border bg-panel md:flex">
+    <aside className="hidden w-52 shrink-0 flex-col border-l border-border bg-panel xl:flex">
       <div className="border-b border-border px-4 py-3">
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-text-faint">上下文</h3>
       </div>

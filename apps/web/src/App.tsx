@@ -201,9 +201,13 @@ export default function App() {
   const deleteSession = (id: string) => {
     wsRef.current?.send({ t: 'session.delete', sessionId: id })
   }
-  /** 导出当前对话为 Markdown */
+  /** 导出当前对话为 Markdown(空对话提示而非导出空文件) */
   const exportMarkdown = () => {
     const { entries } = useStore.getState()
+    if (entries.length === 0) {
+      useStore.getState().setError('当前没有可导出的对话')
+      return
+    }
     const lines: string[] = [`# ccweb 对话导出`, ``, `> ${new Date().toLocaleString()}`, ``]
     for (const e of entries) {
       if (e.type === 'user') {

@@ -277,7 +277,8 @@ body {
   border-radius: 4px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: #3a3a4a;
+  background: var(--color-border-strong);
+  filter: brightness(1.15);
 }
 *::-webkit-scrollbar-track {
   background: transparent;
