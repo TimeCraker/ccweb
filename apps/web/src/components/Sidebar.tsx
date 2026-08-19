@@ -4,10 +4,13 @@ import type { SessionMeta } from '../types'
 import { IconSearch, IconFork, IconPencil, IconChat, IconTrash } from './Icon'
 
 interface Props {
+  collapsed?: boolean
+  onToggleCollapse?: () => void
   onOpenSession: (id: string, fork?: boolean) => void
   onNewSession: () => void
   onRename: (id: string, title: string) => void
   onDelete: (id: string) => void
+  onExport: () => void
 }
 
 function timeAgo(iso: string | null): string {
@@ -23,11 +26,51 @@ function timeAgo(iso: string | null): string {
   return `${d} 天前`
 }
 
-export default function Sidebar({ onOpenSession, onNewSession, onRename, onDelete }: Props) {
+export default function Sidebar({
+  collapsed = false,
+  onToggleCollapse,
+  onOpenSession,
+  onNewSession,
+  onRename,
+  onDelete,
+  onExport,
+}: Props) {
   const conn = useStore((s) => s.conn)
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.sessionId)
   const [query, setQuery] = useState('')
+
+  /** 折叠态:窄条,仅图标(悬停展开省略;Ctrl+B 切换) */
+  if (collapsed) {
+    return (
+      <aside className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-panel py-3">
+        <button onClick={onNewSession} title="新建会话 (Ctrl+N)" aria-label="新建会话" className="icon-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+        <div className="my-1 h-px w-6 bg-border" />
+        <div className="flex-1 overflow-y-auto py-1">
+          {sessions.slice(0, 15).map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onOpenSession(s.id)}
+              title={s.title}
+              className={`mb-0.5 grid size-8 place-items-center rounded-lg ${
+                s.id === activeId ? 'bg-panel-2 text-accent' : 'text-text-faint hover:text-text-dim'
+              }`}
+            >
+              <IconChat width={14} height={14} />
+            </button>
+          ))}
+        </div>
+        <button onClick={onExport} title="导出对话 Markdown" aria-label="导出对话" className="icon-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
+        </button>
+        <button onClick={onToggleCollapse} title="展开侧栏 (Ctrl+B)" aria-label="展开侧栏" className="icon-btn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
+      </aside>
+    )
+  }
 
   useEffect(() => {
     if (conn === 'open') {
@@ -91,6 +134,17 @@ export default function Sidebar({ onOpenSession, onNewSession, onRename, onDelet
         <div className="flex items-center gap-2">
           <span className={`size-2 rounded-full ${connDot}`} />
           <span>{conn === 'open' ? '已连接' : conn === 'connecting' ? '连接中…' : '已断开,重连中…'}</span>
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          <span className="font-mono text-[10px] text-text-faint">v0.1.0</span>
+          <div className="flex gap-1">
+            <button onClick={onExport} title="导出对话 Markdown" className="icon-btn !size-6" aria-label="导出对话">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
+            </button>
+            <button onClick={onToggleCollapse} title="折叠侧栏 (Ctrl+B)" className="icon-btn !size-6" aria-label="折叠侧栏">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+            </button>
+          </div>
         </div>
       </div>
     </aside>

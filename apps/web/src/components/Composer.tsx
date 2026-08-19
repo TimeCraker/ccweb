@@ -3,7 +3,7 @@ import { useStore } from '../store'
 import { IconSend, IconStop } from './Icon'
 
 interface Props {
-  onSend: (text: string) => void
+  onSend: (text: string, images?: string[]) => void
   onInterrupt: () => void
   /** hero 模式:空态居中大输入框 */
   hero?: boolean
@@ -11,10 +11,29 @@ interface Props {
 
 export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
   const [text, setText] = useState('')
+  const [images, setImages] = useState<string[]>([])
   const [slashSel, setSlashSel] = useState(0)
   const busy = useStore((s) => s.busy)
   const slashCommands = useStore((s) => s.slashCommands)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  /** 粘贴/选择/拖放的图片 → data URL 附件 */
+  const addImages = (files: FileList | File[] | null) => {
+    if (!files) return
+    const imgs: string[] = []
+    let pending = 0
+    for (const f of Array.from(files)) {
+      if (!f.type.startsWith('image/')) continue
+      pending++
+      const r = new FileReader()
+      r.onload = () => {
+        if (typeof r.result === 'string') imgs.push(r.result)
+        if (--pending === 0) setImages((prev) => [...prev, ...imgs])
+      }
+      r.readAsDataURL(f)
+    }
+  }
 
   /** 斜杠命令补全:输入以 / 开头(且仅首词)时弹出过滤列表 */
   const slashMatches = useMemo(() => {
@@ -27,9 +46,10 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
 
   const submit = () => {
     const t = text.trim()
-    if (!t || busy) return
-    onSend(t)
+    if ((!t && images.length === 0) || busy) return
+    onSend(t || '(图片)', images.length ? images : undefined)
     setText('')
+    setImages([])
   }
 
   const pickSlash = (name: string) => {
@@ -58,15 +78,72 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
             ))}
           </div>
         )}
+        {images.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {images.map((src, i) => (
+              <div key={i} className="group relative">
+                <img
+                  src={src}
+                  alt={`attachment ${i + 1}`}
+                  className="size-16 rounded-lg border border-border object-cover"
+                />
+                <button
+                  onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
+                  aria-label="移除图片"
+                  className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full border border-border bg-panel text-[10px] text-text-dim opacity-0 transition-opacity group-hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div
           className={`composer-shell flex items-end gap-2 rounded-2xl px-3.5 py-2.5 ${
             hero ? 'bg-panel shadow-lg' : 'rounded-xl bg-panel-2'
           }`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault()
+            addImages(e.dataTransfer?.files ?? null)
+          }}
         >
+          <button
+            onClick={() => fileRef.current?.click()}
+            aria-label="添加图片"
+            title="图片附件(可粘贴/拖放)"
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-text-faint hover:bg-panel-2 hover:text-text-dim"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="4" />
+              <circle cx="9" cy="9" r="2" />
+              <path d="m21 15-3.6-3.6a2 2 0 0 0-2.8 0L6 20" />
+            </svg>
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              addImages(e.target.files)
+              e.target.value = ''
+            }}
+          />
           <textarea
             ref={taRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+                f.type.startsWith('image/'),
+              )
+              if (files.length > 0) {
+                e.preventDefault()
+                addImages(files)
+              }
+            }}
             onKeyDown={(e) => {
               if (slashMatches.length > 0) {
                 if (e.key === 'ArrowDown') {

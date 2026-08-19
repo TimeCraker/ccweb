@@ -34,6 +34,13 @@ export default function ContextPanel() {
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-text-faint">上下文</h3>
       </div>
 
+      {/* 高水位警示:接近压缩阈值时主动提醒(不只靠环形图变色) */}
+      {level && pct > 85 && (
+        <div className="border-b border-warn/30 bg-warn/10 px-3 py-2 text-[11px] leading-relaxed text-warn">
+          上下文已用 {pct.toFixed(0)}% — 临近自动压缩,长会话建议新建或让模型 /compact
+        </div>
+      )}
+
       <div className="flex flex-col items-center gap-3 border-b border-border px-4 py-5">
         {level ? (
           <>

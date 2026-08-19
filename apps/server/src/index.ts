@@ -142,7 +142,7 @@ wss.on('connection', (ws) => {
         const agent = msg.sessionId
           ? getOrCreateSession(msg.sessionId)
           : (currentSession ?? getOrCreateSession())
-        agent.send(msg.text)
+        agent.send(msg.text, msg.images)
         break
       }
       case 'interrupt':

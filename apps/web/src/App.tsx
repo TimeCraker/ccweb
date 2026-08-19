@@ -17,11 +17,18 @@ export default function App() {
   const wsRef = useRef<WsClient | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const empty = useStore((s) => s.entries.length === 0)
+  const busy = useStore((s) => s.busy)
   const snap = useStore((s) => s.settings)
   const settingsMeta = [snap?.currentModel, snap?.currentEndpoint ? hostOf(snap.currentEndpoint) : null]
     .filter(Boolean)
     .join(' · ')
+
+  // 页面标题未读点:后台生成时提示
+  useEffect(() => {
+    document.title = busy ? '● 生成中… — ccweb' : 'ccweb — Claude Code Console'
+  }, [busy])
 
   // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+N 新建会话
   const newSessionRef = useRef<() => void>(() => {})
@@ -36,6 +43,9 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
         e.preventDefault()
         newSessionRef.current()
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        setSidebarCollapsed((v) => !v)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -138,7 +148,7 @@ export default function App() {
     }
   }, [])
 
-  // 连接建立后刷新会话列表与设置快照
+  // 连接(含重连)后补拉会话列表与设置快照 —— server 重启场景侧栏不再空白
   useEffect(() => {
     const unsub = useStore.subscribe((s, prev) => {
       if (s.conn === 'open' && prev.conn !== 'open') {
@@ -149,10 +159,10 @@ export default function App() {
     return unsub
   }, [])
 
-  const send = (text: string) => {
+  const send = (text: string, images?: string[]) => {
     const sessionId = useStore.getState().sessionId
-    useStore.getState().appendUser(text)
-    wsRef.current?.send({ t: 'prompt', sessionId: sessionId ?? undefined, text })
+    useStore.getState().appendUser(images?.length ? `${text}\n[图片 ×${images.length}]` : text)
+    wsRef.current?.send({ t: 'prompt', sessionId: sessionId ?? undefined, text, images })
   }
   const interrupt = () => {
     wsRef.current?.send({ t: 'interrupt' })
@@ -163,6 +173,8 @@ export default function App() {
     wsRef.current?.send({ t: 'permission.resolve', requestId, allow, always })
   }
   const openSession = (id: string, fork = false) => {
+    // 生成中先中断(同新建会话保护)
+    if (useStore.getState().busy) interrupt()
     wsRef.current?.send({ t: 'session.open', sessionId: id, fork })
   }
   const newSession = () => {
@@ -176,6 +188,35 @@ export default function App() {
   }
   const deleteSession = (id: string) => {
     wsRef.current?.send({ t: 'session.delete', sessionId: id })
+  }
+  /** 导出当前对话为 Markdown */
+  const exportMarkdown = () => {
+    const { entries } = useStore.getState()
+    const lines: string[] = [`# ccweb 对话导出`, ``, `> ${new Date().toLocaleString()}`, ``]
+    for (const e of entries) {
+      if (e.type === 'user') {
+        lines.push(`## 🧑 用户`, ``, e.text, ``)
+      } else {
+        lines.push(`## 🤖 助手`, ``)
+        for (const b of e.blocks) {
+          if (b.kind === 'text') lines.push(b.text, ``)
+          else if (b.kind === 'tool')
+            lines.push(
+              '```',
+              `[${b.toolName}] ${b.inputRaw?.slice(0, 200) ?? ''}`,
+              b.resultText ? `→ ${b.resultText.slice(0, 500)}` : '',
+              '```',
+              '',
+            )
+        }
+      }
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `ccweb-${new Date().toISOString().slice(0, 10)}.md`
+    a.click()
+    URL.revokeObjectURL(a.href)
   }
   const regenerate = () => {
     const { entries } = useStore.getState()
@@ -203,10 +244,13 @@ export default function App() {
       />
       <div className="flex min-h-0 flex-1">
         <Sidebar
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           onOpenSession={openSession}
           onNewSession={newSession}
           onRename={renameSession}
           onDelete={deleteSession}
+          onExport={exportMarkdown}
         />
         <main className="flex min-w-0 flex-1 flex-col border-l border-border">
           {empty ? (

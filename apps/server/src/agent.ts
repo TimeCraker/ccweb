@@ -1,5 +1,10 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type { Query, SDKUserMessage, PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+
+/** user content 块(text/image)——SDK 类型对 content 要求 ContentBlockParam */
+type UserContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
 import type { ServerMessage } from './protocol.js'
 import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metrics.js'
 import { runtimeSettings, endpointEnv } from './settings.js'
@@ -137,14 +142,23 @@ export class AgentSession {
     this.acc.turns = n
   }
 
-  send(text: string): void {
+  send(text: string, images?: string[]): void {
     this.ensureStarted()
-    const content = [{ type: 'text' as const, text }]
+    const content: UserContentBlock[] = [{ type: 'text', text }]
+    // 图片附件:data URL → Anthropic image block
+    for (const dataUrl of images ?? []) {
+      const m = /^data:(image\/[a-z+]+);base64,(.+)$/.exec(dataUrl)
+      if (!m?.[1] || !m[2]) continue
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: m[1], data: m[2] },
+      })
+    }
     // 首条消息无 session_id(SDK 分配);后续带 session_id 续在同一会话
     const msg: SDKUserMessage = {
       type: 'user',
       session_id: this.sessionId ?? crypto.randomUUID(),
-      message: { role: 'user', content },
+      message: { role: 'user', content: content as unknown as SDKUserMessage['message']['content'] },
       parent_tool_use_id: null,
       uuid: crypto.randomUUID(),
       timestamp: new Date().toISOString(),

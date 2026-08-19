@@ -9,7 +9,13 @@ import { z } from 'zod'
 // ---------- C→S ----------
 
 export const clientMessageSchema = z.discriminatedUnion('t', [
-  z.object({ t: z.literal('prompt'), sessionId: z.string().optional(), text: z.string().min(1) }),
+  z.object({
+    t: z.literal('prompt'),
+    sessionId: z.string().optional(),
+    text: z.string().min(1),
+    /** 附件图片(data:image/png;base64,…) */
+    images: z.array(z.string()).optional(),
+  }),
   z.object({ t: z.literal('interrupt') }),
   z.object({ t: z.literal('abort') }),
   z.object({
