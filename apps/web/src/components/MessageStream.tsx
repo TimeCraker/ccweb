@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { useStore, visibleEntries } from '../store'
 import type { Block, TurnEntry } from '../render/blocks'
@@ -9,9 +9,12 @@ import ToolCard from './ToolCard'
 /**
  * 消息流:react-virtuoso 虚拟滚动(10k+ 消息 60fps,SPEC §3.4 质量门),
  * followOutput 流式期间自动吸底,用户上滚即停止跟随。
+ * 注意:zustand selector 必须返回稳定引用(派生数组放 useMemo),
+ * 返回新数组引用会触发 React18 无限重渲染(#185)。
  */
 export default function MessageStream() {
-  const entries = useStore((s) => visibleEntries(s.entries))
+  const rawEntries = useStore((s) => s.entries)
+  const entries = useMemo(() => visibleEntries(rawEntries), [rawEntries])
   const busy = useStore((s) => s.busy)
   const virtuoso = useRef<VirtuosoHandle>(null)
   const range = useRef({ visibleRange: null as { startIndex: number; endIndex: number } | null })
@@ -64,7 +67,7 @@ export default function MessageStream() {
 
 function UserRow({ text }: { text: string }) {
   return (
-    <div className="group flex justify-end">
+    <div className="animate-msg-in group flex justify-end">
       <div className="max-w-[80%] whitespace-pre-wrap rounded-xl rounded-br-sm border border-border-strong bg-panel-2 px-4 py-2.5">
         {text}
       </div>

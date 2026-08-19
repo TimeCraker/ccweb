@@ -32,6 +32,118 @@ html:not(.dark) {
   --color-accent-hover: #4248c9;
 }
 
+/* ---------- 动效系统(design-skill:150-300ms,仅 transform/opacity) ---------- */
+:root {
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 150ms;
+  --dur-mid: 220ms;
+}
+
+/* 指标数字对齐(dev tool 精致度关键) */
+.tabular,
+.md code,
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 弹窗/面板出现:fade + scale(玻璃面板) */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-pop-in {
+  animation: pop-in var(--dur-mid) var(--ease-soft) both;
+}
+
+/* 遮罩淡入 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in var(--dur-fast) ease-out both;
+}
+
+/* 消息条目进入 */
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-msg-in {
+  animation: msg-in var(--dur-mid) var(--ease-soft) both;
+}
+
+/* 指标值更新高亮 */
+@keyframes metric-pulse {
+  0% {
+    color: var(--color-accent);
+  }
+  100% {
+    color: inherit;
+  }
+}
+.animate-metric {
+  animation: metric-pulse 600ms var(--ease-soft);
+}
+
+/* 工具卡展开:grid-rows 过渡(非 height 属性) */
+.tool-expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-mid) var(--ease-soft);
+}
+.tool-expand.open {
+  grid-template-rows: 1fr;
+}
+.tool-expand > div {
+  overflow: hidden;
+}
+
+/* 统一按钮按压反馈(design-skill:所有可点元素必须有 pressed 态) */
+button:not(:disabled) {
+  transition-property: color, background-color, border-color, transform, opacity;
+  transition-duration: var(--dur-fast);
+  transition-timing-function: var(--ease-soft);
+}
+button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* 可展开卡片 hover 边框亮起(Spotlight 精神,克制版) */
+.tool-card {
+  transition: border-color var(--dur-fast) var(--ease-soft);
+}
+.tool-card:hover {
+  border-color: var(--color-border-strong);
+}
+
+/* 无障碍:尊重 reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 html,
 body,
 #root {

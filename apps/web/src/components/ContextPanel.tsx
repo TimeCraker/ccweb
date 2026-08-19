@@ -70,15 +70,42 @@ export default function ContextPanel() {
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">
-          会话统计
+          Token 构成
+        </h3>
+        {m && m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens > 0 ? (
+          <div>
+            <div className="flex h-2 overflow-hidden rounded-full border border-border">
+              <div
+                className="bg-accent transition-all duration-500"
+                style={{ width: `${pctOf(m.inputTokens, m)}%` }}
+                title="原始输入"
+              />
+              <div
+                className="bg-ok transition-all duration-500"
+                style={{ width: `${pctOf(m.cacheReadTokens, m)}%` }}
+                title="缓存读"
+              />
+              <div
+                className="bg-warn transition-all duration-500"
+                style={{ width: `${pctOf(m.cacheCreationTokens, m)}%` }}
+                title="缓存写"
+              />
+            </div>
+            <div className="mt-2 space-y-1">
+              <Legend color="bg-accent" k="原始输入" v={fmtTokens(m.inputTokens)} />
+              <Legend color="bg-ok" k="缓存读" v={fmtTokens(m.cacheReadTokens)} />
+              <Legend color="bg-warn" k="缓存写" v={fmtTokens(m.cacheCreationTokens)} />
+            </div>
+          </div>
+        ) : (
+          <p className="text-[11px] text-text-faint">对话后显示</p>
+        )}
+
+        <h3 className="mb-2 mt-4 text-[11px] font-medium uppercase tracking-wider text-text-faint">
+          会话累计
         </h3>
         <dl className="space-y-1.5 text-xs">
-          <Row k="输入" v={m ? fmtTokens(m.inputTokens) : '—'} />
           <Row k="输出" v={m ? fmtTokens(m.outputTokens) : '—'} />
-          <Row k="缓存读" v={m ? fmtTokens(m.cacheReadTokens) : '—'} />
-          <Row k="缓存写" v={m ? fmtTokens(m.cacheCreationTokens) : '—'} />
-          <Row k="TTFT" v={m?.ttftMs != null ? `${(m.ttftMs / 1000).toFixed(2)}s` : '—'} />
-          <Row k="速度" v={m?.tokensPerSecond != null ? `${m.tokensPerSecond.toFixed(0)} t/s` : '—'} />
           <Row k="成本" v={m?.totalCostUsd != null ? `$${m.totalCostUsd.toFixed(4)}` : '—'} />
         </dl>
       </div>
@@ -93,4 +120,19 @@ function Row({ k, v }: { k: string; v: string }) {
       <dd className="font-mono text-text-dim">{v}</dd>
     </div>
   )
+}
+
+function Legend({ color, k, v }: { color: string; k: string; v: string }) {
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      <span className={`size-2 rounded-sm ${color}`} />
+      <span className="text-text-faint">{k}</span>
+      <span className="ml-auto font-mono text-text-dim">{v}</span>
+    </div>
+  )
+}
+
+function pctOf(n: number, m: { inputTokens: number; cacheReadTokens: number; cacheCreationTokens: number }): number {
+  const total = m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens
+  return total > 0 ? (n / total) * 100 : 0
 }

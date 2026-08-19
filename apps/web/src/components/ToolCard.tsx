@@ -40,7 +40,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
   const truncated = result != null && result.length > RESULT_LIMIT
 
   return (
-    <div className="my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
+    <div className="tool-card my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -60,9 +60,9 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
         <span className={`shrink-0 text-text-faint transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
       </button>
 
-      {open && (
-        <div className="border-t border-border">
-          <div className="px-3 py-2">
+      <div className={`tool-expand ${open ? 'open' : ''}`}>
+        <div>
+          <div className="border-t border-border px-3 py-2">
             <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">参数</p>
             <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded border border-border bg-bg px-3 py-2 font-mono text-[11px] text-text-dim">
               {block.input ? JSON.stringify(block.input, null, 2) : block.inputRaw || '(流式接收中…)'}
@@ -78,14 +78,13 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
                     : 'border-border bg-bg text-text-dim'
                 }`}
               >
-                {truncated && !open ? '' : ''}
                 {truncate(result, RESULT_LIMIT)}
                 {truncated ? '\n…(截断,完整结果见终端会话)' : ''}
               </pre>
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

@@ -69,14 +69,14 @@ export default function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[15vh] backdrop-blur-sm"
+      className="animate-fade-in fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[15vh] backdrop-blur-sm"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="command palette"
-        className="w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-strong bg-panel shadow-2xl"
+        className="animate-pop-in w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-strong bg-panel shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <input
@@ -107,19 +107,31 @@ export default function CommandPalette({
           {items.length === 0 && (
             <p className="px-3 py-6 text-center text-xs text-text-faint">{t('palette.empty')}</p>
           )}
-          {items.map((c, i) => (
-            <button
-              key={c.id}
-              onClick={() => exec(c)}
-              onMouseEnter={() => setSel(i)}
-              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${
-                i === sel ? 'bg-panel-2 text-text' : 'text-text-dim'
-              }`}
-            >
-              <span className="truncate">{c.label}</span>
-              {c.hint && <span className="ml-2 shrink-0 font-mono text-[10px] text-text-faint">{c.hint}</span>}
-            </button>
-          ))}
+          {items.map((c, i) => {
+            const prev = items[i - 1]
+            const isSession = c.id.startsWith('s:')
+            const prevIsSession = prev?.id.startsWith('s:')
+            const showGroup = isSession !== prevIsSession
+            return (
+              <div key={c.id}>
+                {showGroup && (
+                  <p className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-text-faint">
+                    {isSession ? t('palette.sessions') : t('palette.commands')}
+                  </p>
+                )}
+                <button
+                  onClick={() => exec(c)}
+                  onMouseEnter={() => setSel(i)}
+                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${
+                    i === sel ? 'bg-panel-2 text-text' : 'text-text-dim'
+                  }`}
+                >
+                  <span className="truncate">{c.label}</span>
+                  {c.hint && <span className="ml-2 shrink-0 font-mono text-[10px] text-text-faint">{c.hint}</span>}
+                </button>
+              </div>
+            )
+          })}
         </div>
       </div>
     </div>

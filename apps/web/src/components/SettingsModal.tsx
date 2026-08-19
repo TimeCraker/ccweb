@@ -75,14 +75,14 @@ export default function SettingsModal({ open, onClose, send }: Props) {
   const patch = (p: Record<string, unknown>) => send({ t: 'settings.patch', patch: p })
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="animate-fade-in fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
         ref={boxRef}
         role="dialog"
         aria-modal="true"
         aria-label="settings"
         tabIndex={-1}
-        className="w-[520px] max-w-[92vw] rounded-xl border border-border-strong bg-panel p-5 shadow-2xl"
+        className="animate-pop-in w-[520px] max-w-[92vw] rounded-xl border border-border-strong bg-panel p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-4 text-base font-semibold">{t('settings.title')}</h2>

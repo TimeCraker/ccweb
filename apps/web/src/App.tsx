@@ -15,7 +15,8 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+B 侧栏折叠
+  // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+N 新建会话(与命令面板 hint 一致)
+  const newSessionRef = useRef<() => void>(() => {})
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
@@ -24,6 +25,9 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && e.key === ',') {
         e.preventDefault()
         setSettingsOpen(true)
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        newSessionRef.current()
       }
     }
     window.addEventListener('keydown', onKey)
@@ -114,11 +118,12 @@ export default function App() {
     }
   }, [])
 
-  // 连接建立/会话切换后刷新会话列表
+  // 连接建立/会话切换后刷新会话列表与设置快照(model 兜底显示)
   useEffect(() => {
     const unsub = useStore.subscribe((s, prev) => {
       if (s.conn === 'open' && prev.conn !== 'open') {
         wsRef.current?.send({ t: 'session.list' })
+        wsRef.current?.send({ t: 'settings.get' })
       }
     })
     return unsub
@@ -144,6 +149,7 @@ export default function App() {
   const newSession = () => {
     wsRef.current?.send({ t: 'session.new' })
   }
+  newSessionRef.current = newSession
   const renameSession = (id: string, title: string) => {
     wsRef.current?.send({ t: 'session.rename', sessionId: id, title })
   }

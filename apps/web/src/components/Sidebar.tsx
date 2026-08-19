@@ -24,9 +24,11 @@ function timeAgo(iso: string | null): string {
 export default function Sidebar({ onOpenSession, onNewSession, onRename }: Props) {
   const conn = useStore((s) => s.conn)
   const model = useStore((s) => s.model)
+  const settings = useStore((s) => s.settings)
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.sessionId)
   const [query, setQuery] = useState('')
+  const modelLabel = model ?? settings?.model ?? 'auto'
 
   useEffect(() => {
     // 连接建立后拉取会话列表(重连也会刷新)
@@ -93,8 +95,8 @@ export default function Sidebar({ onOpenSession, onNewSession, onRename }: Props
           <span className={`size-2 rounded-full ${connDot}`} />
           <span>{conn === 'open' ? '已连接' : conn === 'connecting' ? '连接中…' : '已断开,重连中…'}</span>
         </div>
-        <div className="mt-2 truncate font-mono text-[11px] text-text-faint" title={model ?? ''}>
-          {model ?? 'model: auto'}
+        <div className="mt-2 truncate font-mono text-[11px] text-text-faint" title={modelLabel}>
+          {modelLabel}
         </div>
       </div>
     </aside>
