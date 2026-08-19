@@ -40,6 +40,7 @@ const ZH = {
   'ms.copied': '已复制',
   'ms.toBottom': '回到底部',
   'ms.copyCode': '复制代码',
+  'ms.imageBadge': (n: number) => `[图片 ×${n}]`,
   // 指标
   'mt.turns': '轮数',
   'mt.ttft': 'TTFT',
@@ -111,6 +112,7 @@ const ZH = {
   'tp.themeLight': '浅色',
   'tp.themeSystem': '跟随系统',
   'tp.themeCurrent': (s: string) => `当前 ${s}`,
+  'tp.themeCycle': '点击切换',
   'tp.settings': '设置 (Ctrl+,)',
   // hero
   'hero.title': '今天做点什么?',
@@ -182,6 +184,7 @@ const EN: Dict = {
   'ms.copied': 'Copied',
   'ms.toBottom': 'Back to bottom',
   'ms.copyCode': 'Copy code',
+  'ms.imageBadge': (n: number) => `[image ×${n}]`,
   'mt.turns': 'Turns',
   'mt.ttft': 'TTFT',
   'mt.speed': 'Speed',
@@ -246,6 +249,7 @@ const EN: Dict = {
   'tp.themeLight': 'light',
   'tp.themeSystem': 'follow system',
   'tp.themeCurrent': (s: string) => `current ${s}`,
+  'tp.themeCycle': 'click to cycle',
   'tp.settings': 'Settings (Ctrl+,)',
   'hero.title': 'What are we building today?',
   'hero.sub': 'Your full ~/.claude setup is live — skills / memory / MCP apply automatically',

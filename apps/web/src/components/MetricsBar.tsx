@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { t, useLocale } from '../i18n'
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -31,6 +32,7 @@ function usePulseKey(value: string): number {
 
 export default function MetricsBar() {
   const m = useStore((s) => s.metrics)
+  useLocale()
   const turns = m?.turns ?? 0
   const costStr = m?.totalCostUsd != null ? `$${m.totalCostUsd.toFixed(4)}` : '—'
   const pulse = usePulseKey(costStr)
@@ -40,22 +42,22 @@ export default function MetricsBar() {
       key={pulse}
       className={`flex items-center gap-4 border-t border-border bg-panel px-6 py-1.5 ${pulse ? 'animate-metric' : ''}`}
     >
-      <Item label="轮数" value={String(turns)} />
+      <Item label={t('mt.turns')} value={String(turns)} />
       <Item label="in" value={m ? fmt(m.inputTokens) : '—'} />
       <Item label="out" value={m ? fmt(m.outputTokens) : '—'} />
       <Item
-        label="TTFT"
+        label={t('mt.ttft')}
         value={m?.ttftMs != null ? `${(m.ttftMs / 1000).toFixed(2)}s` : '—'}
       />
       <Item
-        label="速度"
+        label={t('mt.speed')}
         value={m?.tokensPerSecond != null ? `${m.tokensPerSecond.toFixed(1)}/s` : '—'}
       />
       <Item
-        label="缓存命中"
+        label={t('mt.cache')}
         value={m?.cacheHitRate != null ? `${(m.cacheHitRate * 100).toFixed(0)}%` : '—'}
       />
-      <Item label="成本" value={costStr} />
+      <Item label={t('mt.cost')} value={costStr} />
     </div>
   )
 }

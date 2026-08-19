@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
+import { t, useLocale } from '../i18n'
 import { IconWarn } from './Icon'
 
 /**
@@ -9,6 +10,7 @@ import { IconWarn } from './Icon'
 export default function Toast() {
   const error = useStore((s) => s.error)
   const [visible, setVisible] = useState(false)
+  useLocale()
 
   useEffect(() => {
     if (!error) return
@@ -34,7 +36,7 @@ export default function Toast() {
             setVisible(false)
             useStore.getState().setError(null)
           }}
-          aria-label="dismiss"
+          aria-label={t('err.dismiss')}
           className="shrink-0 text-text-faint hover:text-text"
         >
           ✕

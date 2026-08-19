@@ -2,11 +2,13 @@ import { memo, useState, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
+import { t, useLocale } from '../i18n'
 import { copyText } from '../clipboard'
 
 /** 代码块:dsh 对齐 —— 语言标签 + 复制按钮(copy→1s 打勾) */
 function CodeBlock({ children }: { children?: ReactNode }) {
   const [copied, setCopied] = useState(false)
+  useLocale()
   // react-markdown 传来的 <code className="language-xxx">
   let lang = ''
   let code = ''
@@ -32,12 +34,12 @@ function CodeBlock({ children }: { children?: ReactNode }) {
               setTimeout(() => setCopied(false), 1000)
             })
           }}
-          aria-label="复制代码"
+          aria-label={t('ms.copyCode')}
           className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
             copied ? 'text-ok' : 'text-text-faint opacity-0 group-hover/code:opacity-100 focus-visible:opacity-100 hover:text-text-dim'
           }`}
         >
-          {copied ? '✓ 已复制' : '复制'}
+          {copied ? `✓ ${t('ms.copied')}` : t('ms.copyCode')}
         </button>
       </div>
       <pre className="!m-0 !rounded-none !border-0">{child ?? children}</pre>

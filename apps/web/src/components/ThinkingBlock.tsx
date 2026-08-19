@@ -1,9 +1,11 @@
 import { useState } from 'react'
+import { t, tf, useLocale } from '../i18n'
 import type { ThinkingBlock as T } from '../render/blocks'
 import { IconBrain } from './Icon'
 
 export default function ThinkingBlock({ block }: { block: T }) {
   const [open, setOpen] = useState(false)
+  useLocale()
   const lines = block.text.split('\n').length
 
   return (
@@ -13,7 +15,7 @@ export default function ThinkingBlock({ block }: { block: T }) {
         className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] text-text-faint transition-colors hover:text-text-dim"
       >
         <IconBrain width={12} height={12} className={block.streaming ? 'animate-pulse text-accent' : ''} />
-        {block.streaming ? '思考中…' : `已思考(${lines} 行)`}
+        {block.streaming ? t('th.thinking') : tf('th.thought', lines)}
         <span className={`transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
       </button>
       {open && (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { t, tf, useLocale } from '../i18n'
 import { BrandMark, IconGear, IconMoon, IconSun, IconChevron, IconGauge, IconSparkle } from './Icon'
 import { cycleTheme, useThemeMode } from '../theme'
 
@@ -15,6 +16,7 @@ const PERMISSIONS = ['default', 'acceptEdits', 'plan', 'bypassPermissions']
 /** 顶栏:品牌 + 工作区切换(dsh 语义)· 模型/权限一键切换 */
 export default function TopBar({ onOpenSettings, onPatch, onSetWorkspace }: Props) {
   const { mode, resolved } = useThemeMode()
+  useLocale()
   const model = useStore((s) => s.model ?? s.settings?.model ?? s.settings?.currentModel)
   const permissionMode = useStore((s) => s.settings?.permissionMode ?? 'default')
   const settings = useStore((s) => s.settings)
@@ -60,7 +62,13 @@ export default function TopBar({ onOpenSettings, onPatch, onSetWorkspace }: Prop
           className="icon-btn"
           aria-label="cycle theme"
           onClick={cycleTheme}
-          title={`主题:${mode === 'system' ? `跟随系统(当前 ${resolved === 'dark' ? '深' : '浅'})` : mode === 'dark' ? '深色' : '浅色'} — 点击切换`}
+          title={`${t('tp.theme')}:${
+            mode === 'system'
+              ? `${t('tp.themeSystem')}(${tf('tp.themeCurrent', resolved === 'dark' ? t('tp.themeDark') : t('tp.themeLight'))})`
+              : mode === 'dark'
+                ? t('tp.themeDark')
+                : t('tp.themeLight')
+          } — ${t('tp.themeCycle')}`}
         >
           {mode === 'system' ? (
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -73,7 +81,7 @@ export default function TopBar({ onOpenSettings, onPatch, onSetWorkspace }: Prop
             <IconMoon width={15} height={15} />
           )}
         </button>
-        <button className="icon-btn" aria-label="settings" onClick={onOpenSettings} title="设置 (Ctrl+,)">
+        <button className="icon-btn" aria-label="settings" onClick={onOpenSettings} title={t('tp.settings')}>
           <IconGear width={15} height={15} />
         </button>
       </div>
@@ -93,6 +101,7 @@ function WorkspacePicker({
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  useLocale()
 
   useEffect(() => {
     if (!open) return
@@ -103,7 +112,7 @@ function WorkspacePicker({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
-  const label = current ? baseName(current) : '启动目录'
+  const label = current ? baseName(current) : t('ws.title')
 
   return (
     <div className="relative" ref={ref}>
@@ -114,7 +123,7 @@ function WorkspacePicker({
       {open && (
         <div className="animate-pop-in absolute left-0 top-9 z-30 max-h-80 w-72 overflow-y-auto rounded-lg border border-border-strong bg-panel p-1 shadow-xl">
           {!current && (
-            <div className="rounded-md bg-panel-2 px-2.5 py-1.5 text-xs text-accent">启动目录(当前)</div>
+            <div className="rounded-md bg-panel-2 px-2.5 py-1.5 text-xs text-accent">{t('palette.launchDir')}</div>
           )}
           {workspaces.map((w) => (
             <button
@@ -131,12 +140,12 @@ function WorkspacePicker({
                 {baseName(w.dir)}
               </span>
               <span className="truncate font-mono text-[10px] text-text-faint" title={w.dir}>
-                {w.dir} · {w.sessions} 会话
+                {w.dir} · {tf('ws.sessions', w.sessions)}
               </span>
             </button>
           ))}
           {workspaces.length === 0 && (
-            <p className="px-3 py-4 text-center text-xs text-text-faint">暂无历史工作区</p>
+            <p className="px-3 py-4 text-center text-xs text-text-faint">{t('ws.none')}</p>
           )}
         </div>
       )}

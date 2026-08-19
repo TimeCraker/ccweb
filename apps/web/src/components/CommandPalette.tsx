@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
-import { t, useLocale, toggleLocale } from '../i18n'
+import { t, tf, useLocale, toggleLocale } from '../i18n'
 import { cycleTheme } from '../theme'
 
 interface Cmd {
@@ -38,7 +38,7 @@ export default function CommandPalette({
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  useLocale()
+  const locale = useLocale()
 
   // 高亮项滚入可视区(dsh MenuView 对齐)
   useEffect(() => {
@@ -55,17 +55,18 @@ export default function CommandPalette({
   }, [open])
 
   const items = useMemo<Cmd[]>(() => {
+    const tr = (key: Parameters<typeof t>[0]): string => t(key, locale) as string
     const cmds: Cmd[] = [
-      { id: 'new', label: t('palette.cmd.newSession'), hint: 'Ctrl N', run: onNewSession },
-      { id: 'settings', label: t('palette.cmd.settings'), hint: 'Ctrl ,', run: onOpenSettings },
-      { id: 'theme', label: t('palette.cmd.theme'), run: cycleTheme },
-      { id: 'lang', label: t('palette.cmd.lang'), run: toggleLocale },
+      { id: 'new', label: tr('palette.cmd.newSession'), hint: 'Ctrl N', run: onNewSession },
+      { id: 'settings', label: tr('palette.cmd.settings'), hint: 'Ctrl ,', run: onOpenSettings },
+      { id: 'theme', label: tr('palette.cmd.theme'), run: cycleTheme },
+      { id: 'lang', label: tr('palette.cmd.lang'), run: toggleLocale },
     ]
     const wsList: Cmd[] = workspaces.slice(0, 10).map((w) => {
       const parts = w.dir.split(/[\\/]/).filter(Boolean)
       return {
         id: `w:${w.dir}`,
-        label: `切换工作区:${parts[parts.length - 1] ?? w.dir}`,
+        label: tf('palette.switchWs', parts[parts.length - 1] ?? w.dir),
         hint: 'workspace',
         run: () => onSetWorkspace(w.dir),
       }
@@ -80,7 +81,7 @@ export default function CommandPalette({
     if (!q) return all
     const needle = q.toLowerCase()
     return all.filter((c) => c.label.toLowerCase().includes(needle))
-  }, [q, sessions, workspaces, onNewSession, onOpenSettings, onOpenSession, onSetWorkspace])
+  }, [q, locale, sessions, workspaces, onNewSession, onOpenSettings, onOpenSession, onSetWorkspace])
 
   if (!open) return null
 
@@ -135,7 +136,7 @@ export default function CommandPalette({
             const kind = c.id.startsWith('s:') ? 's' : c.id.startsWith('w:') ? 'w' : 'c'
             const prevKind = prev ? (prev.id.startsWith('s:') ? 's' : prev.id.startsWith('w:') ? 'w' : 'c') : ''
             const showGroup = kind !== prevKind
-            const groupLabel = kind === 's' ? t('palette.sessions') : kind === 'w' ? '工作区' : t('palette.commands')
+            const groupLabel = kind === 's' ? t('palette.sessions') : kind === 'w' ? t('palette.workspaces') : t('palette.commands')
             return (
               <div key={c.id}>
                 {showGroup && (

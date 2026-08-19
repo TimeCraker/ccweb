@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
-import { useLocale } from '../i18n'
+import { t, tf, useLocale, type DictKey } from '../i18n'
 
 export interface EndpointOpt {
   key: string
@@ -17,14 +17,14 @@ export interface EndpointOpt {
 
 type Tab = 'model' | 'endpoint' | 'permission' | 'skills' | 'rules' | 'mcp'
 
-const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'model', label: '模型' },
-  { id: 'endpoint', label: '端点' },
-  { id: 'permission', label: '权限' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'rules', label: '规则' },
-  { id: 'mcp', label: 'MCP' },
-]
+const TABS = [
+  { id: 'model', label: 'st.tab.model' },
+  { id: 'endpoint', label: 'st.tab.endpoint' },
+  { id: 'permission', label: 'st.tab.permission' },
+  { id: 'skills', label: 'st.tab.skills' },
+  { id: 'rules', label: 'st.tab.rules' },
+  { id: 'mcp', label: 'st.tab.mcp' },
+] as const satisfies Array<{ id: Tab; label: DictKey }>
 
 const EFFORTS = ['low', 'medium', 'high', 'max']
 const PERMISSIONS = ['default', 'acceptEdits', 'plan', 'bypassPermissions']
@@ -95,7 +95,7 @@ export default function SettingsModal({ open, onClose, send }: Props) {
         {/* 左侧 tab 导航(ARIA tabs) */}
         <nav className="w-40 shrink-0 border-r border-border bg-panel-2/40 p-2" role="tablist" aria-label="settings sections">
           <p className="px-2 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wider text-text-faint">
-            设置
+            {t('st.title')}
           </p>
           {TABS.map((x) => (
             <button
@@ -107,7 +107,7 @@ export default function SettingsModal({ open, onClose, send }: Props) {
                 tab === x.id ? 'bg-panel-2 font-medium text-accent' : 'text-text-dim hover:text-text'
               }`}
             >
-              {x.label}
+              {t(x.label)}
             </button>
           ))}
         </nav>
@@ -119,7 +119,7 @@ export default function SettingsModal({ open, onClose, send }: Props) {
           {tab === 'permission' && (
             <div>
               <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">
-                权限模式
+                {t('st.tab.permission')}
               </h3>
               <div className="flex flex-wrap gap-1.5">
                 {PERMISSIONS.map((p) => (
@@ -136,10 +136,7 @@ export default function SettingsModal({ open, onClose, send }: Props) {
                   </button>
                 ))}
               </div>
-              <p className="mt-3 text-[11px] leading-relaxed text-text-faint">
-                default 按需询问(推荐)· acceptEdits 自动接受编辑 · plan 只读规划 · bypassPermissions
-                全放行(危险)
-              </p>
+              <p className="mt-3 text-[11px] leading-relaxed text-text-faint">{t('st.pm.note1')}</p>
             </div>
           )}
           {tab === 'skills' && <SkillsTab snap={snap} />}
@@ -170,31 +167,32 @@ function ModelTab({
   setModelInput: (v: string) => void
   patch: (p: Record<string, unknown>) => void
 }) {
+  useLocale()
   return (
     <div>
-      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">模型</h3>
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">{t('st.tab.model')}</h3>
       <p className="mb-3 rounded-lg border border-border bg-panel-2/40 px-3 py-2 text-xs text-text-dim">
-        当前生效(settings.json):
-        <span className="ml-1 font-mono text-accent">{snap?.currentModel ?? '默认'}</span>
+        {t('st.model.active')}
+        <span className="ml-1 font-mono text-accent">{snap?.currentModel ?? t('st.model.default')}</span>
       </p>
       <div className="flex gap-2">
         <input
           value={modelInput}
           onChange={(e) => setModelInput(e.target.value)}
-          placeholder="自定义模型 ID,如 glm-4.7"
+          placeholder={t('st.model.placeholder')}
           className="flex-1 rounded-lg border border-border bg-bg px-3 py-1.5 font-mono text-xs outline-none focus:border-accent"
         />
         <button
           onClick={() => patch({ model: modelInput.trim() || null })}
           className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
         >
-          应用
+          {t('st.model.apply')}
         </button>
       </div>
-      <p className="mt-2 text-[11px] text-text-faint">留空则用端点默认模型;别名(opus/sonnet/haiku)由端点映射。</p>
+      <p className="mt-2 text-[11px] text-text-faint">{t('st.model.note')}</p>
 
       <h3 className="mb-2 mt-5 text-[11px] font-medium uppercase tracking-wider text-text-faint">
-        思考力度 <span className="normal-case text-text-faint">(新会话生效)</span>
+        {t('st.model.effort')} <span className="normal-case text-text-faint">({t('st.model.effortNote')})</span>
       </h3>
       <div className="flex gap-1.5">
         {EFFORTS.map((e) => (
@@ -220,17 +218,16 @@ function EndpointTab({
   snap: SettingsSnap | null
   patch: (p: Record<string, unknown>) => void
 }) {
+  useLocale()
   return (
     <div>
-      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">API 端点</h3>
-      <p className="mb-1 text-[11px] text-text-faint">当前生效(读 ~/.claude/settings.json 真值):</p>
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">{t('st.tab.endpoint')}</h3>
+      <p className="mb-1 text-[11px] text-text-faint">{t('st.ep.active')}</p>
       <p className="mb-4 break-all rounded-lg border border-border bg-panel-2/40 px-3 py-2 font-mono text-xs text-accent">
         {snap?.currentEndpoint ?? '—'}
       </p>
 
-      <p className="mb-2 text-[11px] text-text-faint">
-        切换模板(来自 cc-toolkit,新会话生效;URL 明文可见):
-      </p>
+      <p className="mb-2 text-[11px] text-text-faint">{t('st.ep.switch')}</p>
       <div className="space-y-1">
         {(snap?.endpoints ?? []).map((e) => (
           <button
@@ -245,30 +242,29 @@ function EndpointTab({
             <span className={`text-xs font-medium ${snap?.endpointTemplate === e.key ? 'text-accent' : 'text-text-dim'}`}>
               {e.name}
             </span>
-            <span className="break-all font-mono text-[10px] text-text-faint">{e.baseUrl ?? '(无 URL)'}</span>
+            <span className="break-all font-mono text-[10px] text-text-faint">{e.baseUrl ?? t('st.ep.noUrl')}</span>
           </button>
         ))}
       </div>
-      <p className="mt-3 text-[11px] leading-relaxed text-text-faint">
-        模板内容与实际不符?那是 cc-toolkit/settings/settings.&lt;name&gt;.json 的配置——在设置里改它不如直接改模板文件。
-      </p>
+      <p className="mt-3 text-[11px] leading-relaxed text-text-faint">{t('st.ep.note')}</p>
     </div>
   )
 }
 
 function SkillsTab({ snap }: { snap: SettingsSnap | null }) {
+  useLocale()
   const skills = snap?.skills ?? []
   return (
     <div>
       <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">
-        用户 Skills({skills.length})· 全部自动生效
+        {tf('st.skills.count', skills.length)}
       </h3>
       <div className="space-y-1">
         {skills.map((s) => (
           <div key={s.name} className="rounded-lg border border-border px-3 py-2">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs text-text-dim">{s.name}</span>
-              <span className="ml-auto rounded bg-ok/10 px-1.5 py-0.5 text-[10px] text-ok">启用</span>
+              <span className="ml-auto rounded bg-ok/10 px-1.5 py-0.5 text-[10px] text-ok">{t('st.skills.enabled')}</span>
             </div>
             {s.description && (
               <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-text-faint">{s.description}</p>
@@ -276,7 +272,7 @@ function SkillsTab({ snap }: { snap: SettingsSnap | null }) {
           </div>
         ))}
         {skills.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-text-faint">~/.claude/skills 下暂无技能</p>
+          <p className="px-2 py-6 text-center text-xs text-text-faint">{t('st.skills.none')}</p>
         )}
       </div>
     </div>
@@ -285,17 +281,18 @@ function SkillsTab({ snap }: { snap: SettingsSnap | null }) {
 
 function RulesTab({ snap }: { snap: SettingsSnap | null }) {
   const [openMd, setOpenMd] = useState(false)
+  useLocale()
   const rules = snap?.rules ?? []
   return (
     <div>
       <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">
-        全局规则(每会话全量加载)
+        {t('st.rules.title')}
       </h3>
       <div className="space-y-1">
         {rules.map((r) => (
           <div key={r.name} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
             <span className="font-mono text-xs text-text-dim">{r.name}</span>
-            <span className="font-mono text-[10px] text-text-faint">{(r.size / 1000).toFixed(1)}k 字符</span>
+            <span className="font-mono text-[10px] text-text-faint">{tf('st.rules.chars', r.size)}</span>
           </div>
         ))}
       </div>
@@ -304,12 +301,12 @@ function RulesTab({ snap }: { snap: SettingsSnap | null }) {
         onClick={() => setOpenMd((v) => !v)}
         className="mt-4 flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left hover:border-border-strong"
       >
-        <span className="font-mono text-xs text-text-dim">CLAUDE.md(全局指令)</span>
+        <span className="font-mono text-xs text-text-dim">{t('st.rules.claudeMd')}</span>
         <span className={`text-text-faint transition-transform ${openMd ? 'rotate-90' : ''}`}>▸</span>
       </button>
       {openMd && (
         <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-bg px-3 py-2 font-mono text-[11px] leading-relaxed text-text-dim">
-          {snap?.claudeMd ?? '(未找到 ~/.claude/CLAUDE.md)'}
+          {snap?.claudeMd ?? t('st.rules.noMd')}
         </pre>
       )}
     </div>
@@ -317,14 +314,15 @@ function RulesTab({ snap }: { snap: SettingsSnap | null }) {
 }
 
 function McpTab({ mcp, send }: { mcp: Array<{ name: string; status: string }>; send: (m: Record<string, unknown>) => void }) {
+  useLocale()
   return (
     <div>
-      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">MCP 服务</h3>
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">{t('st.tab.mcp')}</h3>
       <button
         onClick={() => send({ t: 'mcp.status' })}
         className="rounded-lg border border-border-strong px-3 py-1.5 text-xs text-text-dim hover:border-accent hover:text-accent"
       >
-        刷新状态
+        {t('st.mcp.refresh')}
       </button>
       {mcp.length > 0 && (
         <ul className="mt-3 space-y-1">
@@ -337,9 +335,7 @@ function McpTab({ mcp, send }: { mcp: Array<{ name: string; status: string }>; s
         </ul>
       )}
       {mcp.length === 0 && (
-        <p className="mt-3 text-[11px] leading-relaxed text-text-faint">
-          发送一条消息后可查询;MCP 服务配置在 ~/.claude/settings.json 的 mcpServers 段。
-        </p>
+        <p className="mt-3 text-[11px] leading-relaxed text-text-faint">{t('st.mcp.none')}</p>
       )}
     </div>
   )

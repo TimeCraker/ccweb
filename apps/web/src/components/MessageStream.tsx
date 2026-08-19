@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { useStore, visibleEntries } from '../store'
+import { t, useLocale } from '../i18n'
 import type { Block, TurnEntry } from '../render/blocks'
 import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
@@ -23,6 +24,7 @@ export default function MessageStream({ onRegenerate }: StreamProps) {
   const virtuoso = useRef<VirtuosoHandle>(null)
   const [atBottom, setAtBottom] = useState(true)
   const range = useRef({ startIndex: 0, endIndex: 0 })
+  useLocale()
 
   useEffect(() => {
     if (entries.length === 0) return
@@ -70,7 +72,7 @@ export default function MessageStream({ onRegenerate }: StreamProps) {
       {!atBottom && (
         <button
           onClick={() => virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'smooth' })}
-          aria-label="回到底部"
+          aria-label={t('ms.toBottom')}
           className="animate-pop-in absolute bottom-4 left-1/2 grid size-9 -translate-x-1/2 place-items-center rounded-full border border-border-strong bg-panel text-text-dim shadow-xl hover:text-text"
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -85,6 +87,7 @@ export default function MessageStream({ onRegenerate }: StreamProps) {
 /** ≥15s 运行计时(1s tick) */
 function RunningTimer({ startedAt }: { startedAt: number }) {
   const [now, setNow] = useState(Date.now())
+  useLocale()
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
@@ -92,7 +95,7 @@ function RunningTimer({ startedAt }: { startedAt: number }) {
   const sec = Math.floor((now - startedAt) / 1000)
   return (
     <p aria-live="polite" className="px-6 pb-1 text-center text-[11px] text-text-faint">
-      正在处理… {sec >= 60 ? `${Math.floor(sec / 60)}m${sec % 60}s` : `${sec}s`}
+      {t('ms.running')} {sec >= 60 ? `${Math.floor(sec / 60)}m${sec % 60}s` : `${sec}s`}
     </p>
   )
 }
@@ -134,6 +137,7 @@ function TurnView({
   canRegenerate?: boolean
   onRegenerate?: () => void
 }) {
+  useLocale()
   const lastTextStreaming = (() => {
     for (let i = turn.blocks.length - 1; i >= 0; i--) {
       const b = turn.blocks[i]
@@ -164,7 +168,7 @@ function TurnView({
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
             </svg>
-            重新生成
+            {t('ms.regenerate')}
           </button>
         )}
       </div>
@@ -174,6 +178,7 @@ function TurnView({
 
 function BlockView({ block, isLastText }: { block: Block; isLastText: boolean }) {
   const [copied, setCopied] = useState(false)
+  useLocale()
   if (block.kind === 'thinking') return <ThinkingBlock block={block} />
   if (block.kind === 'tool') return <ToolCard block={block} />
   return (
@@ -189,7 +194,7 @@ function BlockView({ block, isLastText }: { block: Block; isLastText: boolean })
           }}
           className="absolute -right-14 top-0 rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint opacity-0 transition-opacity focus-visible:opacity-100 hover:text-text group-hover:opacity-100"
         >
-          {copied ? '已复制' : '复制'}
+          {copied ? t('ms.copied') : t('ms.copy')}
         </button>
       )}
     </div>
@@ -198,6 +203,7 @@ function BlockView({ block, isLastText }: { block: Block; isLastText: boolean })
 
 function CopyBtn({ text, className }: { text: string; className?: string }) {
   const [copied, setCopied] = useState(false)
+  useLocale()
   return (
     <button
       onClick={() => {
@@ -208,7 +214,7 @@ function CopyBtn({ text, className }: { text: string; className?: string }) {
       }}
       className={`rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint transition-colors hover:text-text ${className ?? ''}`}
     >
-      {copied ? '已复制' : '复制'}
+      {copied ? t('ms.copied') : t('ms.copy')}
     </button>
   )
 }

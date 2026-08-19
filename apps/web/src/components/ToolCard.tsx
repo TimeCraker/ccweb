@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { t, useLocale } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
 import {
   IconTerminal,
@@ -38,10 +39,10 @@ const TOOL_META: Record<string, { icon: ReactNode; label: (i: Record<string, unk
 }
 
 const STATUS_BADGE = {
-  streaming: { text: '参数', cls: 'text-text-faint' },
-  running: { text: '执行中', cls: 'text-accent' },
-  done: { text: '完成', cls: 'text-ok' },
-  error: { text: '失败', cls: 'text-danger' },
+  streaming: { text: 'tl.streaming', cls: 'text-text-faint' },
+  running: { text: 'tl.running', cls: 'text-accent' },
+  done: { text: 'tl.done', cls: 'text-ok' },
+  error: { text: 'tl.error', cls: 'text-danger' },
 } as const
 
 export default function ToolCard({ block }: { block: ToolBlock }) {
@@ -49,6 +50,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
   const [userTouched, setUserTouched] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
   const [open, setOpen] = useState(false)
+  useLocale()
   const isBashDone = block.toolName === 'Bash' && (block.status === 'done' || block.status === 'error')
   if (isBashDone && !autoOpen) setAutoOpen(true)
   const effectiveOpen = userTouched ? open : open || autoOpen
@@ -89,7 +91,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
           <span className="size-3 shrink-0 animate-spin rounded-full border border-accent border-t-transparent" />
         )}
         <span className={`shrink-0 font-mono text-[10px] ${badge.cls}`}>
-          {badge.text}
+          {t(badge.text)}
           {elapsed ? ` ${elapsed}` : ''}
         </span>
         <span className={`shrink-0 text-text-faint transition-transform ${effectiveOpen ? 'rotate-90' : ''}`}>▸</span>
@@ -98,14 +100,14 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
       <div className={`tool-expand ${effectiveOpen ? 'open' : ''}`}>
         <div>
           <div className="border-t border-border px-3 py-2">
-            <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">参数</p>
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.params')}</p>
             <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded border border-border bg-bg px-3 py-2 font-mono text-[11px] text-text-dim">
-              {block.input ? JSON.stringify(block.input, null, 2) : block.inputRaw || '(流式接收中…)'}
+              {block.input ? JSON.stringify(block.input, null, 2) : block.inputRaw || t('tl.receiving')}
             </pre>
           </div>
           {result != null && (
             <div className="border-t border-border px-3 py-2">
-              <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">结果</p>
+              <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.result')}</p>
               <pre
                 className={`max-h-72 overflow-auto whitespace-pre-wrap rounded border px-3 py-2 font-mono text-[11px] ${
                   block.status === 'error'
@@ -114,7 +116,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
                 }`}
               >
                 {truncate(result, RESULT_LIMIT)}
-                {truncated ? '\n…(截断,完整结果见终端会话)' : ''}
+                {truncated ? `\n…${t('tl.truncated')}` : ''}
               </pre>
             </div>
           )}

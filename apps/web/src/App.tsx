@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { WsClient } from './ws'
 import { useStore } from './store'
+import { t, tf, useLocale } from './i18n'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import MessageStream from './components/MessageStream'
@@ -18,6 +19,7 @@ export default function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  useLocale()
   const empty = useStore((s) => s.entries.length === 0)
   const busy = useStore((s) => s.busy)
   const conn = useStore((s) => s.conn)
@@ -173,7 +175,7 @@ export default function App() {
 
   const send = (text: string, images?: string[]) => {
     const sessionId = useStore.getState().sessionId
-    useStore.getState().appendUser(images?.length ? `${text}\n[图片 ×${images.length}]` : text)
+    useStore.getState().appendUser(images?.length ? `${text}\n${tf('ms.imageBadge', images.length)}` : text)
     wsRef.current?.send({ t: 'prompt', sessionId: sessionId ?? undefined, text, images })
   }
   const interrupt = () => {
@@ -205,7 +207,7 @@ export default function App() {
   const exportMarkdown = () => {
     const { entries } = useStore.getState()
     if (entries.length === 0) {
-      useStore.getState().setError('当前没有可导出的对话')
+      useStore.getState().setError(t('err.noExport'))
       return
     }
     const lines: string[] = [`# ccweb 对话导出`, ``, `> ${new Date().toLocaleString()}`, ``]
@@ -257,7 +259,7 @@ export default function App() {
       {connBanner && (
         <div className="animate-fade-in flex h-7 shrink-0 items-center justify-center gap-2 bg-warn/15 px-4 text-[11px] text-warn" role="status">
           <span className="size-1.5 animate-pulse rounded-full bg-warn" />
-          连接已断开,正在重连…
+          {t('conn.reconnecting')}
         </div>
       )}
       <TopBar
@@ -279,19 +281,17 @@ export default function App() {
           {empty ? (
             <div className="hero-glow flex flex-1 flex-col items-center justify-center overflow-y-auto px-6">
               <BrandMark size={56} uid="hero" />
-              <h1 className="mt-5 text-xl font-semibold tracking-tight">今天做点什么?</h1>
-              <p className="mt-1.5 text-sm text-text-dim">
-                完整 ~/.claude 配置已就绪 · 你的 skills / memory / MCP 自动生效
-              </p>
+              <h1 className="mt-5 text-xl font-semibold tracking-tight">{t('hero.title')}</h1>
+              <p className="mt-1.5 text-sm text-text-dim">{t('hero.sub')}</p>
               <div className="mt-7 w-full max-w-2xl">{composer}</div>
               <p className="mt-3 text-[11px] text-text-faint">
                 <span className="font-mono">{settingsMeta}</span>
               </p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-text-faint">
-                <Chip k="Ctrl K" v="命令面板" />
-                <Chip k="Ctrl N" v="新建会话" />
-                <Chip k="Esc" v="中断生成" />
-                <Chip k="Ctrl ," v="设置" />
+                <Chip k="Ctrl K" v={t('hero.palette')} />
+                <Chip k="Ctrl N" v={t('hero.newSession')} />
+                <Chip k="Esc" v={t('hero.interrupt')} />
+                <Chip k="Ctrl ," v={t('hero.settings')} />
               </div>
             </div>
           ) : (

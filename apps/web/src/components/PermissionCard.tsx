@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { diffLines } from 'diff'
 import { useStore } from '../store'
+import { t, useLocale } from '../i18n'
 import { IconWarn } from './Icon'
 
 interface Props {
@@ -12,6 +13,7 @@ const DANGEROUS = /\b(rm\s+-rf|del\s+\/[sq]|format|mkfs|shutdown|reboot|git\s+pu
 
 export default function PermissionCard({ onResolve }: Props) {
   const permissions = useStore((s) => s.permissions)
+  useLocale()
   const p = permissions[permissions.length - 1]
   if (!p) return null
 
@@ -33,7 +35,7 @@ export default function PermissionCard({ onResolve }: Props) {
           <span className={`grid size-6 place-items-center rounded-md ${dangerous ? 'bg-danger/15 text-danger' : 'bg-warn/15 text-warn'}`}>
             <IconWarn width={14} height={14} />
           </span>
-          <span className="text-sm font-medium">{dangerous ? '高危操作需要确认' : '操作需要确认'}</span>
+          <span className="text-sm font-medium">{dangerous ? t('pm.danger') : t('pm.title')}</span>
           <span className="rounded bg-border px-1.5 py-0.5 font-mono text-[11px] text-text-dim">
             {p.toolName}
           </span>
@@ -53,25 +55,25 @@ export default function PermissionCard({ onResolve }: Props) {
         )}
 
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-[11px] text-text-faint">请确认后继续</p>
+          <p className="text-[11px] text-text-faint">{t('pm.confirm')}</p>
           <div className="flex gap-2">
             <button
               onClick={() => onResolve(p.requestId, false)}
               className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-danger hover:text-danger"
             >
-              拒绝
+              {t('pm.deny')}
             </button>
             <button
               onClick={() => onResolve(p.requestId, true, true)}
               className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-accent hover:text-accent"
             >
-              总是允许
+              {t('pm.always')}
             </button>
             <button
               onClick={() => onResolve(p.requestId, true)}
               className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover"
             >
-              允许
+              {t('pm.allow')}
             </button>
           </div>
         </div>

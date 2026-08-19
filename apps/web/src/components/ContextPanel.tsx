@@ -1,4 +1,5 @@
 import { useStore } from '../store'
+import { t, tf, useLocale } from '../i18n'
 import { useMemo } from 'react'
 
 /** 从 getContextUsage 透传对象中宽松提取水位(字段名跨版本可能不同) */
@@ -22,6 +23,7 @@ function fmtTokens(n: number): string {
 export default function ContextPanel() {
   const ctx = useStore((s) => s.context)
   const m = useStore((s) => s.metrics)
+  useLocale()
 
   const level = useMemo(() => extractUsage(ctx?.raw ?? null), [ctx])
   const pct = level ? Math.min(100, (level.used / level.max) * 100) : 0
@@ -31,13 +33,13 @@ export default function ContextPanel() {
   return (
     <aside className="hidden w-52 shrink-0 flex-col border-l border-border bg-panel xl:flex">
       <div className="border-b border-border px-4 py-3">
-        <h3 className="text-[11px] font-medium uppercase tracking-wider text-text-faint">上下文</h3>
+        <h3 className="text-[11px] font-medium uppercase tracking-wider text-text-faint">{t('ctx.title')}</h3>
       </div>
 
       {/* 高水位警示:接近压缩阈值时主动提醒(不只靠环形图变色) */}
       {level && pct > 85 && (
         <div className="border-b border-warn/30 bg-warn/10 px-3 py-2 text-[11px] leading-relaxed text-warn">
-          上下文已用 {pct.toFixed(0)}% — 临近自动压缩,长会话建议新建或让模型 /compact
+          {tf('ctx.warn', Math.round(pct))}
         </div>
       )}
 
@@ -67,17 +69,13 @@ export default function ContextPanel() {
             </div>
           </>
         ) : (
-          <div className="py-6 text-center text-xs text-text-faint">
-            对话开始后
-            <br />
-            显示上下文水位
-          </div>
+          <div className="py-6 text-center text-xs text-text-faint">{t('ctx.waiting')}</div>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-3">
         <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">
-          Token 构成
+          {t('ctx.composition')}
         </h3>
         {m && m.inputTokens + m.cacheReadTokens + m.cacheCreationTokens > 0 ? (
           <div>
@@ -85,35 +83,35 @@ export default function ContextPanel() {
               <div
                 className="bg-accent transition-all duration-500"
                 style={{ width: `${pctOf(m.inputTokens, m)}%` }}
-                title="原始输入"
+                title={t('ctx.fresh')}
               />
               <div
                 className="bg-ok transition-all duration-500"
                 style={{ width: `${pctOf(m.cacheReadTokens, m)}%` }}
-                title="缓存读"
+                title={t('ctx.cacheRead')}
               />
               <div
                 className="bg-warn transition-all duration-500"
                 style={{ width: `${pctOf(m.cacheCreationTokens, m)}%` }}
-                title="缓存写"
+                title={t('ctx.cacheWrite')}
               />
             </div>
             <div className="mt-2 space-y-1">
-              <Legend color="bg-accent" k="原始输入" v={fmtTokens(m.inputTokens)} />
-              <Legend color="bg-ok" k="缓存读" v={fmtTokens(m.cacheReadTokens)} />
-              <Legend color="bg-warn" k="缓存写" v={fmtTokens(m.cacheCreationTokens)} />
+              <Legend color="bg-accent" k={t('ctx.fresh')} v={fmtTokens(m.inputTokens)} />
+              <Legend color="bg-ok" k={t('ctx.cacheRead')} v={fmtTokens(m.cacheReadTokens)} />
+              <Legend color="bg-warn" k={t('ctx.cacheWrite')} v={fmtTokens(m.cacheCreationTokens)} />
             </div>
           </div>
         ) : (
-          <p className="text-[11px] text-text-faint">对话后显示</p>
+          <p className="text-[11px] text-text-faint">{t('ctx.afterChat')}</p>
         )}
 
         <h3 className="mb-2 mt-4 text-[11px] font-medium uppercase tracking-wider text-text-faint">
-          会话累计
+          {t('ctx.total')}
         </h3>
         <dl className="space-y-1.5 text-xs">
-          <Row k="输出" v={m ? fmtTokens(m.outputTokens) : '—'} />
-          <Row k="成本" v={m?.totalCostUsd != null ? `$${m.totalCostUsd.toFixed(4)}` : '—'} />
+          <Row k={t('ctx.output')} v={m ? fmtTokens(m.outputTokens) : '—'} />
+          <Row k={t('mt.cost')} v={m?.totalCostUsd != null ? `$${m.totalCostUsd.toFixed(4)}` : '—'} />
         </dl>
       </div>
     </aside>

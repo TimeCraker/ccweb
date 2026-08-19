@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { t, useLocale } from '../i18n'
 import { IconSend, IconStop } from './Icon'
 
 interface Props {
@@ -13,6 +14,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
   const [text, setText] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [slashSel, setSlashSel] = useState(0)
+  useLocale()
   const busy = useStore((s) => s.busy)
   const slashCommands = useStore((s) => s.slashCommands)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -45,9 +47,9 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
   }, [text, slashCommands])
 
   const submit = () => {
-    const t = text.trim()
-    if ((!t && images.length === 0) || busy) return
-    onSend(t || '(图片)', images.length ? images : undefined)
+    const txt = text.trim()
+    if ((!txt && images.length === 0) || busy) return
+    onSend(txt || t('cp.imageOnly'), images.length ? images : undefined)
     setText('')
     setImages([])
   }
@@ -89,7 +91,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
                 />
                 <button
                   onClick={() => setImages((prev) => prev.filter((_, j) => j !== i))}
-                  aria-label="移除图片"
+                  aria-label={t('cp.removeImage')}
                   className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full border border-border bg-panel text-[10px] text-text-dim opacity-0 transition-opacity group-hover:opacity-100"
                 >
                   ✕
@@ -110,8 +112,8 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
         >
           <button
             onClick={() => fileRef.current?.click()}
-            aria-label="添加图片"
-            title="图片附件(可粘贴/拖放)"
+            aria-label={t('cp.addImage')}
+            title={t('cp.addImage')}
             className="grid size-8 shrink-0 place-items-center rounded-lg text-text-faint hover:bg-panel-2 hover:text-text-dim"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -171,13 +173,13 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
               }
             }}
             rows={1}
-            placeholder={busy ? '正在生成…按 Esc 中断' : '给 Claude Code 发送任务…(/ 命令)'}
+            placeholder={busy ? t('cp.busy') : t('cp.placeholder')}
             className="max-h-48 min-h-6 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
           />
           {busy ? (
             <button
               onClick={onInterrupt}
-              aria-label="停止生成"
+              aria-label={t('cp.stop')}
               className="grid size-8 shrink-0 place-items-center rounded-lg border border-border-strong text-text-dim transition-colors hover:border-danger hover:text-danger"
             >
               <IconStop width={14} height={14} />
@@ -186,7 +188,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
             <button
               onClick={submit}
               disabled={!text.trim() && images.length === 0}
-              aria-label="发送"
+              aria-label={t('cp.send')}
               className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-white transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-35"
             >
               <IconSend width={14} height={14} />
@@ -194,9 +196,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
           )}
         </div>
         {!hero && (
-          <p className="mt-2 text-center text-[11px] text-text-faint">
-            Enter 发送 · Shift+Enter 换行 · Esc 中断
-          </p>
+          <p className="mt-2 text-center text-[11px] text-text-faint">{t('cp.hint')}</p>
         )}
       </div>
     </div>
