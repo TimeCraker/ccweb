@@ -1,4 +1,4 @@
-import { listSessions, getSessionMessages } from '@anthropic-ai/claude-agent-sdk'
+import { listSessions, getSessionMessages, renameSession } from '@anthropic-ai/claude-agent-sdk'
 import type { SessionMeta } from './protocol.js'
 
 /**
@@ -8,13 +8,21 @@ import type { SessionMeta } from './protocol.js'
  */
 
 interface SdkSessionInfoLike {
+  /** SDK 0.3.x 实际字段为驼峰 sessionId / 数字时间戳(实测 2026-08-19) */
+  sessionId?: string
   id?: string
   session_id?: string
   summary?: string
   customTitle?: string
   firstPrompt?: string
-  lastModified?: string
+  lastModified?: number | string
   gitBranch?: string
+}
+
+function toIso(v: number | string | undefined): string | null {
+  if (v == null) return null
+  if (typeof v === 'number') return new Date(v).toISOString()
+  return v
 }
 
 async function tryCall<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
@@ -34,9 +42,9 @@ export async function listSessionMetas(cwd?: string): Promise<SessionMeta[]> {
   )
   return raw
     .map((s) => ({
-      id: s.id ?? s.session_id ?? '',
+      id: s.sessionId ?? s.id ?? s.session_id ?? '',
       title: s.customTitle ?? s.summary ?? s.firstPrompt ?? '(无标题)',
-      lastModified: s.lastModified ?? null,
+      lastModified: toIso(s.lastModified),
       gitBranch: s.gitBranch ?? null,
     }))
     .filter((s) => s.id !== '')
@@ -55,6 +63,18 @@ export async function fetchHistory(sessionId: string, cwd?: string): Promise<unk
     [],
   )
   return msgs
+}
+
+export async function renameSessionMeta(sessionId: string, title: string): Promise<boolean> {
+  try {
+    await (renameSession as unknown as (id: string, title: string, opts?: unknown) => Promise<unknown>)(
+      sessionId,
+      title,
+    )
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function isSessionApiAvailable(): boolean {

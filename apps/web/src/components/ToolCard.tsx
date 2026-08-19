@@ -43,6 +43,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
     <div className="my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
       <button
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-panel-2"
       >
         <span className="grid size-5 shrink-0 place-items-center rounded border border-border font-mono text-[11px] text-text-dim">

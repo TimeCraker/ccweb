@@ -21,7 +21,7 @@ English introduction below ↓
 
 ```bash
 # 需要 Node.js 20+(SDK 自带 claude 二进制,无需单独安装 Claude Code CLI)
-npx ccweb
+npx ccweb-console
 # 或从源码
 git clone https://github.com/TimeCraker/ccweb && cd ccweb
 pnpm install && pnpm build && node apps/server/bin/ccweb.mjs

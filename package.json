@@ -9,10 +9,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter @ccweb/server --filter @ccweb/web dev",
-    "dev:server": "pnpm --filter @ccweb/server dev",
+    "dev": "pnpm --parallel --filter ccweb-console --filter @ccweb/web dev",
+    "dev:server": "pnpm --filter ccweb-console dev",
     "dev:web": "pnpm --filter @ccweb/web dev",
-    "build": "pnpm --filter @ccweb/web build && pnpm --filter @ccweb/server build",
+    "build": "pnpm --filter @ccweb/web build && pnpm --filter ccweb-console build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",

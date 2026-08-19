@@ -1,21 +1,35 @@
 {
-  "name": "@ccweb/server",
+  "name": "ccweb-console",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Professional local web console for Claude Code — sessions, live metrics, visual approvals",
   "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "agent-sdk",
+    "web-console",
+    "gui"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TimeCraker/ccweb.git"
+  },
+  "author": "TimeCraker",
   "bin": {
     "ccweb": "bin/ccweb.mjs"
   },
   "files": [
     "dist",
     "public",
-    "bin"
+    "bin",
+    "README.md"
   ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json && node scripts/copy-web.mjs",
+    "prepublishOnly": "cd ../web && pnpm build && cd ../server && pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src"

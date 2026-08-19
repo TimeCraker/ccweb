@@ -5,6 +5,7 @@ import type { SessionMeta } from '../types'
 interface Props {
   onOpenSession: (id: string, fork?: boolean) => void
   onNewSession: () => void
+  onRename: (id: string, title: string) => void
 }
 
 function timeAgo(iso: string | null): string {
@@ -20,7 +21,7 @@ function timeAgo(iso: string | null): string {
   return `${d} 天前`
 }
 
-export default function Sidebar({ onOpenSession, onNewSession }: Props) {
+export default function Sidebar({ onOpenSession, onNewSession, onRename }: Props) {
   const conn = useStore((s) => s.conn)
   const model = useStore((s) => s.model)
   const sessions = useStore((s) => s.sessions)
@@ -82,6 +83,7 @@ export default function Sidebar({ onOpenSession, onNewSession }: Props) {
             active={s.id === activeId}
             onOpen={() => onOpenSession(s.id)}
             onFork={() => onOpenSession(s.id, true)}
+            onRename={(title) => onRename(s.id, title)}
           />
         ))}
       </div>
@@ -104,37 +106,79 @@ function SessionRow({
   active,
   onOpen,
   onFork,
+  onRename,
 }: {
   s: SessionMeta
   active: boolean
   onOpen: () => void
   onFork: () => void
+  onRename: (title: string) => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(s.title)
+
   return (
     <div
       className={`group relative mb-0.5 cursor-pointer rounded-lg px-3 py-2 transition-colors ${
         active ? 'bg-panel-2' : 'hover:bg-panel-2/60'
       }`}
-      onClick={onOpen}
+      onClick={() => !editing && onOpen()}
     >
       {active && <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent" />}
-      <p className="truncate pr-5 text-xs text-text-dim">{s.title || '(无标题)'}</p>
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && draft.trim()) {
+              onRename(draft.trim())
+              setEditing(false)
+            } else if (e.key === 'Escape') {
+              setDraft(s.title)
+              setEditing(false)
+            }
+          }}
+          onBlur={() => setEditing(false)}
+          className="w-full rounded border border-accent bg-bg px-1.5 py-0.5 text-xs outline-none"
+        />
+      ) : (
+        <p className="truncate pr-10 text-xs text-text-dim">{s.title || '(无标题)'}</p>
+      )}
       <div className="mt-1 flex items-center gap-2 text-[10px] text-text-faint">
         <span>{timeAgo(s.lastModified)}</span>
         {s.gitBranch && (
           <span className="rounded bg-border px-1 font-mono">{s.gitBranch}</span>
         )}
       </div>
-      <button
-        title="从此处分叉新会话"
-        onClick={(e) => {
-          e.stopPropagation()
-          onFork()
-        }}
-        className="absolute right-2 top-2 hidden rounded px-1 text-[11px] text-text-faint hover:text-accent group-hover:block"
-      >
-        ⎇
-      </button>
+      {!editing && (
+        <div className="absolute right-2 top-2 hidden gap-0.5 group-hover:flex">
+          <button
+            title="重命名"
+            aria-label="rename session"
+            onClick={(e) => {
+              e.stopPropagation()
+              setDraft(s.title)
+              setEditing(true)
+            }}
+            className="rounded px-1 text-[11px] text-text-faint hover:text-accent"
+          >
+            ✎
+          </button>
+          <button
+            title="从此处分叉新会话"
+            aria-label="fork session"
+            onClick={(e) => {
+              e.stopPropagation()
+              onFork()
+            }}
+            className="rounded px-1 text-[11px] text-text-faint hover:text-accent"
+          >
+            ⎇
+          </button>
+        </div>
+      )}
     </div>
   )
 }

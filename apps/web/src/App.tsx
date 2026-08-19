@@ -144,10 +144,13 @@ export default function App() {
   const newSession = () => {
     wsRef.current?.send({ t: 'session.new' })
   }
+  const renameSession = (id: string, title: string) => {
+    wsRef.current?.send({ t: 'session.rename', sessionId: id, title })
+  }
 
   return (
     <div className="flex h-full">
-      <Sidebar onOpenSession={openSession} onNewSession={newSession} />
+      <Sidebar onOpenSession={openSession} onNewSession={newSession} onRename={renameSession} />
       <main className="flex min-w-0 flex-1 flex-col border-l border-border">
         <MessageStream />
         <PermissionCard onResolve={resolvePermission} />

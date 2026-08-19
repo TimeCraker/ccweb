@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
 import { AgentSession } from './agent.js'
-import { fetchHistory, listSessionMetas } from './sessions.js'
+import { fetchHistory, listSessionMetas, renameSessionMeta } from './sessions.js'
 import { runtimeSettings, listEndpointTemplates } from './settings.js'
 
 const PORT = Number(process.env.CCWEB_PORT ?? 3477)
@@ -172,10 +172,14 @@ wss.on('connection', (ws) => {
         })()
         break
       }
-      case 'session.rename':
-        // SDK renameSession 0.3.x 不可用;标题由列表 summary 兜底,P3 接 customTitle
-        void pushSessionList()
+      case 'session.rename': {
+        const ok = await renameSessionMeta(msg.sessionId, msg.title)
+        if (!ok) {
+          emit({ t: 'error', seq: 0, code: 'rename_failed', message: 'renameSession failed (SDK or fs).' })
+        }
+        await pushSessionList()
         break
+      }
       case 'settings.get':
         emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
         break

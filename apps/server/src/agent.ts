@@ -119,7 +119,6 @@ export class AgentSession {
   sessionId: string | null = null
   /** 最近 content_block_start(tool_use) 的 id——input_json_delta 只有 index,按最近 tool 块归属 */
   private activeToolUseId: string | null = null
-  private contextTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(
     private readonly emit: Emit,
@@ -275,7 +274,7 @@ export class AgentSession {
     if (type === 'result' && subtype === 'success') {
       applyResult(this.acc, msg)
       this.emitMetrics()
-      void this.pushContextUsage()
+      this.emitContext()
     }
 
     // 完整消息(message/result)一律转发,前端负责渲染其余类型
@@ -350,23 +349,18 @@ export class AgentSession {
     }
   }
 
-  /** 上下文水位:事件驱动(result 后)+ 会话进行中低频轮询 */
-  private async pushContextUsage(): Promise<void> {
-    const q = this.q
-    if (!q || typeof (q as unknown as { getContextUsage?: unknown }).getContextUsage !== 'function') {
-      return
-    }
-    try {
-      const usage = await (q as unknown as { getContextUsage: () => Promise<unknown> }).getContextUsage()
-      if (usage && this.sessionId) {
-        this.emit({ t: 'context', seq: 0, sessionId: this.sessionId, usage })
-        if (!this.contextTimer) {
-          this.contextTimer = setInterval(() => void this.pushContextUsage(), 15_000)
-        }
-      }
-    } catch {
-      // 上下文探测失败不影响主流程
-    }
+  /** 上下文水位:每轮 result 后从 accumulator 推送(usedTokens/maxTokens,前端兼容) */
+  private emitContext(): void {
+    if (!this.sessionId) return
+    this.emit({
+      t: 'context',
+      seq: 0,
+      sessionId: this.sessionId,
+      usage: {
+        usedTokens: this.acc.contextUsed,
+        maxTokens: this.acc.contextMax,
+      },
+    })
   }
 
   private emitMetrics(): void {
@@ -375,32 +369,43 @@ export class AgentSession {
   }
 }
 
-/** result 消息落库:modelUsage 权威累计 + 本轮回转速度 */
+/** result 消息落库:modelUsage 权威累计 + 本轮回转速度 + 上下文水位 */
 function applyResult(acc: MetricsAccumulator, result: Record<string, unknown>): void {
   const modelUsage = result.modelUsage as
-    | Record<string, { inputTokens?: number; outputTokens?: number; cacheReadInputTokens?: number; cacheCreationInputTokens?: number }>
+    | Record<string, { inputTokens?: number; outputTokens?: number; cacheReadInputTokens?: number; cacheCreationInputTokens?: number; contextWindow?: number }>
     | undefined
   if (modelUsage) {
     let input = 0
     let output = 0
     let cacheRead = 0
     let cacheCreation = 0
+    let ctxMax: number | null = null
     for (const u of Object.values(modelUsage)) {
       input += u.inputTokens ?? 0
       output += u.outputTokens ?? 0
       cacheRead += u.cacheReadInputTokens ?? 0
       cacheCreation += u.cacheCreationInputTokens ?? 0
+      if (typeof u.contextWindow === 'number' && u.contextWindow > 0) ctxMax = u.contextWindow
     }
     acc.inputTokens = input
     acc.outputTokens = output
     acc.cacheReadTokens = cacheRead
     acc.cacheCreationTokens = cacheCreation
+    acc.contextMax = ctxMax
   }
   if (typeof result.total_cost_usd === 'number') acc.totalCostUsd = result.total_cost_usd
   if (typeof result.ttft_ms === 'number') acc.ttftMs = result.ttft_ms
 
+  const usage = result.usage as
+    | { output_tokens?: number; input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }
+    | undefined
+  // 上下文水位 = 最近一轮输入侧 token(该轮 prompt 总量,即当前上下文占用)
+  if (usage) {
+    acc.contextUsed =
+      (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
+  }
+
   // 本轮回转输出速度:主循环 output ÷ (duration - ttft)
-  const usage = result.usage as { output_tokens?: number } | undefined
   const durationMs = typeof result.duration_ms === 'number' ? result.duration_ms : null
   if (usage?.output_tokens && durationMs && acc.ttftMs != null && durationMs > acc.ttftMs) {
     acc.tokensPerSecond = (usage.output_tokens / (durationMs - acc.ttftMs)) * 1000

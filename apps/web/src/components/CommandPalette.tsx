@@ -73,6 +73,9 @@ export default function CommandPalette({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="command palette"
         className="w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-strong bg-panel shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >

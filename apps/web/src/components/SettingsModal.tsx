@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
 
@@ -32,10 +32,43 @@ export default function SettingsModal({ open, onClose, send }: Props) {
   const mcp = useStore((s) => s.mcpServers)
   useLocale()
   const [modelInput, setModelInput] = useState('')
+  const boxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (open) send({ t: 'settings.get' })
   }, [open, send])
+
+  // 焦点陷阱:打开聚焦首控件;Tab 在弹窗内循环;Esc 关闭(WAI-ARIA dialog 模式)
+  useEffect(() => {
+    if (!open) return
+    const box = boxRef.current
+    if (!box) return
+    const first = box.querySelector<HTMLElement>('input, button, select')
+    first?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const focusables = box.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), button:not([disabled]), select, [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusables.length === 0) return
+      const list = Array.from(focusables)
+      const idx = list.indexOf(document.activeElement as HTMLElement)
+      if (e.shiftKey && (idx <= 0)) {
+        e.preventDefault()
+        list[list.length - 1]?.focus()
+      } else if (!e.shiftKey && idx === list.length - 1) {
+        e.preventDefault()
+        list[0]?.focus()
+      }
+    }
+    box.addEventListener('keydown', onKey)
+    return () => box.removeEventListener('keydown', onKey)
+  }, [open, onClose])
 
   if (!open) return null
 
@@ -44,6 +77,11 @@ export default function SettingsModal({ open, onClose, send }: Props) {
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div
+        ref={boxRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="settings"
+        tabIndex={-1}
         className="w-[520px] max-w-[92vw] rounded-xl border border-border-strong bg-panel p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >

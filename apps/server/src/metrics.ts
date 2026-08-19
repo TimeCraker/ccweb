@@ -10,6 +10,10 @@ export interface MetricsAccumulator {
   ttftMs: number | null
   tokensPerSecond: number | null
   totalCostUsd: number | null
+  /** 上下文水位:最近一轮输入侧 token(input+cache),即当前对话的上下文占用 */
+  contextUsed: number
+  /** 上下文窗口大小(来自 result.modelUsage[].contextWindow) */
+  contextMax: number | null
 }
 
 export function newAccumulator(): MetricsAccumulator {
@@ -22,6 +26,8 @@ export function newAccumulator(): MetricsAccumulator {
     ttftMs: null,
     tokensPerSecond: null,
     totalCostUsd: null,
+    contextUsed: 0,
+    contextMax: null,
   }
 }
 
