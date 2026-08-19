@@ -12,6 +12,7 @@ import ContextPanel from './components/ContextPanel'
 import CommandPalette from './components/CommandPalette'
 import SettingsModal from './components/SettingsModal'
 import Toast from './components/Toast'
+import QueueDock from './components/QueueDock'
 import { BrandMark } from './components/Icon'
 
 export default function App() {
@@ -92,6 +93,9 @@ export default function App() {
             // 斜杠命令:settings 提供(连接即有);SDK init 到达时合并去重(补内置)
             if (msg.settings.slashCommands?.length) s.setSlashCommands(msg.settings.slashCommands)
           }
+          break
+        case 'queue':
+          if (msg.items) s.setQueue(msg.items as Array<{ uuid: string; text: string }>)
           break
         case 'mcpStatus':
           if (msg.servers) s.setMcp(msg.servers)
@@ -297,6 +301,7 @@ export default function App() {
           ) : (
             <>
               <MessageStream onRegenerate={regenerate} />
+              <QueueDock onDelete={(uuid) => wsRef.current?.send({ t: 'queue.delete', uuid })} />
               <PermissionCard onResolve={resolvePermission} />
               <MetricsBar />
               {composer}

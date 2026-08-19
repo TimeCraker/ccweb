@@ -31,6 +31,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional() }),
   z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
   z.object({ t: z.literal('session.delete'), sessionId: z.string() }),
+  z.object({ t: z.literal('queue.delete'), uuid: z.string() }),
   z.object({
     t: z.literal('workspace.set'),
     dir: z.string().min(1),
@@ -93,6 +94,7 @@ export type ServerMessage =
   | { t: 'metrics'; seq: number; sessionId: string; metrics: SessionMetrics }
   | { t: 'context'; seq: number; sessionId: string; usage: unknown }
   | { t: 'sessions'; seq: number; sessions: SessionMeta[] }
+  | { t: 'queue'; seq: number; items: Array<{ uuid: string; text: string }> }
   | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
   | { t: 'settings'; seq: number; settings: SettingsSnapshot }
   | { t: 'mcpStatus'; seq: number; servers: Array<{ name: string; status: string }> }

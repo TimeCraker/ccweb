@@ -59,6 +59,7 @@ export interface ServerMessage {
   messages?: unknown[]
   settings?: SettingsSnapshot
   servers?: Array<{ name: string; status: string }>
+  items?: Array<{ uuid: string; text: string }>
   code?: string
   message?: string
   retry?: boolean

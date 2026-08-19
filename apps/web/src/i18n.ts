@@ -133,6 +133,10 @@ const ZH = {
   'palette.workspaces': '工作区',
   'palette.switchWs': (n: string) => `切换工作区:${n}`,
   'palette.launchDir': '启动目录(当前)',
+  // 队列
+  'queue.queued': '排队中',
+  'queue.delete': '撤销排队',
+  'cp.queuePlaceholder': '生成中 — Enter 排队发送…',
   // 断线
   'conn.reconnecting': '连接已断开,正在重连…',
   // 错误
@@ -269,6 +273,9 @@ const EN: Dict = {
   'palette.switchWs': (n: string) => `Switch workspace: ${n}`,
   'palette.launchDir': 'Launch directory (current)',
   'conn.reconnecting': 'Connection lost — reconnecting…',
+  'queue.queued': 'Queued',
+  'queue.delete': 'Cancel queued message',
+  'cp.queuePlaceholder': 'Busy — press Enter to queue…',
   'err.crashTitle': 'Something went wrong',
   'err.reload': 'Reload',
   'err.dismiss': 'Dismiss',

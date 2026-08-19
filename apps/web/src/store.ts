@@ -43,6 +43,8 @@ interface AppState {
   settings: SettingsSnapshot | null
   mcpServers: Array<{ name: string; status: string }>
   slashCommands: Array<{ name: string; description: string }>
+  /** 排队待处理消息(dsh QueueDock 对齐) */
+  queue: Array<{ uuid: string; text: string }>
 
   setConn: (c: ConnState) => void
   applyInit: (p: { sessionId: string | null; model: string | null; endpoint: string | null }) => void
@@ -50,6 +52,7 @@ interface AppState {
   setSettings: (s: SettingsSnapshot) => void
   setMcp: (list: Array<{ name: string; status: string }>) => void
   setSlashCommands: (list: Array<{ name: string; description: string }>) => void
+  setQueue: (items: Array<{ uuid: string; text: string }>) => void
   appendUser: (text: string) => void
   onBlockStart: (ev: { blockType: 'thinking' | 'text' | 'tool_use'; index: number; toolUseId?: string; toolName?: string }) => void
   onDelta: (ev: { kind: 'text' | 'thinking' | 'tool_input'; text: string; toolUseId?: string }) => void
@@ -84,6 +87,7 @@ export const useStore = create<AppState>((set) => ({
   settings: null,
   mcpServers: [],
   slashCommands: [],
+  queue: [],
 
   setConn: (conn) => set({ conn }),
   applyInit: ({ sessionId, model, endpoint }) => set({ sessionId, model, endpoint }),
@@ -91,6 +95,7 @@ export const useStore = create<AppState>((set) => ({
   setSettings: (settings) => set({ settings }),
   setMcp: (mcpServers) => set({ mcpServers }),
   setSlashCommands: (slashCommands) => set({ slashCommands }),
+  setQueue: (queue) => set({ queue }),
   appendUser: (text) =>
     set((s) => ({
       entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text }],

@@ -17,6 +17,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
   useLocale()
   const busy = useStore((s) => s.busy)
   const slashCommands = useStore((s) => s.slashCommands)
+  useLocale()
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -48,7 +49,8 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
 
   const submit = () => {
     const txt = text.trim()
-    if ((!txt && images.length === 0) || busy) return
+    // busy 时 Enter = 排队发送(dsh Queue 语义),不吞输入
+    if (!txt && images.length === 0) return
     onSend(txt || t('cp.imageOnly'), images.length ? images : undefined)
     setText('')
     setImages([])
@@ -173,7 +175,7 @@ export default function Composer({ onSend, onInterrupt, hero = false }: Props) {
               }
             }}
             rows={1}
-            placeholder={busy ? t('cp.busy') : t('cp.placeholder')}
+            placeholder={busy ? t('cp.queuePlaceholder') : t('cp.placeholder')}
             className="max-h-48 min-h-6 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
           />
           {busy ? (

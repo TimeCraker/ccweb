@@ -160,6 +160,11 @@ wss.on('connection', (ws) => {
       case 'interrupt':
         void currentSession?.interrupt()
         break
+      case 'queue.delete':
+        if (!currentSession?.deleteQueued(msg.uuid)) {
+          emit({ t: 'error', seq: 0, code: 'queue_not_found', message: 'Queued message not found (may already be running).' })
+        }
+        break
       case 'abort':
         currentSession?.abort()
         currentSession = null

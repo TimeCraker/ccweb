@@ -40,7 +40,7 @@ export function buildAgentEnv(): Record<string, string | undefined> {
 /** 推送到前端的消息出口 */
 export type Emit = (msg: ServerMessage) => void
 
-/** 手动驱动的 prompt 异步队列(流式输入模式) */
+/** 手动驱动的 prompt 异步队列(流式输入模式);支持撤销未处理项 */
 class PromptQueue {
   private buffered: SDKUserMessage[] = []
   private wakeup: (() => void) | null = null
@@ -56,10 +56,20 @@ class PromptQueue {
     this.wakeup?.()
   }
 
-  async *stream(): AsyncGenerator<SDKUserMessage> {
+  /** 撤销一条未处理的排队消息 */
+  remove(uuid: string): boolean {
+    const i = this.buffered.findIndex((m) => m.uuid === uuid)
+    if (i === -1) return false
+    this.buffered.splice(i, 1)
+    return true
+  }
+
+  async *stream(onYield?: (uuid: string) => void): AsyncGenerator<SDKUserMessage> {
     while (true) {
       if (this.buffered.length > 0) {
-        yield this.buffered.shift()!
+        const msg = this.buffered.shift()!
+        if (msg.uuid) onYield?.(msg.uuid)
+        yield msg
         continue
       }
       if (this.closed) return
@@ -130,8 +140,12 @@ export class AgentSession {
   private readonly abortController = new AbortController()
   /** 自定义 spawn 捕获的子进程 pid(树杀入口;dsh 借鉴:Windows 不信任优雅退出) */
   private childPid: number | null = null
+  /** 排队未处理的消息(dsh QueueDock 对齐:可见、可撤销)+ 当前 turn 状态 */
+  private turnActive = false
+  private readonly pendingQueue: Array<{ uuid: string; summary: string; content: UserContentBlock[] }> = []
 
   sessionId: string | null = null
+
   /** 最近 content_block_start(tool_use) 的 id——input_json_delta 只有 index,按最近 tool 块归属 */
   private activeToolUseId: string | null = null
 
@@ -154,6 +168,8 @@ export class AgentSession {
 
   send(text: string, images?: string[]): void {
     this.ensureStarted()
+    const uuid = crypto.randomUUID()
+    const summary = text.length > 80 ? `${text.slice(0, 80)}…` : text
     const content: UserContentBlock[] = [{ type: 'text', text }]
     // 图片附件:data URL → Anthropic image block
     for (const dataUrl of images ?? []) {
@@ -164,15 +180,30 @@ export class AgentSession {
         source: { type: 'base64', media_type: m[1], data: m[2] },
       })
     }
-    // 首条消息无 session_id(SDK 分配);后续带 session_id 续在同一会话
+    // dsh Inbox 模式:排队由 server hold(SDK 会贪读 generator,直接进 queue 不可见);
+    // turn 结束(result)后才 flush 下一条
+    this.pendingQueue.push({ uuid, summary, content })
+    this.emitQueue()
+    if (!this.turnActive) this.flushNext()
+  }
+
+  /** 把最旧一条排队消息交给 SDK */
+  private flushNext(): void {
+    const next = this.pendingQueue.shift()
+    if (!next) {
+      this.emitQueue()
+      return
+    }
+    this.emitQueue() // 立即从展示中消失
+    this.turnActive = true
     const msg: SDKUserMessage = {
       type: 'user',
       session_id: this.sessionId ?? crypto.randomUUID(),
-      message: { role: 'user', content: content as unknown as SDKUserMessage['message']['content'] },
+      message: { role: 'user', content: next.content as unknown as SDKUserMessage['message']['content'] },
       parent_tool_use_id: null,
-      uuid: crypto.randomUUID(),
+      uuid: next.uuid,
       timestamp: new Date().toISOString(),
-    }
+    } as SDKUserMessage
     this.acc.turns += 1
     this.emitMetrics()
     this.promptQueue.push(msg)
@@ -181,6 +212,23 @@ export class AgentSession {
   /** 软中断:仅流式输入模式可用;进程存活、会话可继续 */
   async interrupt(): Promise<void> {
     await this.q?.interrupt()
+  }
+
+  /** 撤销排队消息(未开始处理的) */
+  deleteQueued(uuid: string): boolean {
+    const i = this.pendingQueue.findIndex((q) => q.uuid === uuid)
+    if (i === -1) return false
+    this.pendingQueue.splice(i, 1)
+    this.emitQueue()
+    return true
+  }
+
+  private emitQueue(): void {
+    this.emit({
+      t: 'queue',
+      seq: 0,
+      items: this.pendingQueue.map((q) => ({ uuid: q.uuid, text: q.summary })),
+    })
   }
 
   /**
@@ -193,6 +241,9 @@ export class AgentSession {
     void (this.q as unknown as { close?: () => Promise<void> } | undefined)?.close?.()
     this.promptQueue.close()
     this.killTree()
+    this.pendingQueue.length = 0
+    this.turnActive = false
+    this.emitQueue()
   }
 
   /** 树级终止:Windows taskkill /T /F;POSIX 进程组 SIGKILL 兜底单杀 */
@@ -356,6 +407,12 @@ export class AgentSession {
       applyResult(this.acc, msg)
       this.emitMetrics()
       this.emitContext()
+    }
+
+    // turn 结束(成功或错误):释放队列,flush 下一条排队消息
+    if (type === 'result') {
+      this.turnActive = false
+      this.flushNext()
     }
 
     // 完整消息(message/result)一律转发,前端负责渲染其余类型
