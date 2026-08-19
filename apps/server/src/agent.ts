@@ -174,9 +174,12 @@ export class AgentSession {
     await this.q?.interrupt()
   }
 
-  /** 彻底终止:杀掉底层 query/子进程(会话不可再续,重新开始需新建) */
+  /** 彻底终止:杀掉底层 query/子进程(会话不可再续,重新开始需新建)。
+   * abortController 对空闲等输入的 query 不生效,需显式 close() 结束流 */
   abort(): void {
     this.abortController.abort()
+    void (this.q as unknown as { close?: () => Promise<void> } | undefined)?.close?.()
+    this.promptQueue.close()
   }
 
   /** 热切设置:模型/权限模式即时生效(q 方法);其余新会话生效 */

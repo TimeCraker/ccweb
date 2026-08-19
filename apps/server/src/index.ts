@@ -43,8 +43,11 @@ function relativePublicRoot(): string {
   return join(__dirname, '..', 'public')
 }
 
-const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
-  console.log(`[ccweb] http://127.0.0.1:${info.port}`)
+// 安全:默认只听本机回环(CC 可执行任意命令,绝不能默认暴露局域网);
+// 需要局域网访问时显式 CCWEB_HOST=0.0.0.0 自担风险
+const HOST = process.env.CCWEB_HOST ?? '127.0.0.1'
+const server = serve({ fetch: app.fetch, hostname: HOST, port: PORT }, (info) => {
+  console.log(`[ccweb] http://${HOST}:${info.port}`)
 })
 
 // ---------- WebSocket ----------
@@ -100,22 +103,31 @@ wss.on('connection', (ws) => {
     return agent
   }
 
+  /** 退出当前会话:终止子进程并移出 registry(历史已落盘,切回时 resume 重建) */
+  function retireCurrent(): void {
+    const old = currentSession
+    if (!old) return
+    if (old.sessionId) registry.delete(old.sessionId)
+    old.abort()
+    currentSession = null
+  }
+
   function getOrCreateSession(sessionId?: string, fork = false): AgentSession {
+    const ws = runtimeSettings.workspace ?? undefined
     if (!sessionId) {
-      const agent = createTrackedAgent({ cwd: runtimeSettings.workspace ?? undefined })
+      retireCurrent()
+      const agent = createTrackedAgent({ cwd: ws })
       currentSession = agent
       return agent
     }
     const existing = registry.get(sessionId)
     if (existing && !fork) {
+      if (existing !== currentSession) retireCurrent()
       currentSession = existing
       return existing
     }
-    const agent = createTrackedAgent({
-      resume: sessionId,
-      fork,
-      cwd: runtimeSettings.workspace ?? undefined,
-    })
+    retireCurrent()
+    const agent = createTrackedAgent({ resume: sessionId, fork, cwd: ws })
     agent.sessionId = fork ? null : sessionId
     registry.set(sessionId, agent)
     currentSession = agent
@@ -207,7 +219,7 @@ wss.on('connection', (ws) => {
         if (!ok) {
           emit({ t: 'error', seq: 0, code: 'delete_failed', message: 'deleteSession failed.' })
         }
-        if (currentSession?.sessionId === msg.sessionId) currentSession = null
+        if (currentSession?.sessionId === msg.sessionId) retireCurrent()
         await pushSessionList()
         break
       }
