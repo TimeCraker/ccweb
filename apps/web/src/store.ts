@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SessionMetrics } from './types'
+import type { SessionMetrics, SessionMeta } from './types'
 import {
   type Entry,
   type TurnEntry,
@@ -29,6 +29,7 @@ interface AppState {
   sessionId: string | null
   model: string | null
   endpoint: string | null
+  sessions: SessionMeta[]
   entries: Entry[]
   metrics: SessionMetrics | null
   context: ContextUsage | null
@@ -38,6 +39,7 @@ interface AppState {
 
   setConn: (c: ConnState) => void
   applyInit: (p: { sessionId: string | null; model: string | null; endpoint: string | null }) => void
+  setSessions: (list: SessionMeta[]) => void
   appendUser: (text: string) => void
   onBlockStart: (ev: { blockType: 'thinking' | 'text' | 'tool_use'; index: number; toolUseId?: string; toolName?: string }) => void
   onDelta: (ev: { kind: 'text' | 'thinking' | 'tool_input'; text: string; toolUseId?: string }) => void
@@ -45,6 +47,8 @@ interface AppState {
   onAssistantMessage: (msg: unknown) => void
   onUserMessage: (msg: unknown) => void
   finishTurn: () => void
+  replayHistory: (messages: unknown[]) => void
+  clearView: () => void
   setMetrics: (m: SessionMetrics) => void
   setContext: (raw: Record<string, unknown>) => void
   pushPermission: (p: PermissionRequest) => void
@@ -58,6 +62,7 @@ export const useStore = create<AppState>((set) => ({
   sessionId: null,
   model: null,
   endpoint: null,
+  sessions: [],
   entries: [],
   metrics: null,
   context: null,
@@ -67,6 +72,7 @@ export const useStore = create<AppState>((set) => ({
 
   setConn: (conn) => set({ conn }),
   applyInit: ({ sessionId, model, endpoint }) => set({ sessionId, model, endpoint }),
+  setSessions: (sessions) => set({ sessions }),
   appendUser: (text) =>
     set((s) => ({
       entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text }],
@@ -95,6 +101,41 @@ export const useStore = create<AppState>((set) => ({
       )
       return { entries, busy: false }
     }),
+  /** 历史回放:顺序跑渲染模型(user 文本入列、assistant 对账、tool_result 回填) */
+  replayHistory: (messages) => {
+    set({ entries: [], busy: false, permissions: [] })
+    for (const raw of messages) {
+      const m = raw as { type?: string; message?: { content?: unknown } } | null
+      if (!m?.type) continue
+      const st = useStore.getState()
+      if (m.type === 'user') {
+        const content = m.message?.content
+        const texts: string[] = []
+        let hasToolResult = false
+        if (typeof content === 'string') {
+          texts.push(content)
+        } else if (Array.isArray(content)) {
+          for (const c of content) {
+            if (c && typeof c === 'object' && 'type' in c) {
+              const block = c as { type: string; text?: unknown }
+              if (block.type === 'text' && typeof block.text === 'string') texts.push(block.text)
+              if (block.type === 'tool_result') hasToolResult = true
+            }
+          }
+        }
+        for (const t of texts) {
+          useStore.setState((s) => ({
+            entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t }],
+          }))
+        }
+        if (hasToolResult) st.onUserMessage(m)
+      } else if (m.type === 'assistant') {
+        st.onAssistantMessage(m)
+        st.finishTurn()
+      }
+    }
+  },
+  clearView: () => set({ entries: [], permissions: [], error: null, busy: false }),
   setMetrics: (metrics) => set({ metrics }),
   setContext: (raw) => set({ context: { raw } }),
   pushPermission: (p) => set((s) => ({ permissions: [...s.permissions, p] })),

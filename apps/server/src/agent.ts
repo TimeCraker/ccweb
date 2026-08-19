@@ -118,7 +118,7 @@ export class AgentSession {
 
   constructor(
     private readonly emit: Emit,
-    private readonly opts: { cwd?: string } = {},
+    private readonly opts: { cwd?: string; resume?: string; fork?: boolean } = {},
   ) {}
 
   /** 首次调用时启动底层 query(流式输入模式,常驻多轮) */
@@ -126,6 +126,11 @@ export class AgentSession {
     if (this.started) return
     this.started = true
     void this.run()
+  }
+
+  /** resume 场景:会话 id 已知,历史轮数由调用方回填 */
+  seedTurns(n: number): void {
+    this.acc.turns = n
   }
 
   send(text: string): void {
@@ -170,6 +175,8 @@ export class AgentSession {
           settingSources: ['user', 'project', 'local'],
           env: buildAgentEnv(),
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
+          ...(this.opts.resume ? { resume: this.opts.resume } : {}),
+          ...(this.opts.resume && this.opts.fork ? { forkSession: true } : {}),
           canUseTool: async (
             toolName: string,
             input: Record<string, unknown>,

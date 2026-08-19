@@ -12,6 +12,13 @@ export interface SessionMetrics {
   totalCostUsd: number | null
 }
 
+export interface SessionMeta {
+  id: string
+  title: string
+  lastModified: string | null
+  gitBranch: string | null
+}
+
 export interface ServerMessage {
   t: string
   seq?: number
@@ -31,6 +38,8 @@ export interface ServerMessage {
   allow?: boolean
   metrics?: SessionMetrics
   usage?: unknown
+  sessions?: SessionMeta[]
+  messages?: unknown[]
   code?: string
   message?: string
   retry?: boolean

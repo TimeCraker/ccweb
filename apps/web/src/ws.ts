@@ -1,13 +1,14 @@
 import type { ClientMessage, ServerMessage } from './types'
 
 /**
- * WS 客户端:自动重连(指数退避封顶 10s)+ 心跳。
- * seq 对账与断线重放在 P2 引入;P0 保证基础连通与重连。
+ * WS 客户端:自动重连(指数退避封顶 10s)+ lastSeq 对账。
+ * 重连时携带最后收到的 seq,server 重放缺口(delta/metrics 等)。
  */
 export class WsClient {
   private ws: WebSocket | null = null
   private backoff = 1000
   private closedByUser = false
+  private lastSeq = 0
   private handlers = new Set<(msg: ServerMessage) => void>()
 
   constructor(
@@ -23,10 +24,13 @@ export class WsClient {
     ws.onopen = () => {
       this.backoff = 1000
       this.onState('open')
+      // 重连对账:通知 server 我已收到的位置
+      if (this.lastSeq > 0) this.send({ t: 'ping', lastSeq: this.lastSeq })
     }
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(String(ev.data)) as ServerMessage
+        if (typeof msg.seq === 'number' && msg.seq > this.lastSeq) this.lastSeq = msg.seq
         for (const h of this.handlers) h(msg)
       } catch {
         // 忽略畸形帧

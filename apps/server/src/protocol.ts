@@ -22,6 +22,8 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   }),
   z.object({ t: z.literal('session.new') }),
   z.object({ t: z.literal('session.list') }),
+  z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional() }),
+  z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
   z.object({ t: z.literal('ping'), lastSeq: z.number().int().optional() }),
 ])
 
@@ -61,8 +63,19 @@ export type ServerMessage =
   | { t: 'permission.resolved'; seq: number; requestId: string; allow: boolean }
   | { t: 'metrics'; seq: number; sessionId: string; metrics: SessionMetrics }
   | { t: 'context'; seq: number; sessionId: string; usage: unknown }
+  | { t: 'sessions'; seq: number; sessions: SessionMeta[] }
+  | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
+  | { t: 'cleared'; seq: number }
   | { t: 'error'; seq: number; code: string; message: string; retry?: boolean }
   | { t: 'pong'; seq: number }
+
+/** 会话列表条目(SDK listSessions 归一化) */
+export interface SessionMeta {
+  id: string
+  title: string
+  lastModified: string | null
+  gitBranch: string | null
+}
 
 /** 底栏指标条(SPEC §5 口径) */
 export interface SessionMetrics {

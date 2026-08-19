@@ -27,6 +27,15 @@ export default function App() {
             endpoint: msg.endpoint ?? null,
           })
           break
+        case 'sessions':
+          if (msg.sessions) s.setSessions(msg.sessions)
+          break
+        case 'history':
+          if (msg.messages) s.replayHistory(msg.messages)
+          break
+        case 'cleared':
+          s.clearView()
+          break
         case 'block':
           if (msg.action === 'start') {
             s.onBlockStart({
@@ -80,9 +89,20 @@ export default function App() {
     }
   }, [])
 
+  // 连接建立/会话切换后刷新会话列表
+  useEffect(() => {
+    const unsub = useStore.subscribe((s, prev) => {
+      if (s.conn === 'open' && prev.conn !== 'open') {
+        wsRef.current?.send({ t: 'session.list' })
+      }
+    })
+    return unsub
+  }, [])
+
   const send = (text: string) => {
+    const sessionId = useStore.getState().sessionId
     useStore.getState().appendUser(text)
-    wsRef.current?.send({ t: 'prompt', text })
+    wsRef.current?.send({ t: 'prompt', sessionId: sessionId ?? undefined, text })
   }
   const interrupt = () => {
     wsRef.current?.send({ t: 'interrupt' })
@@ -93,9 +113,16 @@ export default function App() {
     wsRef.current?.send({ t: 'permission.resolve', requestId, allow, always })
   }
 
+  const openSession = (id: string, fork = false) => {
+    wsRef.current?.send({ t: 'session.open', sessionId: id, fork })
+  }
+  const newSession = () => {
+    wsRef.current?.send({ t: 'session.new' })
+  }
+
   return (
     <div className="flex h-full">
-      <Sidebar />
+      <Sidebar onOpenSession={openSession} onNewSession={newSession} />
       <main className="flex min-w-0 flex-1 flex-col border-l border-border">
         <MessageStream />
         <PermissionCard onResolve={resolvePermission} />
