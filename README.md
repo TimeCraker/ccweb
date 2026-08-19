@@ -2,6 +2,10 @@
 
 **Professional local web console for Claude Code** — 一个企业级的 Claude Code 浏览器控制台:会话管理、实时指标、可视化审批、全图形化设置。跑的是**真 Claude Code runtime**——你的 `~/.claude` 全套配置(memory / skills / rules / MCP)原样生效。
 
+![ccweb main interface](docs/screenshots/main-dark.png)
+
+![command palette (Ctrl+K)](docs/screenshots/palette.png)
+
 English introduction below ↓
 
 ---

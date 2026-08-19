@@ -133,12 +133,12 @@ S→C  { t:"sessions", list[] } | { t:"error", code, message, retry? }
 **P4 发布 ✅(2026-08-19)** — README 双语 / MIT+商标声明 / Playwright e2e(用例+CI 手动 job)/ CI 矩阵 / npm 发布准备(bin/files/prepublish)。→ 生产 bin 直跑 + 静态页 200 验证 PASS;**npm publish 待用户本机执行;Playwright e2e 待 CI 环境首跑**
 
 ### 交付遗留(诚实清单)
-- [ ] 长会话虚拟滚动(当前 10k+ 消息会卡,DOM 全量渲染)
-- [ ] 完整 ARIA/焦点陷阱审计(键盘可达已做,读屏标注未系统化)
-- [ ] npm 正式发布(npx ccweb 全网可用)— 包名占用需先查
-- [ ] GIF 演示素材(README)
-- [ ] getContextUsage 水位(SDK 版本具备后接入,前端已兼容)
-- [ ] session.rename(SDK renameSession/customTitle 可用后接入)
+- [x] 长会话虚拟滚动 ✅ react-virtuoso + 智能吸底(2026-08-19 二轮落地)
+- [x] ARIA/焦点陷阱 ✅ 设置弹窗 focus trap + Esc + role=dialog;palette dialog 语义;aria-expanded/label(2026-08-19)
+- [ ] **npm 正式发布** — 唯一硬约束:非交互环境 npm 授权被掩码,须用户本机执行(`cd apps/server && npm publish --registry https://registry.npmjs.org`,包名已定 `ccweb-console`,`ccweb` 被占 0.1.1、`ccdeck`/`claude-deck`/`claude-code-webui` 均被占)
+- [x] README 截图 ✅ Playwright 自动截图三张(暗色/命令面板/浅色),`apps/web/scripts/screenshot.mjs` 可重生成(2026-08-19)
+- [x] 上下文水位 ✅ 改用每轮 result 的 usage 输入侧 token vs modelUsage.contextWindow 精确计算,无需 getContextUsage(22.6k/1M 实测)(2026-08-19)
+- [x] session.rename ✅ SDK renameSession 实际可用(此前判断有误)+ 侧边栏 inline 编辑;连带修复 listSessions 字段映射(驼峰 sessionId/数字时间戳,P2 起列表一直静默为空)(2026-08-19)
 
 估 5-8 个工作日(AI-coding 密集节奏 3-4 天)。
 
