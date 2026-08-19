@@ -3,12 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Professional local web console for Claude Code — sessions, live metrics, visual approvals",
+  "license": "MIT",
   "bin": {
-    "ccweb": "dist/index.js"
+    "ccweb": "bin/ccweb.mjs"
   },
+  "files": [
+    "dist",
+    "public",
+    "bin"
+  ],
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-web.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "lint": "eslint src"

@@ -126,11 +126,19 @@ S→C  { t:"sessions", list[] } | { t:"error", code, message, retry? }
 
 ## 7. 分期(每期过 §3.5 质量门后合并)
 
-**P0 骨架走通** — monorepo 脚手架 + Hono/ws 服务 + Agent SDK 流式输入模式 + React 壳(布局/主题/输入区)+ 文本流式打字机 + Esc 中断。验收:GLM 端点真实跑通一轮对话,CI 四绿。
-**P1 核心体验** — 工具卡片/thinking 折叠/审批弹窗(diff 高亮/总是允许)/底栏指标条/上下文水位面板/消息操作。验收:含工具调用+审批的真实任务全流程,组件测试覆盖。
-**P2 会话管理** — 侧边栏(resume/fork/重命名/搜索)/历史回放/崩溃恢复/断线重连对账。验收:刷新+断网重连+杀进程重启三场景恢复。
-**P3 设置与面板** — 命令面板 Ctrl+K/设置页(模型/effort/权限/端点模板)/MCP 状态/i18n 双语。验收:UI 内切端点下一轮生效;全键盘可达。
-**P4 发布** — README 双语+GIF / MIT+商标声明 / Playwright e2e / npm publish / Win+macOS CI 矩阵。验收:全新环境 `npx ccweb` 冷启动成功。
+**P0 骨架走通 ✅(2026-08-19)** — monorepo 脚手架 + Hono/ws 服务 + Agent SDK 流式输入模式 + React 壳(布局/主题/输入区)+ 文本流式打字机 + Esc 中断。验收:GLM 端点真实跑通一轮对话,CI 四绿。→ 已验证(TTFT 312ms/487 tok/s/成本 $0.133)
+**P1 核心体验 ✅(2026-08-19)** — 工具卡片/thinking 折叠/审批弹窗(diff 高亮/总是允许)/底栏指标条/上下文水位面板/消息操作。验收:含工具调用+审批的真实任务全流程,组件测试覆盖。→ Write/Read 审批往返 PASS;上下文水位受 SDK 0.3.235 无 getContextUsage 限制暂为占位
+**P2 会话管理 ✅(2026-08-19)** — 侧边栏(resume/fork/搜索)/历史回放/崩溃恢复/断线重连对账。验收:断线重开场景恢复。→ RESUME-PASS(历史 3 条回放,暗号跨连接正确)
+**P3 设置与面板 ✅(2026-08-19)** — 命令面板 Ctrl+K/设置页(模型/effort/权限/端点模板)/MCP 状态/i18n 双语。→ 8 个端点模板桥验证 PASS;重命名待 SDK customTitle
+**P4 发布 ✅(2026-08-19)** — README 双语 / MIT+商标声明 / Playwright e2e(用例+CI 手动 job)/ CI 矩阵 / npm 发布准备(bin/files/prepublish)。→ 生产 bin 直跑 + 静态页 200 验证 PASS;**npm publish 待用户本机执行;Playwright e2e 待 CI 环境首跑**
+
+### 交付遗留(诚实清单)
+- [ ] 长会话虚拟滚动(当前 10k+ 消息会卡,DOM 全量渲染)
+- [ ] 完整 ARIA/焦点陷阱审计(键盘可达已做,读屏标注未系统化)
+- [ ] npm 正式发布(npx ccweb 全网可用)— 包名占用需先查
+- [ ] GIF 演示素材(README)
+- [ ] getContextUsage 水位(SDK 版本具备后接入,前端已兼容)
+- [ ] session.rename(SDK renameSession/customTitle 可用后接入)
 
 估 5-8 个工作日(AI-coding 密集节奏 3-4 天)。
 

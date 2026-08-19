@@ -1,6 +1,10 @@
 import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
+import { readFile } from 'node:fs/promises'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
 import { AgentSession } from './agent.js'
@@ -8,10 +12,27 @@ import { fetchHistory, listSessionMetas } from './sessions.js'
 import { runtimeSettings, listEndpointTemplates } from './settings.js'
 
 const PORT = Number(process.env.CCWEB_PORT ?? 3477)
+const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const app = new Hono()
 app.use(logger())
 app.get('/healthz', (c) => c.json({ ok: true, name: 'ccweb', version: '0.1.0' }))
+
+// 生产模式:服务内嵌 web 产物(public/);SPA fallback 到 index.html
+app.use('*', serveStatic({ root: relativePublicRoot() }))
+app.get('*', async (c) => {
+  try {
+    const html = await readFile(join(__dirname, '..', 'public', 'index.html'), 'utf8')
+    return c.html(html)
+  } catch {
+    return c.text('ccweb web bundle missing — run `pnpm build` first.', 404)
+  }
+})
+
+function relativePublicRoot(): string {
+  // serve-static 的 root 相对 cwd;开发期从仓库根跑,发布期从包根跑,两者都兼容
+  return join(__dirname, '..', 'public')
+}
 
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[ccweb] http://127.0.0.1:${info.port}`)
