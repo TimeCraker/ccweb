@@ -15,31 +15,31 @@
 
 ## P1(近期)
 
-- [ ] 队列 dock:运行中可排队/插队消息(Enter 行为设置 Queue/Steer)——dsh QueueDock
-- [ ] 消息级 fork 按钮(从该消息分叉新会话;当前只有会话级 fork)——dsh MessageIconActions
-- [ ] 审批接管 composer 形态:琥珀条+模型理由+命令块键盘可达(当前浮卡形态可保留)——dsh ApprovalPanel
-- [ ] ANSI 转义渲染(终端输出着色)——dsh ansi.ts
-- [ ] 图片 Lightbox(点击放大)——dsh ImageLightbox
-- [ ] 会话拖拽排序(manual order)——dsh WorkspaceBrowser
-- [ ] 设置外观区独立(主题三态 + 密度)——dsh AppearanceRow
-- [ ] 分页加载更早历史 + 锚定保位(不跳视口)——dsh pagingAnchor
-- [ ] CJK 粗体渲染优化 + 代码字体栈去裸 monospace(Windows SimSun 问题)——dsh cjkFriendlyStrong
-- [ ] 增量 markdown 流式渲染(除尾部 2 块冻结缓存;流式期间代码围栏纯文本)——dsh incremental.ts
+- [x] 队列 dock:运行中可排队/插队消息(Enter 行为设置 Queue/Steer)——dsh QueueDock
+- [x] 消息级 fork 按钮(从该消息分叉新会话;当前只有会话级 fork)——dsh MessageIconActions
+- [x] 审批接管 composer 形态:琥珀条+模型理由+命令块键盘可达(当前浮卡形态可保留)——dsh ApprovalPanel
+- [x] ANSI 转义渲染(终端输出着色)——dsh ansi.ts
+- [x] 图片 Lightbox(点击放大)——dsh ImageLightbox
+- [x] 会话拖拽排序(manual order)——dsh WorkspaceBrowser
+- [x] 设置外观区独立(主题三态 + 密度)——dsh AppearanceRow
+- [x] 分页加载更早历史 + 锚定保位(不跳视口)——dsh pagingAnchor
+- [x] CJK 粗体渲染优化 + 代码字体栈去裸 monospace(Windows SimSun 问题)——dsh cjkFriendlyStrong
+- [x] 增量 markdown 流式渲染(除尾部 2 块冻结缓存;流式期间代码围栏纯文本)——dsh incremental.ts
 
 ## P2(远期/评估)
 
-- [ ] Trajectory 第二视图(时间轴/台账搜索)——dsh ui-trajectory
-- [ ] 问题接管 composer(AskUserQuestion 多题步进/单选/跳过/最小化)——dsh QuestionComposer
-- [ ] 工具六卡片体系细分(DiffBlock 行号/ReadBlock 高亮/SearchBlock 分组/WebBlock 引用)——dsh ToolRow
-- [ ] 子调用递归树 + Inspect 跳转——dsh ToolCallTree
-- [ ] 模型自动重试行(倒计时/重试计数)——dsh ModelRetryItem
-- [ ] 压缩标记卡 + 上下文注入行——dsh CompactionItem
-- [ ] 消息点赞/点踩反馈——dsh MessageFeedbackActions
-- [ ] 上下文环形表点击开分解面板(system/tools/messages 三色)——dsh ContextMeter
-- [ ] composer 底部统计条(turns/steps/LLM 时间/工具时间/TTFT 均值)——dsh StatsLine
-- [ ] 设计令牌体系完整 alias 层(Figma 级)——dsh design-platform.css
-- [ ] 输入 undo/redo 事务(chip 感知)——dsh input machine
-- [ ] IME 组合守卫完善(keyCode 229/compositionend 10ms 延迟/Safari)——dsh InputBar
+- [x] Trajectory 第二视图(时间轴/台账搜索)——dsh ui-trajectory
+- [x] 问题接管 composer(AskUserQuestion 多题步进/单选/跳过/最小化)——dsh QuestionComposer
+- [x] 工具六卡片体系细分(DiffBlock 行号/ReadBlock 高亮/SearchBlock 分组/WebBlock 引用)——dsh ToolRow
+- [x] 子调用递归树 + Inspect 跳转——dsh ToolCallTree
+- [x] 模型自动重试行(倒计时/重试计数)——dsh ModelRetryItem
+- [x] 压缩标记卡 + 上下文注入行——dsh CompactionItem
+- [x] 消息点赞/点踩反馈——dsh MessageFeedbackActions
+- [x] 上下文环形表点击开分解面板(system/tools/messages 三色)——dsh ContextMeter
+- [x] composer 底部统计条(turns/steps/LLM 时间/工具时间/TTFT 均值)——dsh StatsLine
+- [x] 设计令牌体系完整 alias 层(Figma 级)——dsh design-platform.css
+- [x] 输入 undo/redo 事务(chip 感知)——dsh input machine
+- [x] IME 组合守卫完善(keyCode 229/compositionend 10ms 延迟/Safari)——dsh InputBar
 
 ## 已对齐(不重做)
 
