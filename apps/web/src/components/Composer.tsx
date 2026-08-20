@@ -203,6 +203,9 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
               }
             }}
             onKeyDown={(e) => {
+              // IME 组合中一律让路(Enter 确认候选/方向键选词),避免误发送误中断
+              const ne = e.nativeEvent as KeyboardEvent & { isComposing?: boolean }
+              if (ne.isComposing) return
               if (slashMatches.length > 0) {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault()

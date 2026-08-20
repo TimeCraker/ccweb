@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { t, useLocale } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
 import { ansiToSegments } from '../ansi'
+import DiffView from './DiffView'
 import {
   IconTerminal,
   IconFile,
@@ -78,6 +79,17 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
         : result
       : ''
   const hasAnsi = result != null && result.includes('\x1b')
+  // Read/Grep 结果逐行行号(文件阅读感);ANSI 路径保持原样
+  const numbered = (block.toolName === 'Read' || block.toolName === 'Grep') && !hasAnsi
+  // Edit 变更预览:input.old_string → new_string 行级 diff
+  const editPreview = useMemo(() => {
+    if (block.toolName !== 'Edit') return null
+    const input = block.input ?? tryParse(block.inputRaw)
+    if (!input) return null
+    const oldStr = typeof input.old_string === 'string' ? input.old_string : null
+    const newStr = typeof input.new_string === 'string' ? input.new_string : null
+    return oldStr != null && newStr != null ? { oldStr, newStr } : null
+  }, [block.toolName, block.input, block.inputRaw])
 
   return (
     <div className="tool-card my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
@@ -114,6 +126,12 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
               {block.input ? JSON.stringify(block.input, null, 2) : block.inputRaw || t('tl.receiving')}
             </pre>
           </div>
+          {editPreview && (
+            <div className="border-t border-border px-3 py-2">
+              <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.diffPreview')}</p>
+              <DiffView oldStr={editPreview.oldStr} newStr={editPreview.newStr} />
+            </div>
+          )}
           {result != null && (
             <div className="border-t border-border px-3 py-2">
               <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.result')}</p>
@@ -134,7 +152,16 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
                         {seg.text}
                       </span>
                     ))
-                  : display}
+                  : numbered
+                    ? display.split('\n').map((line, i) => (
+                        <span key={i} className="block">
+                          <span className="mr-3 inline-block w-8 shrink-0 select-none text-right text-text-faint">
+                            {i + 1}
+                          </span>
+                          {line}
+                        </span>
+                      ))
+                    : display}
               </pre>
             </div>
           )}

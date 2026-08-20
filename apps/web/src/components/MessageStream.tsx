@@ -7,7 +7,7 @@ import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
 import { copyText } from '../clipboard'
-import { IconFork } from './Icon'
+import { IconFork, IconWarn } from './Icon'
 
 interface StreamProps {
   onRegenerate?: () => void
@@ -53,6 +53,8 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
             <div className="mx-auto max-w-3xl">
               {e.type === 'user' ? (
                 <UserRow key={e.id} text={e.text} onFork={onForkFromMessage} />
+              ) : e.type === 'turnError' ? (
+                <TurnErrorRow key={e.id} text={e.text} />
               ) : (
                 <TurnView
                   key={e.id}
@@ -83,6 +85,20 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
           </svg>
         </button>
       )}
+    </div>
+  )
+}
+
+/** turn 错误行:result 非 success 时渲染在流末尾 */
+function TurnErrorRow({ text }: { text: string }) {
+  useLocale()
+  return (
+    <div
+      role="alert"
+      className="flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 text-xs text-danger"
+    >
+      <IconWarn width={14} height={14} className="shrink-0" />
+      <span className="font-mono">{text}</span>
     </div>
   )
 }

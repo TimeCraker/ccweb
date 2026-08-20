@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { WsClient } from './ws'
-import { useStore } from './store'
+import { useStore, parseQuestions } from './store'
 import { t, tf, useLocale } from './i18n'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
@@ -8,6 +8,7 @@ import MessageStream from './components/MessageStream'
 import Composer from './components/Composer'
 import MetricsBar from './components/MetricsBar'
 import PermissionCard from './components/PermissionCard'
+import QuestionCard from './components/QuestionCard'
 import ContextPanel from './components/ContextPanel'
 import CommandPalette from './components/CommandPalette'
 import SettingsModal from './components/SettingsModal'
@@ -127,10 +128,16 @@ export default function App() {
           }
           break
         case 'message': {
-          const sm = msg.sdkMessage as { type?: string } | undefined
+          const sm = msg.sdkMessage as { type?: string; subtype?: string } | undefined
           if (sm?.type === 'assistant') s.onAssistantMessage(msg.sdkMessage)
           else if (sm?.type === 'user') s.onUserMessage(msg.sdkMessage)
-          else if (sm?.type === 'result') s.finishTurn()
+          else if (sm?.type === 'result') {
+            // turn 错误行:result 非 success 时在流末尾追加红色错误行
+            if (sm.subtype != null && sm.subtype !== 'success') {
+              s.pushTurnError(tf('err.turnError', sm.subtype))
+            }
+            s.finishTurn()
+          }
           break
         }
         case 'metrics':
@@ -143,11 +150,17 @@ export default function App() {
           break
         case 'permission.ask':
           if (msg.requestId && msg.toolName) {
-            s.pushPermission({
-              requestId: msg.requestId,
-              toolName: msg.toolName,
-              input: msg.input ?? {},
-            })
+            // AskUserQuestion 类:input.questions 存在走问题接管,否则普通审批
+            const questions = parseQuestions(msg.input ?? {})
+            if (questions) {
+              s.pushQuestion({ requestId: msg.requestId, questions })
+            } else {
+              s.pushPermission({
+                requestId: msg.requestId,
+                toolName: msg.toolName,
+                input: msg.input ?? {},
+              })
+            }
           }
           break
         case 'error':
@@ -193,6 +206,15 @@ export default function App() {
     useStore.getState().resolvePermissionLocal(requestId)
     wsRef.current?.send({ t: 'permission.resolve', requestId, allow, always })
   }
+  /** 问题接管回执:提交带 answers(updatedInput),跳过 = deny */
+  const resolveQuestion = (
+    requestId: string,
+    allow: boolean,
+    updatedInput?: Record<string, unknown>,
+  ) => {
+    useStore.getState().resolveQuestionLocal(requestId)
+    wsRef.current?.send({ t: 'permission.resolve', requestId, allow, updatedInput })
+  }
   const openSession = (id: string, fork = false) => {
     // 生成中先中断(同新建会话保护)
     if (useStore.getState().busy) interrupt()
@@ -221,7 +243,7 @@ export default function App() {
     for (const e of entries) {
       if (e.type === 'user') {
         lines.push(`## 🧑 用户`, ``, e.text, ``)
-      } else {
+      } else if (e.type === 'turn') {
         lines.push(`## 🤖 助手`, ``)
         for (const b of e.blocks) {
           if (b.kind === 'text') lines.push(b.text, ``)
@@ -234,6 +256,8 @@ export default function App() {
               '',
             )
         }
+      } else {
+        lines.push(`> ⚠ ${e.text}`, ``)
       }
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' })
@@ -315,6 +339,7 @@ export default function App() {
               <MessageStream onRegenerate={regenerate} onForkFromMessage={forkFromMessage} />
               <QueueDock onDelete={(uuid) => wsRef.current?.send({ t: 'queue.delete', uuid })} />
               <PermissionCard onResolve={resolvePermission} />
+              <QuestionCard onResolve={resolveQuestion} />
               <MetricsBar />
               {composer}
             </>

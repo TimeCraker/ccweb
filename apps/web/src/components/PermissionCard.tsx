@@ -1,8 +1,7 @@
-import { useMemo } from 'react'
-import { diffLines } from 'diff'
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
 import { IconWarn } from './Icon'
+import DiffView from './DiffView'
 
 interface Props {
   onResolve: (requestId: string, allow: boolean, always?: boolean) => void
@@ -47,7 +46,7 @@ export default function PermissionCard({ onResolve }: Props) {
             {command}
           </pre>
         )}
-        {isEdit && <EditDiff oldStr={oldStr} newStr={newStr} />}
+        {isEdit && <DiffView oldStr={oldStr} newStr={newStr} className="mt-3" />}
         {!command && !isEdit && !file && (
           <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-text-dim">
             {JSON.stringify(p.input, null, 2)}
@@ -79,28 +78,5 @@ export default function PermissionCard({ onResolve }: Props) {
         </div>
       </div>
     </div>
-  )
-}
-
-/** Edit 工具行级 diff:删除红 / 新增绿 */
-function EditDiff({ oldStr, newStr }: { oldStr: string; newStr: string }) {
-  const parts = useMemo(() => diffLines(oldStr, newStr), [oldStr, newStr])
-  return (
-    <pre className="mt-3 max-h-56 overflow-auto rounded-lg border border-border bg-bg font-mono text-xs leading-relaxed">
-      {parts.map((part, i) => (
-        <span
-          key={i}
-          className={
-            part.added
-              ? 'block bg-ok/10 px-3 text-ok'
-              : part.removed
-                ? 'block bg-danger/10 px-3 text-danger line-through decoration-danger/40'
-                : 'block px-3 text-text-faint'
-          }
-        >
-          {part.value.replace(/\n$/, '')}
-        </span>
-      ))}
-    </pre>
   )
 }

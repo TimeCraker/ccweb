@@ -312,6 +312,10 @@ textarea {
   margin: 0.5em 0;
   line-height: 1.7;
 }
+/* CJK 粗体:浏览器对中文 700 过重且部分字体无粗字重,600 视觉更稳 */
+.md strong {
+  font-weight: 600;
+}
 .md h1,
 .md h2,
 .md h3,

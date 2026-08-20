@@ -42,7 +42,14 @@ export interface TurnEntry {
   tail?: { totalS: number; ttftMs: number | null; tps: number | null }
 }
 
-export type Entry = UserEntry | TurnEntry
+/** turn 级错误行:result 非 success 时追加到流末尾 */
+export interface TurnErrorEntry {
+  type: 'turnError'
+  id: string
+  text: string
+}
+
+export type Entry = UserEntry | TurnEntry | TurnErrorEntry
 
 export interface BlockStartEvent {
   blockType: 'thinking' | 'text' | 'tool_use'

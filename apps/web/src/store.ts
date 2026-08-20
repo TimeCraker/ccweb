@@ -18,6 +18,56 @@ export interface PermissionRequest {
   input: Record<string, unknown>
 }
 
+/** AskUserQuestion 类工具的问题结构(宽松解析 input.questions) */
+export interface QuestionOption {
+  label: string
+  description?: string
+}
+
+export interface QuestionItem {
+  question: string
+  header?: string
+  multiSelect?: boolean
+  options: QuestionOption[]
+}
+
+export interface QuestionRequest {
+  requestId: string
+  questions: QuestionItem[]
+}
+
+/** 从 permission.ask 的 input 中解析 questions;无效/缺失返回 null(走普通审批) */
+export function parseQuestions(input: Record<string, unknown>): QuestionItem[] | null {
+  const qs = input.questions
+  if (!Array.isArray(qs)) return null
+  const items: QuestionItem[] = []
+  for (const q of qs) {
+    if (!q || typeof q !== 'object') continue
+    const obj = q as Record<string, unknown>
+    const question = typeof obj.question === 'string' ? obj.question : ''
+    const options: QuestionOption[] = []
+    if (Array.isArray(obj.options)) {
+      for (const o of obj.options) {
+        if (!o || typeof o !== 'object') continue
+        const oo = o as Record<string, unknown>
+        if (typeof oo.label !== 'string' || oo.label === '') continue
+        options.push({
+          label: oo.label,
+          description: typeof oo.description === 'string' ? oo.description : undefined,
+        })
+      }
+    }
+    if (question === '' || options.length === 0) continue
+    items.push({
+      question,
+      header: typeof obj.header === 'string' ? obj.header : undefined,
+      multiSelect: obj.multiSelect === true,
+      options,
+    })
+  }
+  return items.length > 0 ? items : null
+}
+
 export type ConnState = 'connecting' | 'open' | 'closed'
 
 export interface ContextUsage {
@@ -34,6 +84,8 @@ interface AppState {
   metrics: SessionMetrics | null
   context: ContextUsage | null
   permissions: PermissionRequest[]
+  /** AskUserQuestion 类挂起请求(一次一条,与审批同闸) */
+  question: QuestionRequest | null
   error: string | null
   busy: boolean
   /** 本轮开始时间戳(运行计时行 + turn 尾统计) */
@@ -69,6 +121,9 @@ interface AppState {
   setContext: (raw: Record<string, unknown>) => void
   pushPermission: (p: PermissionRequest) => void
   resolvePermissionLocal: (requestId: string) => void
+  pushQuestion: (q: QuestionRequest) => void
+  resolveQuestionLocal: (requestId: string) => void
+  pushTurnError: (text: string) => void
   setError: (e: string | null) => void
   setBusy: (b: boolean) => void
 }
@@ -83,6 +138,7 @@ export const useStore = create<AppState>((set) => ({
   metrics: null,
   context: null,
   permissions: [],
+  question: null,
   error: null,
   busy: false,
   turnStartedAt: null,
@@ -141,7 +197,7 @@ export const useStore = create<AppState>((set) => ({
     }),
   /** 历史回放:顺序跑渲染模型(user 文本入列、assistant 对账、tool_result 回填) */
   replayHistory: (messages) => {
-    set({ entries: [], busy: false, permissions: [] })
+    set({ entries: [], busy: false, permissions: [], question: null })
     for (const raw of messages) {
       const m = raw as { type?: string; message?: { content?: unknown } } | null
       if (!m?.type) continue
@@ -173,12 +229,17 @@ export const useStore = create<AppState>((set) => ({
       }
     }
   },
-  clearView: () => set({ entries: [], permissions: [], error: null, busy: false }),
+  clearView: () => set({ entries: [], permissions: [], question: null, error: null, busy: false }),
   setMetrics: (metrics) => set({ metrics }),
   setContext: (raw) => set({ context: { raw } }),
   pushPermission: (p) => set((s) => ({ permissions: [...s.permissions, p] })),
   resolvePermissionLocal: (requestId) =>
     set((s) => ({ permissions: s.permissions.filter((p) => p.requestId !== requestId) })),
+  pushQuestion: (question) => set({ question }),
+  resolveQuestionLocal: (requestId) =>
+    set((s) => (s.question?.requestId === requestId ? { question: null } : {})),
+  pushTurnError: (text) =>
+    set((s) => ({ entries: [...s.entries, { type: 'turnError' as const, id: nextEntryId(), text }] })),
   setError: (error) => set({ error }),
   setBusy: (busy) => set({ busy }),
 }))
