@@ -33,10 +33,18 @@ async function tryCall<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   }
 }
 
+/**
+ * SDK listSessions/getSessionMessages 的 dir 参数只认 POSIX 分隔符;
+ * Windows 反斜杠路径(process.cwd() 形式)会静默返回空,故统一归一化。
+ */
+function toSdkDir(cwd: string): string {
+  return cwd.replace(/\\/g, '/')
+}
+
 export async function listSessionMetas(cwd?: string): Promise<SessionMeta[]> {
   const raw = await tryCall<SdkSessionInfoLike[]>(
     () => (listSessions as unknown as (o?: { dir?: string }) => Promise<SdkSessionInfoLike[]>)(
-      cwd ? { dir: cwd } : undefined,
+      cwd ? { dir: toSdkDir(cwd) } : undefined,
     ),
     [],
   )
@@ -59,7 +67,7 @@ export async function fetchHistory(sessionId: string, cwd?: string): Promise<unk
           id: string,
           o?: { dir?: string; limit?: number },
         ) => Promise<unknown[]>
-      )(sessionId, { ...(cwd ? { dir: cwd } : {}), limit: 200 }),
+      )(sessionId, { ...(cwd ? { dir: toSdkDir(cwd) } : {}), limit: 200 }),
     [],
   )
   return msgs
