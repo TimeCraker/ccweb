@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { t } from './i18n'
 import type { SessionMetrics, SessionMeta, SettingsSnapshot } from './types'
 import {
   type Entry,
@@ -99,6 +100,8 @@ interface AppState {
   fileResults: string[]
   /** 排队待处理消息(dsh QueueDock 对齐) */
   queue: Array<{ uuid: string; text: string }>
+  /** 本 turn 已被用户主动中断(随后的非 success result 走中性提示) */
+  interrupted: boolean
 
   setConn: (c: ConnState) => void
   applyInit: (p: { sessionId: string | null; model: string | null; endpoint: string | null }) => void
@@ -123,7 +126,9 @@ interface AppState {
   resolvePermissionLocal: (requestId: string) => void
   pushQuestion: (q: QuestionRequest) => void
   resolveQuestionLocal: (requestId: string) => void
-  pushTurnError: (text: string) => void
+  pushTurnError: (text: string, muted?: boolean) => void
+  /** 标记本 turn 已被用户主动中断:随后到来的非 success result 走中性提示而非红色错误 */
+  setInterrupted: (v: boolean) => void
   setError: (e: string | null) => void
   setBusy: (b: boolean) => void
 }
@@ -148,6 +153,7 @@ export const useStore = create<AppState>((set) => ({
   slashCommands: [],
   fileResults: [],
   queue: [],
+  interrupted: false,
 
   setConn: (conn) => set({ conn }),
   applyInit: ({ sessionId, model, endpoint }) => set({ sessionId, model, endpoint }),
@@ -163,6 +169,7 @@ export const useStore = create<AppState>((set) => ({
       busy: true,
       turnStartedAt: Date.now(),
       lastTurnStats: null,
+      interrupted: false,
     })),
   onBlockStart: (ev) => set((s) => ({ entries: applyBlockStart(s.entries, ev) })),
   onDelta: (ev) => set((s) => ({ entries: applyDelta(s.entries, ev) })),
@@ -207,18 +214,33 @@ export const useStore = create<AppState>((set) => ({
         const content = m.message?.content
         const texts: string[] = []
         let hasToolResult = false
+        let interruptedMarker = false
         if (typeof content === 'string') {
           texts.push(content)
         } else if (Array.isArray(content)) {
           for (const c of content) {
             if (c && typeof c === 'object' && 'type' in c) {
               const block = c as { type: string; text?: unknown }
-              if (block.type === 'text' && typeof block.text === 'string') texts.push(block.text)
+              if (block.type === 'text' && typeof block.text === 'string') {
+                // SDK 中断标记回放为中性提示行,不当用户消息渲染
+                if (block.text === '[Request interrupted by user]') interruptedMarker = true
+                else texts.push(block.text)
+              }
               if (block.type === 'tool_result') hasToolResult = true
             }
           }
         }
         if (hasToolResult) st.onUserMessage(m)
+        if (interruptedMarker) {
+          // 中断标记:收束当前 turn 并追加中性提示行
+          st.finishTurn()
+          useStore.setState((s) => ({
+            entries: [
+              ...s.entries,
+              { type: 'turnError' as const, id: nextEntryId(), text: t('ms.interrupted'), muted: true },
+            ],
+          }))
+        }
         if (texts.length > 0) {
           st.finishTurn()
           for (const t of texts) {
@@ -242,8 +264,11 @@ export const useStore = create<AppState>((set) => ({
   pushQuestion: (question) => set({ question }),
   resolveQuestionLocal: (requestId) =>
     set((s) => (s.question?.requestId === requestId ? { question: null } : {})),
-  pushTurnError: (text) =>
-    set((s) => ({ entries: [...s.entries, { type: 'turnError' as const, id: nextEntryId(), text }] })),
+  pushTurnError: (text, muted) =>
+    set((s) => ({
+      entries: [...s.entries, { type: 'turnError' as const, id: nextEntryId(), text, muted }],
+    })),
+  setInterrupted: (interrupted) => set({ interrupted }),
   setError: (error) => set({ error }),
   setBusy: (busy) => set({ busy }),
 }))

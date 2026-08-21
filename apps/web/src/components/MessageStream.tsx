@@ -54,7 +54,7 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
               {e.type === 'user' ? (
                 <UserRow key={e.id} text={e.text} onFork={onForkFromMessage} />
               ) : e.type === 'turnError' ? (
-                <TurnErrorRow key={e.id} text={e.text} />
+                <TurnErrorRow key={e.id} text={e.text} muted={e.muted} />
               ) : (
                 <TurnView
                   key={e.id}
@@ -90,14 +90,16 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
 }
 
 /** turn 错误行:result 非 success 时渲染在流末尾 */
-function TurnErrorRow({ text }: { text: string }) {
+function TurnErrorRow({ text, muted }: { text: string; muted?: boolean }) {
   useLocale()
   return (
     <div
-      role="alert"
-      className="flex items-center gap-2 rounded-lg border border-danger/40 bg-danger/5 px-3 py-2 text-xs text-danger"
+      role={muted ? undefined : 'alert'}
+      className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+        muted ? 'border-border bg-panel text-text-faint' : 'border-danger/40 bg-danger/5 text-danger'
+      }`}
     >
-      <IconWarn width={14} height={14} className="shrink-0" />
+      {!muted && <IconWarn width={14} height={14} className="shrink-0" />}
       <span className="font-mono">{text}</span>
     </div>
   )

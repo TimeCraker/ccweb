@@ -130,12 +130,31 @@ export default function App() {
         case 'message': {
           const sm = msg.sdkMessage as { type?: string; subtype?: string } | undefined
           if (sm?.type === 'assistant') s.onAssistantMessage(msg.sdkMessage)
-          else if (sm?.type === 'user') s.onUserMessage(msg.sdkMessage)
-          else if (sm?.type === 'result') {
-            // turn 错误行:result 非 success 时在流末尾追加红色错误行
-            if (sm.subtype != null && sm.subtype !== 'success') {
-              s.pushTurnError(tf('err.turnError', sm.subtype))
+          else if (sm?.type === 'user') {
+            // SDK 中断协议:不发 result,而是注入 [Request interrupted by user] 的 user 消息。
+            // 用户主动中断时转为中性提示行,不当普通消息渲染
+            const content = (msg.sdkMessage as { message?: { content?: unknown } }).message?.content
+            if (
+              s.interrupted &&
+              Array.isArray(content) &&
+              content.length === 1 &&
+              (content[0] as { type?: string; text?: string })?.type === 'text' &&
+              (content[0] as { text?: string }).text === '[Request interrupted by user]'
+            ) {
+              s.pushTurnError(t('ms.interrupted'), true)
+              s.setInterrupted(false)
+            } else {
+              s.onUserMessage(msg.sdkMessage)
             }
+          }
+          else if (sm?.type === 'result') {
+            // turn 错误行:result 非 success 时在流末尾追加红色错误行;
+            // 用户主动中断(Esc/Stop)时若有 result 也走中性提示(通常中断无 result)
+            if (sm.subtype != null && sm.subtype !== 'success') {
+              if (s.interrupted) s.pushTurnError(t('ms.interrupted'), true)
+              else s.pushTurnError(tf('err.turnError', sm.subtype))
+            }
+            s.setInterrupted(false)
             s.finishTurn()
           }
           break
@@ -200,6 +219,7 @@ export default function App() {
   }
   const interrupt = () => {
     wsRef.current?.send({ t: 'interrupt' })
+    useStore.getState().setInterrupted(true)
     useStore.getState().setBusy(false)
   }
   const resolvePermission = (requestId: string, allow: boolean, always = false) => {
@@ -244,6 +264,9 @@ export default function App() {
       if (e.type === 'user') {
         lines.push(`## 🧑 用户`, ``, e.text, ``)
       } else if (e.type === 'turn') {
+        // 无可见内容的 turn(空回包/被中断在首块前)不产出空标题
+        const hasContent = e.blocks.some((b) => (b.kind === 'tool' ? true : b.text.trim().length > 0))
+        if (!hasContent) continue
         lines.push(`## 🤖 助手`, ``)
         for (const b of e.blocks) {
           if (b.kind === 'text') lines.push(b.text, ``)

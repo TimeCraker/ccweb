@@ -1,6 +1,6 @@
 {
   "name": "ccweb-console",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "Professional local web console for Claude Code — sessions, live metrics, visual approvals",
   "license": "MIT",

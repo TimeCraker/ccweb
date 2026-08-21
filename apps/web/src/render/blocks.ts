@@ -44,11 +44,12 @@ export interface TurnEntry {
   tail?: { totalS: number; ttftMs: number | null; tps: number | null }
 }
 
-/** turn 级错误行:result 非 success 时追加到流末尾 */
+/** turn 级错误行:result 非 success 时追加到流末尾;muted=true 为中性提示(如用户主动中断) */
 export interface TurnErrorEntry {
   type: 'turnError'
   id: string
   text: string
+  muted?: boolean
 }
 
 export type Entry = UserEntry | TurnEntry | TurnErrorEntry

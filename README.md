@@ -110,8 +110,36 @@ pnpm dev        # 并行起 server(3477) + web(5173, WS 代理)
 pnpm check      # lint + typecheck + test + build 质量门
 ```
 
+---
+
+## English
+
+**ccweb** is a professional, open-source web console for Claude Code — built on the official **Claude Agent SDK**, it drives a real Claude Code runtime behind a full GUI. Your entire `~/.claude` setup (memory / skills / rules / MCP) applies automatically.
+
+```bash
+npx ccweb-console   # Node 20+; bundles its own claude binary
+```
+
+Open `http://127.0.0.1:3477`. Endpoint credentials come from your environment (`ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN`) or any configured template in Settings.
+
+### Highlights
+
+- 🖥 **Full GUI** — markdown + syntax highlighting, tool-call cards (Read/Grep with line numbers, Edit with line-level diff preview, ANSI-colored Bash output), collapsible thinking, message fork & regenerate
+- 🛡 **Visual approvals** — confirm dangerous actions in-app; AskUserQuestion rendered as tab UI; session-scoped "always allow"
+- 📬 **Message queue** — messages sent while generating are queued, visible, cancelable, auto-flushed on turn end
+- 📊 **Live metrics** — turns / TTFT / tokens-per-second / cache-hit rate / cost, sourced from SDK `result.modelUsage` (no estimates)
+- 🧭 **Context gauge & trajectory** — usage ring with proactive warning above 85%; right-panel timeline of every tool call
+- 🗂 **Session management** — search / resume / fork / rename / delete / drag-to-reorder; history replay survives server restarts
+- ⌨️ **Completions** — `/` slash commands (including your custom skills) and `@` workspace file paths
+- 🌓 Dark & light themes · bilingual UI (中文/English) · auto-reconnect with seq-based message reconciliation
+
+### Architecture
+
+Browser (React 18) ↔ WebSocket ↔ Local server (Node ≥20, Hono) ↔ Claude Agent SDK ↔ real Claude Code runtime, inheriting all of `~/.claude`. Sessions persist in the official `~/.claude/projects` store — restart-safe, resume & fork included.
+
 ## License
 
 MIT © TimeCraker
 
 > 本项目为社区第三方工具,与 Anthropic 无关联;Claude 为 Anthropic 商标。
+> Community third-party tool; not affiliated with Anthropic. Claude is a trademark of Anthropic.

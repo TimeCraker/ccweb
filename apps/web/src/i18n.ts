@@ -43,6 +43,7 @@ const ZH = {
   'ms.toBottom': '回到底部',
   'ms.copyCode': '复制代码',
   'ms.imageBadge': (n: number) => `[图片 ×${n}]`,
+  'ms.interrupted': '已中断',
   // 指标
   'mt.turns': '轮数',
   'mt.ttft': 'TTFT',
@@ -203,6 +204,7 @@ const EN: Dict = {
   'ms.toBottom': 'Back to bottom',
   'ms.copyCode': 'Copy code',
   'ms.imageBadge': (n: number) => `[image ×${n}]`,
+  'ms.interrupted': 'Interrupted',
   'mt.turns': 'Turns',
   'mt.ttft': 'TTFT',
   'mt.speed': 'Speed',
