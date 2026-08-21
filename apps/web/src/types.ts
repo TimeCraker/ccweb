@@ -21,6 +21,7 @@ export interface SessionMeta {
 
 export interface SettingsSnapshot {
   serverVersion: string
+  contextScope: 'full' | 'project' | 'none'
   model: string | null
   permissionMode: string | null
   effort: string | null

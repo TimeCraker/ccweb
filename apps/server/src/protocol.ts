@@ -45,6 +45,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
       permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'bypassPermissions']).nullable().optional(),
       effort: z.enum(['low', 'medium', 'high', 'max']).nullable().optional(),
       endpointTemplate: z.string().nullable().optional(),
+      contextScope: z.enum(['full', 'project', 'none']).optional(),
     }),
   }),
   z.object({ t: z.literal('mcp.status') }),
@@ -116,6 +117,8 @@ export interface SessionMeta {
 export interface SettingsSnapshot {
   /** server 包版本(package.json,前端页脚展示) */
   serverVersion: string
+  /** 会话上下文注入档位 */
+  contextScope: 'full' | 'project' | 'none'
   model: string | null
   permissionMode: string | null
   effort: string | null

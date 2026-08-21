@@ -16,6 +16,13 @@ export interface RuntimeSettings {
   endpointTemplate: string | null
   /** 工作区目录(session cwd) */
   workspace: string | null
+  /**
+   * 会话上下文注入档位(新会话生效):
+   * full   = user+project+local——~/.claude 全套(默认,与 claude CLI 行为一致)
+   * project= 仅项目级——无全局 CLAUDE.md/hooks/skills 注入,会话彼此隔离
+   * none   = 完全不加载文件系统设置(dsh 式纯净,自定义 systemPrompt 场景)
+   */
+  contextScope: 'full' | 'project' | 'none'
 }
 
 export const runtimeSettings: RuntimeSettings = {
@@ -24,6 +31,7 @@ export const runtimeSettings: RuntimeSettings = {
   effort: null,
   endpointTemplate: null,
   workspace: null,
+  contextScope: 'full',
 }
 
 export interface EndpointTemplate {

@@ -28,6 +28,12 @@ const TABS = [
 
 const EFFORTS = ['low', 'medium', 'high', 'max']
 const PERMISSIONS = ['default', 'acceptEdits', 'plan', 'bypassPermissions']
+const SCOPES = ['full', 'project', 'none'] as const
+const SCOPE_LABELS: Record<(typeof SCOPES)[number], DictKey> = {
+  full: 'st.model.scope.full',
+  project: 'st.model.scope.project',
+  none: 'st.model.scope.none',
+}
 
 interface Props {
   open: boolean
@@ -207,6 +213,31 @@ function ModelTab({
           </button>
         ))}
       </div>
+
+      <h3 className="mb-2 mt-5 text-[11px] font-medium uppercase tracking-wider text-text-faint">
+        {t('st.model.scope')} <span className="normal-case text-text-faint">({t('st.model.scopeNote')})</span>
+      </h3>
+      <div className="flex gap-1.5">
+        {SCOPES.map((sc) => {
+          // 三个候选均为纯文本词条;联合 key 使 Value<K> 含函数签名,断言收敛
+          const label = t(SCOPE_LABELS[sc]) as string
+          return (
+            <button
+              key={sc}
+              onClick={() => patch({ contextScope: sc })}
+              title={label}
+              className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${
+                (snap?.contextScope ?? 'full') === sc
+                  ? 'border-accent text-accent'
+                  : 'border-border text-text-faint hover:text-text-dim'
+              }`}
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-2 text-[11px] text-text-faint">{t('st.model.scopeHelp')}</p>
     </div>
   )
 }

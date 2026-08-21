@@ -264,6 +264,10 @@ wss.on('connection', (ws) => {
         if (p.model !== undefined) runtimeSettings.model = p.model
         if (p.permissionMode !== undefined) runtimeSettings.permissionMode = p.permissionMode
         if (p.effort !== undefined) runtimeSettings.effort = p.effort
+        if (p.contextScope !== undefined && ['full', 'project', 'none'].includes(String(p.contextScope))) {
+          // 上下文注入是子进程启动参数:新会话生效
+          runtimeSettings.contextScope = p.contextScope as 'full' | 'project' | 'none'
+        }
         if (p.endpointTemplate !== undefined) {
           if (runtimeSettings.endpointTemplate !== p.endpointTemplate) {
             // 端点是子进程 env:当前会话作废,新会话生效
@@ -311,6 +315,7 @@ function settingsSnapshot(): SettingsSnapshot {
   const activeEnv = readActiveEnv()
   return {
     serverVersion: PKG_VERSION,
+    contextScope: runtimeSettings.contextScope,
     model: runtimeSettings.model,
     permissionMode: runtimeSettings.permissionMode,
     effort: runtimeSettings.effort,

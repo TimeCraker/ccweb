@@ -37,6 +37,24 @@ export function buildAgentEnv(): Record<string, string | undefined> {
   return env
 }
 
+/**
+ * 上下文注入档位 → SDK settingSources(dsh 对照:完全不传 = none 档)。
+ * full 与 claude CLI 行为一致;project/none 隔离跨工作区记忆泄漏。
+ */
+function scopeToSettingSources():
+  | ['user', 'project', 'local']
+  | ['project', 'local']
+  | undefined {
+  switch (runtimeSettings.contextScope) {
+    case 'project':
+      return ['project', 'local']
+    case 'none':
+      return undefined
+    default:
+      return ['user', 'project', 'local']
+  }
+}
+
 /** 推送到前端的消息出口 */
 export type Emit = (msg: ServerMessage) => void
 
@@ -322,11 +340,12 @@ export class AgentSession {
 
   private async run(): Promise<void> {
     try {
+      const settingSources = scopeToSettingSources()
       const q = query({
         prompt: this.promptQueue.stream(),
         options: {
           includePartialMessages: true,
-          settingSources: ['user', 'project', 'local'],
+          ...(settingSources ? { settingSources } : {}),
           abortController: this.abortController,
           // 接管 spawn:记录 pid 供树杀(dsh ManagedClaudeCodeProcess 借鉴)
           spawnClaudeCodeProcess: (opts: SpawnOptions): SpawnedProcess => {
