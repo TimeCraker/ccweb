@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="860" height="470" viewBox="0 0 860 470" font-family="-apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0d0d14"/>
+      <stop offset="1" stop-color="#101018"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9aa5ff"/>
+      <stop offset="1" stop-color="#5a64e0"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6b7280"/>
+    </marker>
+  </defs>
+
+  <rect width="860" height="470" rx="14" fill="url(#bg)"/>
+  <text x="430" y="40" text-anchor="middle" fill="#e5e7eb" font-size="19" font-weight="600">ccweb 架构 · Architecture</text>
+
+  <!-- Browser layer -->
+  <rect x="60" y="70" width="320" height="118" rx="10" fill="#16161f" stroke="#2a2a3a" stroke-width="1.2"/>
+  <rect x="60" y="70" width="320" height="30" rx="10" fill="#1c1c28"/>
+  <circle cx="78" cy="85" r="4.5" fill="#ff5f57"/><circle cx="94" cy="85" r="4.5" fill="#febc2e"/><circle cx="110" cy="85" r="4.5" fill="#28c840"/>
+  <text x="220" y="90" text-anchor="middle" fill="#9ca3af" font-size="11" font-family="monospace">localhost:3477</text>
+  <text x="220" y="130" text-anchor="middle" fill="#f3f4f6" font-size="14" font-weight="600">Browser · React 18 + Vite</text>
+  <text x="220" y="152" text-anchor="middle" fill="#9ca3af" font-size="11">markdown + 代码高亮 · 工具卡片 · 审批 UI</text>
+  <text x="220" y="170" text-anchor="middle" fill="#9ca3af" font-size="11">指标条 · 上下文水位 · 虚拟滚动</text>
+
+  <!-- WS link -->
+  <line x1="380" y1="129" x2="480" y2="129" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <text x="430" y="118" text-anchor="middle" fill="#9aa5ff" font-size="10.5" font-family="monospace">WebSocket</text>
+  <text x="430" y="148" text-anchor="middle" fill="#6b7280" font-size="9.5">seq 对账 · 断线重连</text>
+
+  <!-- Server layer -->
+  <rect x="480" y="70" width="320" height="118" rx="10" fill="#16161f" stroke="#2a2a3a" stroke-width="1.2"/>
+  <rect x="480" y="70" width="320" height="30" rx="10" fill="#1c1c28"/>
+  <text x="640" y="90" text-anchor="middle" fill="#9ca3af" font-size="11" font-family="monospace">Node ≥ 20 · single binary feel</text>
+  <text x="640" y="130" text-anchor="middle" fill="#f3f4f6" font-size="14" font-weight="600">Local Server · Hono + ws</text>
+  <text x="640" y="152" text-anchor="middle" fill="#9ca3af" font-size="11">会话注册 · 队列 hold/flush · 权限闸门</text>
+  <text x="640" y="170" text-anchor="middle" fill="#9ca3af" font-size="11">指标聚合 · 设置桥(端点模板/工作区)</text>
+
+  <!-- SDK link -->
+  <line x1="640" y1="188" x2="640" y2="248" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+  <text x="640" y="222" text-anchor="middle" fill="#9aa5ff" font-size="10.5" font-family="monospace">Claude Agent SDK</text>
+  <text x="640" y="238" text-anchor="middle" fill="#6b7280" font-size="9.5">流式输入模式 · canUseTool 接管</text>
+
+  <!-- Runtime layer -->
+  <rect x="480" y="248" width="320" height="100" rx="10" fill="#16161f" stroke="#2a2a3a" stroke-width="1.2"/>
+  <rect x="480" y="248" width="320" height="30" rx="10" fill="#1c1c28"/>
+  <text x="640" y="268" text-anchor="middle" fill="#9ca3af" font-size="11" font-family="monospace">real subprocess · managed lifecycle</text>
+  <text x="640" y="303" text-anchor="middle" fill="#f3f4f6" font-size="14" font-weight="600">Claude Code Runtime</text>
+  <text x="640" y="325" text-anchor="middle" fill="#9ca3af" font-size="11">软中断 interrupt() · 树级强杀兜底</text>
+
+  <!-- ~/.claude -->
+  <line x1="480" y1="298" x2="380" y2="298" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="430" y="288" text-anchor="middle" fill="#9aa5ff" font-size="10.5" font-family="monospace">继承 inherits</text>
+
+  <rect x="60" y="248" width="320" height="100" rx="10" fill="#12121c" stroke="#3b3b5a" stroke-width="1.2" stroke-dasharray="5 3"/>
+  <rect x="60" y="248" width="320" height="30" rx="10" fill="#191926"/>
+  <text x="220" y="268" text-anchor="middle" fill="#9ca3af" font-size="11" font-family="monospace">~/.claude — 你的全部配置</text>
+  <g fill="#c9d0ff" font-size="11.5">
+    <text x="84" y="298">memory</text>
+    <text x="152" y="298">skills</text>
+    <text x="208" y="298">rules</text>
+    <text x="258" y="298">MCP</text>
+    <text x="304" y="298">settings</text>
+  </g>
+  <text x="220" y="325" text-anchor="middle" fill="#6b7280" font-size="10.5">CLAUDE.md · 权限 · 端点模板 — 原样生效</text>
+
+  <!-- Storage -->
+  <line x1="640" y1="348" x2="640" y2="392" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="480" y="392" width="320" height="48" rx="10" fill="#16161f" stroke="#2a2a3a" stroke-width="1.2"/>
+  <text x="640" y="413" text-anchor="middle" fill="#f3f4f6" font-size="12" font-family="monospace">~/.claude/projects/&lt;cwd&gt;/*.jsonl</text>
+  <text x="640" y="430" text-anchor="middle" fill="#6b7280" font-size="10.5">官方会话存储 · 重启即恢复 · resume / fork</text>
+
+  <!-- Badge -->
+  <rect x="60" y="392" width="200" height="48" rx="10" fill="#1a1a2b" stroke="#3b3b5a" stroke-width="1"/>
+  <rect x="76" y="406" width="18" height="20" rx="4.5" fill="url(#accent)"/>
+  <text x="104" y="421" fill="#e5e7eb" font-size="13" font-weight="700">ccweb</text>
+</svg>

@@ -114,6 +114,8 @@ export interface SessionMeta {
 
 /** 设置快照(下发前端;端点只带 name/url,无凭证) */
 export interface SettingsSnapshot {
+  /** server 包版本(package.json,前端页脚展示) */
+  serverVersion: string
   model: string | null
   permissionMode: string | null
   effort: string | null

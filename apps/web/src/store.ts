@@ -195,7 +195,8 @@ export const useStore = create<AppState>((set) => ({
       )
       return { entries, busy: false, turnStartedAt: null, lastTurnStats: stats }
     }),
-  /** 历史回放:顺序跑渲染模型(user 文本入列、assistant 对账、tool_result 回填) */
+  /** 历史回放:顺序跑渲染模型(与实时流同构--一条用户消息一个 turn,
+   * assistant 消息经对账追加,tool_result 回填;新用户消息前收束上一 turn) */
   replayHistory: (messages) => {
     set({ entries: [], busy: false, permissions: [], question: null })
     for (const raw of messages) {
@@ -217,17 +218,20 @@ export const useStore = create<AppState>((set) => ({
             }
           }
         }
-        for (const t of texts) {
-          useStore.setState((s) => ({
-            entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t }],
-          }))
-        }
         if (hasToolResult) st.onUserMessage(m)
+        if (texts.length > 0) {
+          st.finishTurn()
+          for (const t of texts) {
+            useStore.setState((s) => ({
+              entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t }],
+            }))
+          }
+        }
       } else if (m.type === 'assistant') {
         st.onAssistantMessage(m)
-        st.finishTurn()
       }
     }
+    useStore.getState().finishTurn()
   },
   clearView: () => set({ entries: [], permissions: [], question: null, error: null, busy: false }),
   setMetrics: (metrics) => set({ metrics }),

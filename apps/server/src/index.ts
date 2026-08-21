@@ -3,6 +3,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { readFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
@@ -23,10 +24,14 @@ import {
 
 const PORT = Number(process.env.CCWEB_PORT ?? 3477)
 const __dirname = dirname(fileURLToPath(import.meta.url))
+// dev(src/) 与 dist/ 下 package.json 均在上一级,读真实版本避免硬编码漂移
+const PKG_VERSION = String(
+  JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')).version ?? '',
+)
 
 const app = new Hono()
 app.use(logger())
-app.get('/healthz', (c) => c.json({ ok: true, name: 'ccweb', version: '0.1.0' }))
+app.get('/healthz', (c) => c.json({ ok: true, name: 'ccweb', version: PKG_VERSION }))
 
 // 生产模式:服务内嵌 web 产物(public/);SPA fallback 到 index.html
 app.use('*', serveStatic({ root: relativePublicRoot() }))
@@ -99,6 +104,10 @@ wss.on('connection', (ws) => {
   function createTrackedAgent(opts: { cwd?: string; resume?: string; fork?: boolean }): AgentSession {
     const agent = new AgentSession((msg) => {
       if (msg.t === 'init' && msg.sessionId) registry.set(msg.sessionId, agent)
+      // turn 结束后刷新侧栏列表--新会话/新标题第一时间可见
+      if (msg.t === 'message' && (msg.sdkMessage as { type?: string } | undefined)?.type === 'result') {
+        void pushSessionList()
+      }
       emit(msg)
     }, opts)
     return agent
@@ -196,7 +205,13 @@ wss.on('connection', (ws) => {
         emit({ t: 'files', seq: 0, files: searchWorkspaceFiles(msg.query) })
         break
       case 'session.open': {
-        const agent = getOrCreateSession(msg.sessionId, msg.fork ?? false)
+        let openId: string | undefined = msg.sessionId
+        if (openId && !(await sessionExistsOnDisk(openId))) {
+          // lastSession 可能来自其他工作区或已被删除:降级为新会话,
+          // 避免 resume 死会话导致后续所有消息 error_during_execution
+          openId = undefined
+        }
+        const agent = getOrCreateSession(openId, msg.fork ?? false)
         emit({
           t: 'init',
           seq: 0,
@@ -207,10 +222,12 @@ wss.on('connection', (ws) => {
         })
         emit({ t: 'cleared', seq: 0 })
         // 历史回放:归一化消息流供前端渲染模型重放
-        void (async () => {
-          const history = await fetchHistory(msg.sessionId)
-          emit({ t: 'history', seq: 0, sessionId: msg.sessionId, messages: history })
-        })()
+        if (openId) {
+          void (async () => {
+            const history = await fetchHistory(openId)
+            emit({ t: 'history', seq: 0, sessionId: openId, messages: history })
+          })()
+        }
         break
       }
       case 'session.rename': {
@@ -282,11 +299,18 @@ wss.on('connection', (ws) => {
     const sessions = await listSessionMetas(runtimeSettings.workspace ?? process.cwd())
     emit({ t: 'sessions', seq: 0, sessions })
   }
+
+  /** 会话是否存在于当前工作区磁盘(registry 命中也算;防跨工作区/已删除的 resume) */
+  async function sessionExistsOnDisk(sessionId: string): Promise<boolean> {
+    const metas = await listSessionMetas(runtimeSettings.workspace ?? process.cwd())
+    return metas.some((m) => m.id === sessionId)
+  }
 })
 
 function settingsSnapshot(): SettingsSnapshot {
   const activeEnv = readActiveEnv()
   return {
+    serverVersion: PKG_VERSION,
     model: runtimeSettings.model,
     permissionMode: runtimeSettings.permissionMode,
     effort: runtimeSettings.effort,

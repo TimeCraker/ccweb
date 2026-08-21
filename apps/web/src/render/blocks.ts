@@ -38,6 +38,8 @@ export interface TurnEntry {
   id: string
   blocks: Block[]
   done: boolean
+  /** 最近一次对账的 assistant 消息 id--多步 turn 内区分"同消息更新"与"下一条新消息" */
+  lastAssistantId?: string
   /** turn 尾统计(dsh TurnTail 对齐):完成时填 */
   tail?: { totalS: number; ttftMs: number | null; tps: number | null }
 }
@@ -133,27 +135,58 @@ export function applyDelta(
 export function applyBlockStop(entries: Entry[], index: number): Entry[] {
   const turn = currentTurn(entries)
   if (!turn) return entries
-  // 按块序号结算:tool 块进入 running;text/thinking 停止 streaming
+  // 按块序号结算:tool 块进入 running;text/thinking 停止 streaming。
+  // 只做前进态迁移(streaming -> running),不回退已完成状态:
+  // 多消息合并进同一 turn 后,content 块 index 是按消息各自编号的,
+  // 跨消息的 stop 事件可能命中已 done 的工具块。
   let seen = -1
   const blocks = turn.blocks.map((b) => {
     seen++
     if (seen !== index) return b
-    if (b.kind === 'tool') return { ...b, status: 'running' as const }
+    if (b.kind === 'tool') {
+      return b.status === 'streaming' ? { ...b, status: 'running' as const } : b
+    }
     return { ...b, streaming: false }
   })
   return withTurn(entries, { ...turn, blocks })
 }
 
-/** 完整 assistant 消息到达:以权威数据对账重建(accumulate-and-reconcile) */
+/** 完整 assistant 消息到达:以权威数据对账。
+ * 同一条消息(流式过程中反复到达)原地重建;
+ * turn 内的下一条新消息(tool 往返后的后续回复)追加--
+ * 否则后到的纯文本消息会整体替换 blocks,把已渲染的工具卡抹掉。 */
 export function reconcileAssistant(entries: Entry[], msg: SDKAssistantLike): Entry[] {
   let turn = currentTurn(entries)
   if (!turn) {
     turn = { type: 'turn', id: nextEntryId(), blocks: [], done: false }
     entries = [...entries, turn]
   }
+  const msgId = msg.message?.id ?? null
+  const isNewMessage =
+    msgId != null && turn.lastAssistantId != null && turn.lastAssistantId !== msgId
+
+  if (isNewMessage) {
+    // 丢弃尾部流式中的 text/thinking(本消息的流式草稿,由完整块取代);
+    // 工具块保留(状态/结果由 tool_result 回填,不受消息边界影响)
+    const kept = turn.blocks.slice()
+    while (kept.length > 0) {
+      const last = kept[kept.length - 1]
+      if (last != null && last.kind !== 'tool' && last.streaming) kept.pop()
+      else break
+    }
+    const prevTools = new Map<string, ToolBlock>()
+    for (const b of kept) if (b.kind === 'tool') prevTools.set(b.toolUseId, b)
+    const added = buildBlocksFromMessage(msg, prevTools)
+    return withTurn(entries, { ...turn, blocks: [...kept, ...added], lastAssistantId: msgId ?? undefined })
+  }
+
   const prevTools = new Map<string, ToolBlock>()
   for (const b of turn.blocks) if (b.kind === 'tool') prevTools.set(b.toolUseId, b)
+  const blocks = buildBlocksFromMessage(msg, prevTools)
+  return withTurn(entries, { ...turn, blocks, done: false, lastAssistantId: msgId ?? undefined })
+}
 
+function buildBlocksFromMessage(msg: SDKAssistantLike, prevTools: Map<string, ToolBlock>): Block[] {
   const blocks: Block[] = []
   for (const c of msg.message?.content ?? []) {
     if (!c) continue
@@ -175,7 +208,7 @@ export function reconcileAssistant(entries: Entry[], msg: SDKAssistantLike): Ent
       })
     }
   }
-  return withTurn(entries, { ...turn, blocks, done: false })
+  return blocks
 }
 
 /** user 消息中的 tool_result:回填工具块状态与结果 */
@@ -220,7 +253,7 @@ export function toolResultText(content: unknown): string {
 }
 
 interface SDKAssistantLike {
-  message?: { content?: Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: unknown } | null> } | null
+  message?: { id?: string; content?: Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: unknown } | null> } | null
 }
 
 interface SDKUserLike {

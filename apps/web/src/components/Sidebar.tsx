@@ -63,6 +63,7 @@ export default function Sidebar({
   const conn = useStore((s) => s.conn)
   const sessions = useStore((s) => s.sessions)
   const activeId = useStore((s) => s.sessionId)
+  const serverVersion = useStore((s) => s.settings?.serverVersion)
   const [query, setQuery] = useState('')
   // 拖拽排序状态(hooks 全部在 collapsed 早退之前,防 React #300)
   const [order, setOrder] = useState<string[]>(() => readSessionOrder())
@@ -207,7 +208,7 @@ export default function Sidebar({
           <span>{conn === 'open' ? t('sb.connected') : conn === 'connecting' ? t('sb.connecting') : t('sb.reconnecting')}</span>
         </div>
         <div className="mt-2 flex items-center justify-between">
-          <span className="font-mono text-[10px] text-text-faint">v0.1.0</span>
+          <span className="font-mono text-[10px] text-text-faint">v{serverVersion || '…'}</span>
           <div className="flex gap-1">
             <button onClick={onExport} title={t('sb.export')} className="icon-btn !size-6" aria-label={t('sb.export')}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>

@@ -20,6 +20,7 @@ export interface SessionMeta {
 }
 
 export interface SettingsSnapshot {
+  serverVersion: string
   model: string | null
   permissionMode: string | null
   effort: string | null
