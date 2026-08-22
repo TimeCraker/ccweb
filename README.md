@@ -4,6 +4,8 @@
 
 **Professional local web console for Claude Code**
 
+**[English](#english)** | 中文
+
 跑的是**真 Claude Code runtime** —— 你的 `~/.claude` 全套配置（memory / skills / rules / MCP）原样生效。不是模拟，不是代理。
 
 [![npm](https://img.shields.io/npm/v/ccweb-console?color=CC785C&label=npm&logo=npm)](https://www.npmjs.com/package/ccweb-console)
@@ -114,6 +116,8 @@ MIT © TimeCraker
 ---
 
 ## English
+
+English | **[中文](#它解决什么问题)**
 
 **ccweb** is a professional, open-source web console for Claude Code — built on the official **Claude Agent SDK**, it drives a real Claude Code runtime behind a full GUI. Your entire `~/.claude` setup (memory / skills / rules / MCP) applies automatically.
 
