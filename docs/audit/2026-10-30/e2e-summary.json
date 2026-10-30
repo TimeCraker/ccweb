@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-30",
+  "source": "apps/web/e2e/basic.spec.ts",
+  "failed": 2,
+  "tests": [
+    {
+      "title": "boots and renders the empty state",
+      "status": "failed",
+      "durationMs": 5394
+    },
+    {
+      "title": "composer accepts input and shows hint",
+      "status": "passed",
+      "durationMs": 536
+    },
+    {
+      "title": "Ctrl+K opens the command palette",
+      "status": "failed",
+      "durationMs": 5520
+    },
+    {
+      "title": "sidebar shows connection state",
+      "status": "passed",
+      "durationMs": 453
+    }
+  ],
+  "kind": "Existing E2E cases with temporary Edge config; no model calls",
+  "interpretation": [
+    "Empty-state assertion uses old copy; current heading is 今天做点什么?",
+    "Palette case failed before dialog opened; separate connected-ready Ctrl+K check succeeded; investigate readiness before changing product behavior"
+  ],
+  "config": "temporary playwright.config.mjs, Edge, isolated profile, port 3490",
+  "passed": 2
+}

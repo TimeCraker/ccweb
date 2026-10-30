@@ -1,0 +1,12 @@
+{
+  "kind": "npm registry installation, no model execution",
+  "health": {
+    "ok": true,
+    "name": "ccweb",
+    "version": "0.1.4"
+  },
+  "http": 200,
+  "dialog": "设置\n\n模型端点权限Skills规则MCP\n模型\n\n当前生效(settings.json):audit-config-model\n\n应用\n\n留空则用端点默认模型;别名(opus/sonnet/haiku)由端点映射。\n\n思考力度 (新会话生效)\nlow\nmedium\nhigh\nmax\n上下文隔离 (新会话生效)\n全量\n仅项目\n纯净\n\n全量=~/.claude 全套(全局 CLAUDE.md/规则/Skills/hooks,与 claude CLI 一致);仅项目=只加载工作区自己的配置,会话互不串记忆;纯净=不加载任何文件系统配置\n\n✕",
+  "pageErrors": [],
+  "sdkVersion": "0.3.314"
+}

@@ -1,0 +1,150 @@
+{
+  "date": "2026-10-30",
+  "kind": "source UI + simulated SDK protocol; no model calls",
+  "results": [
+    {
+      "id": "source.boot",
+      "health": {
+        "ok": true,
+        "name": "ccweb",
+        "version": "0.1.4"
+      }
+    },
+    {
+      "id": "ui.palette",
+      "placeholder": "输入命令或搜索会话…"
+    },
+    {
+      "id": "ui.first-run",
+      "text": "今天做点什么?\n\n完整 ~/.claude 配置已就绪 · 你的 skills / memory / MCP 自动生效\n\naudit-config-model · audit.invalid\n\nCtrl K\n命令面板\nCtrl N\n新建会话\nEsc\n中断生成\nCtrl ,\n设置"
+    },
+    {
+      "id": "ui.modes",
+      "options": [
+        "启动目录",
+        "audit-config-model",
+        "default",
+        "default",
+        "acceptEdits",
+        "plan",
+        "bypassPermissions",
+        "",
+        ""
+      ],
+      "autoVisible": 0
+    },
+    {
+      "id": "ui.settings-request-loop",
+      "windowMs": 500,
+      "settingsGetRequests": 473
+    },
+    {
+      "id": "ui.settings",
+      "text": "设置\n\n模型端点权限Skills规则MCP\n模型\n\n当前生效(settings.json):audit-config-model\n\n应用\n\n留空则用端点默认模型;别名(opus/sonnet/haiku)由端点映射。\n\n思考力度 (新会话生效)\nlow\nmedium\nhigh\nmax\n上下文隔离 (新会话生效)\n全量\n仅项目\n纯净\n\n全量=~/.claude 全套(全局 CLAUDE.md/规则/Skills/hooks,与 claude CLI 一致);仅项目=只加载工作区自己的配置,会话互不串记忆;纯净=不加载任何文件系统配置\n\n✕",
+      "errors": []
+    },
+    {
+      "id": "ui.skills",
+      "text": "设置\n\n模型端点权限Skills规则MCP\n用户 SKILLS(0)· 全部自动生效\n\n~/.claude/skills 下暂无技能\n\n✕"
+    },
+    {
+      "id": "source.current-settings",
+      "permissionMode": "plan"
+    },
+    {
+      "id": "source.auto-mode",
+      "response": {
+        "t": "error",
+        "seq": 611,
+        "code": "bad_message",
+        "message": "Invalid enum value. Expected 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions', received 'auto'"
+      }
+    },
+    {
+      "id": "source.restart",
+      "after": {
+        "model": null,
+        "permissionMode": null,
+        "effort": null,
+        "contextScope": "full",
+        "workspace": null
+      }
+    },
+    {
+      "id": "mock.query-options",
+      "requested": {
+        "model": "audit-selected",
+        "permissionMode": "plan",
+        "contextScope": "none"
+      },
+      "actual": {
+        "event": "query",
+        "sid": "3af5a78d-31b7-46ff-9c6d-4e8726461891",
+        "model": null,
+        "permissionMode": null,
+        "settingSources": "OMITTED",
+        "cwd": null
+      }
+    },
+    {
+      "id": "mock.mcp",
+      "sdkExpected": [
+        {
+          "name": "audit-mcp",
+          "status": "connected"
+        }
+      ],
+      "actual": [
+        {
+          "name": "0",
+          "status": "connected"
+        }
+      ]
+    },
+    {
+      "id": "mock.reconnect-approval",
+      "replayed": true,
+      "error": {
+        "t": "error",
+        "seq": 8,
+        "code": "permission_not_found",
+        "message": "No pending permission with that id."
+      }
+    },
+    {
+      "id": "mock.reopen-approval",
+      "error": {
+        "t": "error",
+        "seq": 12,
+        "code": "permission_not_found",
+        "message": "No pending permission with that id."
+      },
+      "originalResolved": false
+    },
+    {
+      "id": "mock.cross-connection-replay",
+      "otherConnectionSawOriginalApproval": true
+    },
+    {
+      "id": "mock.crash-retry",
+      "queriesAfterCrash": 2,
+      "queue": {
+        "t": "queue",
+        "seq": 18,
+        "items": [
+          {
+            "uuid": "fdc07c50-343a-4d48-841f-8e3fd6ce6418",
+            "text": "AFTER_CRASH"
+          }
+        ]
+      },
+      "completed": false
+    },
+    {
+      "id": "mock.workspace-switch",
+      "originalSession": "886ea413-2fe1-4ed4-9a84-daf820a6173d",
+      "originalAborted": false,
+      "interruptDelivered": false
+    }
+  ]
+}
