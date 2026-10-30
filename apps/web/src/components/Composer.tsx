@@ -118,8 +118,9 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
   }
 
   return (
-    <div className={hero ? 'relative w-full' : 'relative border-t border-border bg-panel px-6 py-4'}>
-      <div className={hero ? '' : 'mx-auto max-w-3xl'}>
+    <div className={`composer-container ${hero ? 'composer-hero' : ''}`}>
+      <div className="composer-card">
+      <div className="composer-inner">
         {slashMatches.length > 0 && (
           <div className="animate-pop-in absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-xl border border-border-strong bg-panel p-1.5 shadow-2xl">
             {slashMatches.map((c, i) => (
@@ -188,18 +189,6 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
             addImages(e.dataTransfer?.files ?? null)
           }}
         >
-          <button
-            onClick={() => fileRef.current?.click()}
-            aria-label={t('cp.addImage')}
-            title={t('cp.addImage')}
-            className="grid size-8 shrink-0 place-items-center rounded-lg text-text-faint hover:bg-panel-2 hover:text-text-dim"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="4" />
-              <circle cx="9" cy="9" r="2" />
-              <path d="m21 15-3.6-3.6a2 2 0 0 0-2.8 0L6 20" />
-            </svg>
-          </button>
           <input
             ref={fileRef}
             type="file"
@@ -274,32 +263,31 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
             placeholder={busy ? t('cp.queuePlaceholder') : t('cp.placeholder')}
             className="max-h-48 min-h-6 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
           />
-          {busy || waiting ? (
-            <button
-              onClick={onInterrupt}
-              aria-label={t('cp.stop')}
-              className="grid size-8 shrink-0 place-items-center rounded-lg border border-border-strong text-text-dim transition-colors hover:border-danger hover:text-danger"
-            >
-              <IconStop width={14} height={14} />
-            </button>
-          ) : (
-            <button
-              onClick={submit}
-              disabled={!settingsReady || !!pending || conn !== "open" || waiting || (!text.trim() && images.length === 0)}
-              aria-label={t('cp.send')}
-              className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-white transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-35"
-            >
-              <IconSend width={14} height={14} />
-            </button>
-          )}
         </div>
-        {sendControl && <RunControls send={sendControl} />}
-        {busy && !waiting && <button className="queue-send" disabled={!settingsReady || !!pending || !text.trim() || conn !== "open"} onClick={submit}>排队发送</button>}
+        <div className="composer-toolbar">
+          <button
+            onClick={() => fileRef.current?.click()}
+            aria-label={t('cp.addImage')}
+            title={t('cp.addImage')}
+            className="attachment-trigger grid size-8 shrink-0 place-items-center rounded-lg text-text-faint hover:bg-panel-2 hover:text-text-dim"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="4" />
+              <circle cx="9" cy="9" r="2" />
+              <path d="m21 15-3.6-3.6a2 2 0 0 0-2.8 0L6 20" />
+            </svg>
+          </button>
+
+          {sendControl && <RunControls send={sendControl} />}
+          <div className="composer-actions">
+            {(busy || waiting) && <button onClick={onInterrupt} aria-label={t('cp.stop')} className="composer-stop"><IconStop width={16} height={16} />停止</button>}
+            <button onClick={submit} disabled={!settingsReady || !!pending || conn !== 'open' || waiting || (!text.trim() && images.length === 0)} aria-label={busy ? '排队发送' : t('cp.send')} className="composer-send"><IconSend width={18} height={18} />{busy ? '排队发送' : '发送任务'}</button>
+          </div>
+        </div>
         {!settingsReady && <p role="status" className="draft-preserved">正在读取工作区配置，草稿已保留…</p>}
         {waiting && <p className="draft-preserved">正在等待你的回应，草稿已保留</p>}
-        {!hero && (
-          <p className="mt-2 text-center text-[11px] text-text-faint">{t('cp.hint')}</p>
-        )}
+
+      </div>
       </div>
       {lightbox && <Lightbox src={lightbox} onClose={() => setLightbox(null)} />}
     </div>

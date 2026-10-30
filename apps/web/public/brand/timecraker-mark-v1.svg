@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">TimeCraker 时间裂隙标记</title>
+  <desc id="desc">由 T 与断开的 C 构成，珊瑚色时间裂隙从中穿过的几何品牌标记。</desc>
+  <path fill="#101116" d="M70 88h274l-43 60h-61v228l-54 84V148h-78L70 88Z"/>
+  <path fill="#101116" d="M355 88h87l-38 60h-91l42-60Z"/>
+  <path fill="#101116" d="M332 184h101l-38 60h-51l-72 102h108l53 70H240l-32-34 77-145 47-53Z"/>
+  <path fill="#F5F1E8" d="m344 88 11 0-42 60h-12l43-60Zm-38 60h13L251 244l-53 184-12 18 54-214 66-84Z"/>
+  <path fill="#D06448" d="m321 132 10-12-68 104-51 176-11 17 48-190 72-95Z"/>
+</svg>

@@ -371,15 +371,9 @@ export default function App() {
           {t('conn.reconnecting')}
         </div>
       )}
-      <TopBar
-        onOpenSettings={() => setSettingsOpen(true)}
-        onPatch={patchSettings}
-        onSetWorkspace={setWorkspace}
-        onToggleDetails={() => setDetailsOpen(v => !v)}
-        onReview={() => setReviewOpen(v => !v)}
-      />
-      <div className="flex min-h-0 flex-1">
+      <div className="workbench-layout flex min-h-0 flex-1">
         <Sidebar
+          onSetWorkspace={setWorkspace}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
           onOpenSession={openSession}
@@ -389,25 +383,27 @@ export default function App() {
           onExport={exportMarkdown}
           onOpenSettings={() => setSettingsOpen(true)}
         />
-        <main className="flex min-w-0 flex-1 flex-col border-l border-border">
+        <main className="workbench-main flex min-w-0 flex-1 flex-col">
+      <TopBar
+        onOpenSettings={() => setSettingsOpen(true)}
+        onPatch={patchSettings}
+        onSetWorkspace={setWorkspace}
+        onToggleDetails={() => setDetailsOpen(v => !v)}
+        onReview={() => setReviewOpen(v => !v)}
+      />
+
           {reviewOpen && <ChangesReview onClose={() => setReviewOpen(false)} />}
           <div className="conversation-layout" hidden={reviewOpen}>
           {empty ? (
-            <div className="hero-glow flex flex-1 flex-col items-center justify-center overflow-y-auto px-6">
-              <BrandMark size={56} uid="hero" />
-              <h1 className="mt-5 text-xl font-semibold tracking-tight">{t('hero.title')}</h1>
-              <p className="mt-1.5 text-sm text-text-dim">{t('hero.sub')}</p>
-              <div className="mt-7 w-full max-w-2xl">{composer}<MetricsBar /></div>
-              <p className="mt-3 text-[11px] text-text-faint">
-                <span className="font-mono">{settingsMeta}</span>
-              </p>
-              <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-text-faint">
-                <Chip k="Ctrl K" v={t('hero.palette')} />
-                <Chip k="Ctrl N" v={t('hero.newSession')} />
-                <Chip k="Esc" v={t('hero.interrupt')} />
-                <Chip k="Ctrl ," v={t('hero.settings')} />
+            <>
+              <div className="empty-welcome">
+                <BrandMark size={64} uid="hero" />
+                <h1>{t('hero.title')}</h1><p>{t('hero.sub')}</p>
+                <div className="welcome-shortcuts"><Chip k="Ctrl K" v={t('hero.palette')} /><Chip k="Ctrl N" v={t('hero.newSession')} /><Chip k="Ctrl ," v={t('hero.settings')} /></div>
+                {settingsMeta && <span className="welcome-endpoint">{settingsMeta}</span>}
               </div>
-            </div>
+              <div className="action-dock">{composer}</div><MetricsBar />
+            </>
           ) : (
             <>
               <MessageStream onRegenerate={regenerate} onForkFromMessage={forkFromMessage} />

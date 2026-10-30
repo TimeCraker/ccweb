@@ -1,4 +1,5 @@
 // Test-only simulated SDK. Loaded through fixture-server, never from production code.
+import { readFileSync } from 'node:fs'
 const sessions = new Map()
 export async function listSessions() { return [...sessions.keys()].map(sessionId => ({ sessionId, firstPrompt: '【E2E】 simulated task', lastModified: Date.now() })) }
 export async function getSessionMessages() { return [] }
@@ -24,6 +25,13 @@ export function query({ prompt, options }) {
       await sleep(100)
       yield { type: 'stream_event', event: { type: 'message_delta', usage: { output_tokens: 30 } } }
       yield { type: 'stream_event', event: { type: 'message_stop' } }
+      if (text.includes('VISUAL') || text.includes('视觉验收')) {
+        yield { type:'assistant',uuid:crypto.randomUUID(),message:{id,content:[{type:'text',text:'【E2E 视觉验收 · 模拟 SDK】\n\n我会先核对权限与会话状态，再补齐模式切换。\n\n1. 检查现有的模式切换代码，梳理计划模式和自动模式的实现位置。\n2. 在保留现有文件改动的前提下，完善模式选择与运行回执。\n3. 执行检查，确认原有会话和配置管理仍可使用。'}]} }
+        const toolId=crypto.randomUUID()
+        yield { type:'assistant',uuid:crypto.randomUUID(),message:{id,content:[{type:'tool_use',id:toolId,name:'Read',input:{file_path:'apps/server/src/agent.ts'}}]} }
+        const lines=readFileSync(new URL('../src/agent.ts',import.meta.url),'utf8').split('\n');const start=lines.findIndex(line=>line.startsWith('export class AgentSession'));const code=lines.slice(start,start+18).join('\n')
+        yield {type:'user',message:{content:[{type:'tool_result',tool_use_id:toolId,content:code}]}}
+      }
       if (text.includes('APPROVAL') || text.includes('PLAN') || text.includes('QUESTION')) {
         const name = text.includes('PLAN') ? 'ExitPlanMode' : text.includes('QUESTION') ? 'AskUserQuestion' : 'Edit'
         const input = name === 'ExitPlanMode' ? (text.includes('EMPTY_PLAN') ? {} : { plan: '# E2E 计划\n\n1. 审查文件\n2. 人工审批后执行' }) : name === 'AskUserQuestion' ? { questions: [{ question: '选择测试方案', header: '测试', multiSelect: false, options: [{ label: '方案 A' }, { label: '方案 B' }] }] } : { file_path: 'fixture.txt', old_string: 'before', new_string: 'after' }
@@ -32,7 +40,7 @@ export function query({ prompt, options }) {
         const result = await options.canUseTool(name, input, { toolUseID: toolId, requestId: toolId, signal: options.abortController.signal })
         yield { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: toolId, content: result.behavior === 'allow' ? '【E2E】approved' : '【E2E】denied', is_error: result.behavior !== 'allow' }] } }
       }
-      if (text.includes('WAIT')) { for (let i = 0; i < 100 && !interrupted && !options.abortController.signal.aborted; i++) await sleep(100) }
+      if (text.includes('WAIT') || text.includes('视觉验收')) { for (let i = 0; i < 100 && !interrupted && !options.abortController.signal.aborted; i++) await sleep(100) }
       if (options.abortController.signal.aborted) return
       const wasInterrupted = interrupted
       interrupted = false

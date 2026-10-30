@@ -91,7 +91,7 @@ pnpm check    # lint + typecheck + test + build 质量门
 
 ![审批与常驻指标](docs/screenshots/v2-approval.png)
 
-截图来自实际浏览器。审批图使用确定性 SDK 模拟；真实模型证据和限制见 [产品诊断的 V2 验收](docs/PRODUCT_AUDIT.md#v2-实施与验收2026-10-31)。
+截图来自 Stage 6.5 实际浏览器界面，TC 品牌与个人主站统一。运行和审批图使用明确标注的确定性 SDK 模拟，指标不代表真实模型表现；真实模型证据和限制见 [产品诊断的 V2 验收](docs/PRODUCT_AUDIT.md#v2-实施与验收2026-10-31)。
 
 <details>
 <summary>Troubleshooting</summary>

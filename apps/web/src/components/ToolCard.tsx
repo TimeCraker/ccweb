@@ -120,12 +120,10 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
 
       <div className={`tool-expand ${effectiveOpen ? 'open' : ''}`}>
         <div>
-          <div className="border-t border-border px-3 py-2">
-            <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.params')}</p>
-            <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded border border-border bg-bg px-3 py-2 font-mono text-[11px] text-text-dim">
-              {block.input ? JSON.stringify(block.input, null, 2) : block.inputRaw || t('tl.receiving')}
-            </pre>
-          </div>
+          <details className="tool-parameters" open={!numbered || result == null}>
+            <summary>{t('tl.params')}</summary>
+            <pre>{block.input ? JSON.stringify(block.input, null, 2) : block.inputRaw || t('tl.receiving')}</pre>
+          </details>
           {editPreview && (
             <div className="border-t border-border px-3 py-2">
               <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.diffPreview')}</p>

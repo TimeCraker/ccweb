@@ -7,7 +7,7 @@ import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
 import { copyText } from '../clipboard'
-import { IconFork, IconWarn } from './Icon'
+import { IconFork, IconWarn, BrandMark } from './Icon'
 
 interface StreamProps {
   onRegenerate?: () => void
@@ -26,8 +26,21 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
   const turnStartedAt = useStore((s) => s.turnStartedAt)
   const virtuoso = useRef<VirtuosoHandle>(null)
   const [atBottom, setAtBottom] = useState(true)
+  const lastUserId = useRef<string | undefined>(undefined)
   const range = useRef({ startIndex: 0, endIndex: 0 })
   useLocale()
+
+  const newest = [...entries].reverse().find(entry => entry.type === 'user')?.id
+  const entryCount = useRef(entries.length)
+  entryCount.current = entries.length
+
+  useEffect(() => {
+    if (!newest || newest === lastUserId.current) return
+    lastUserId.current = newest
+    setAtBottom(true)
+    const frame = requestAnimationFrame(() => virtuoso.current?.scrollToIndex({ index: entryCount.current - 1, align: 'end', behavior: 'auto' }))
+    return () => cancelAnimationFrame(frame)
+  }, [newest])
 
   useEffect(() => {
     if (entries.length === 0) return
@@ -44,13 +57,14 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
         ref={virtuoso}
         data={entries}
         className="h-full"
+        followOutput={atBottom ? 'auto' : false}
         atBottomStateChange={(b: boolean) => setAtBottom(b)}
         rangeChanged={(r) => {
           range.current = { startIndex: r.startIndex, endIndex: r.endIndex }
         }}
         itemContent={(_, e) => (
           <div className="px-6 py-1.5">
-            <div className="mx-auto max-w-3xl">
+            <div className="message-column">
               {e.type === 'user' ? (
                 <UserRow key={e.id} text={e.text} onFork={onForkFromMessage} />
               ) : e.type === 'turnError' ? (
@@ -125,7 +139,7 @@ function RunningTimer({ startedAt }: { startedAt: number }) {
 function UserRow({ text, onFork }: { text: string; onFork?: () => void }) {
   useLocale()
   return (
-    <div className="animate-msg-in group flex justify-end">
+    <div className="user-message animate-msg-in group flex justify-end"><span className="message-avatar user-avatar" aria-hidden="true">U</span>
       <div className="max-w-[80%] rounded-xl rounded-br-sm border border-border-strong bg-panel-2 px-4 py-2.5">
         {text.split(/(\s+)/).map((tok, i) => {
           const m = /^(\/[a-zA-Z][\w-]*|@[a-zA-Z][\w.-]*)$/.exec(tok)
@@ -180,7 +194,7 @@ function TurnView({
   })()
 
   return (
-    <div className="group/turn space-y-1">
+    <div className="assistant-message group/turn space-y-1"><span className="message-avatar assistant-avatar"><BrandMark size={34} /></span>
       {turn.blocks.map((b, i) => (
         <BlockView key={i} block={b} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
       ))}

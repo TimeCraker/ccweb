@@ -169,36 +169,22 @@ export const IconSparkle = (p: P) => (
   </svg>
 )
 
-/**
- * 品牌徽标 —— 极简(Linear 式):单一渐变、纯形状、无底板无光效。
- * 概念:开口的圆环(Web 壳)+ 中心终端光标(AI 核心)。两个元素,仅此而已。
- */
-export function BrandMark({ size = 24, uid = 'a' }: { size?: number; uid?: string }) {
-  const p = (n: string) => `${n}-${uid}`
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden>
-      <defs>
-        <linearGradient id={p('g')} x1="8" y1="6" x2="32" y2="34" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#9aa5ff" />
-          <stop offset="1" stopColor="#5a64e0" />
-        </linearGradient>
-      </defs>
-      {/* 开口的环(270°),缺口朝右 */}
-      <path
-        d="M31.9 12.1A14 14 0 1 0 31.9 27.9"
-        stroke={`url(#${p('g')})`}
-        strokeWidth="3.5"
-        strokeLinecap="round"
-      />
-      {/* 中心终端光标 */}
-      <rect x="17.6" y="17.6" width="4.8" height="4.8" rx="1.2" fill="#c9d0ff" />
-    </svg>
-  )
+/** Shared personal brand, copied unchanged from my-portfolio/public/brand. */
+export function BrandMark({ size = 32 }: { size?: number; uid?: string }) {
+  return <span className="tc-brand-mark" style={{ width: size, height: size }}><img src="/brand/timecraker-mark-v1.svg" width={size} height={size} alt="TC" /></span>
 }
-
-/** favicon 数据 URI(与 BrandMark 同款) */
-export const FAVICON_URI =
-  'data:image/svg+xml,' +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none"><defs><linearGradient id="g" x1="8" y1="6" x2="32" y2="34" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#9aa5ff"/><stop offset="1" stop-color="#5a64e0"/></linearGradient></defs><path d="M31.9 12.1A14 14 0 1 0 31.9 27.9" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round"/><rect x="17.6" y="17.6" width="4.8" height="4.8" rx="1.2" fill="#c9d0ff"/></svg>`,
-  )
+export function SectionIcon({ name, ...props }: P & { name: string }) {
+  const paths: Record<string,string> = {
+    general: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4',
+    connection: 'M5 6c0-4 14-4 14 0s-14 4-14 0v12c0 4 14 4 14 0V6M5 12c0 4 14 4 14 0',
+    permission: 'M12 3 4 7v6c0 5 8 8 8 8s8-3 8-8V7l-8-4Z',
+    skill: 'm3 8 9-5 9 5-9 5-9-5Zm0 5 9 5 9-5M3 18l9 5 9-5',
+    command: 'm5 5 7 7-7 7m9 0h6',
+    rule: 'M5 3h9l5 5v13H5V3Zm9 0v6h5M8 13h8m-8 4h6',
+    mcp: 'm14 7 3-3 3 3-3 3M10 17l-3 3-3-3 3-3m3 0 4-4',
+    hooks: 'm10 8 2-2a4 4 0 0 1 6 6l-2 2m-2 2-2 2a4 4 0 0 1-6-6l2-2m1 5 6-6',
+    about: 'M12 11v6m0-10v.1M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+    panel: 'M3 4h18v16H3V4Zm5 0v16',
+  }
+  return <svg {...base(props)} aria-hidden="true"><path d={paths[name] ?? paths.rule} /></svg>
+}

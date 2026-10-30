@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
+import { WorkspacePicker } from './TopBar'
 import type { SessionMeta } from '../types'
-import { IconSearch, IconFork, IconPencil, IconChat, IconTrash } from './Icon'
+import { IconSearch, IconFork, IconPencil, IconChat, IconTrash, BrandMark, IconGear, IconPlus, SectionIcon } from './Icon'
 
 interface Props {
+  onSetWorkspace: (dir: string) => void
   collapsed?: boolean
   onToggleCollapse?: () => void
   onOpenSession: (id: string, fork?: boolean) => void
@@ -53,6 +55,7 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function Sidebar({
+  onSetWorkspace,
   collapsed = false,
   onToggleCollapse,
   onOpenSession,
@@ -62,9 +65,13 @@ export default function Sidebar({
   onExport,
   onOpenSettings,
 }: Props) {
+  const settings = useStore(s => s.settings)
+  const busy = useStore(s => s.busy)
   const conn = useStore((s) => s.conn)
-  const sessions = useStore((s) => s.sessions)
+  const savedSessions = useStore((s) => s.sessions)
+  const firstPrompt = useStore(s => s.entries.find(entry => entry.type === "user"))
   const activeId = useStore((s) => s.sessionId)
+  const sessions = activeId && !savedSessions.some(session => session.id === activeId) ? [{ id: activeId, title: firstPrompt?.type === "user" ? firstPrompt.text.split("\n")[0]!.slice(0, 80) : "当前会话", lastModified: null, gitBranch: null }, ...savedSessions] : savedSessions
   const serverVersion = useStore((s) => s.settings?.serverVersion)
   const [query, setQuery] = useState('')
   // 拖拽排序状态(hooks 全部在 collapsed 早退之前,防 React #300)
@@ -110,7 +117,7 @@ export default function Sidebar({
   /** 折叠态:窄条,仅图标(悬停展开省略;Ctrl+B 切换) */
   if (collapsed) {
     return (
-      <aside className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-panel py-3">
+      <aside className="session-sidebar is-collapsed flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border bg-panel py-3">
         <button onClick={onNewSession} title={`${t('sb.new')} (Ctrl+N)`} aria-label={t('sb.new')} className="icon-btn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
         </button>
@@ -149,17 +156,19 @@ export default function Sidebar({
     conn === 'open' ? 'bg-ok' : conn === 'connecting' ? 'bg-warn animate-pulse' : 'bg-danger'
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-panel">
+    <aside className="session-sidebar flex shrink-0 flex-col">
+      <div className="sidebar-brand"><BrandMark size={38} /><strong>ccweb</strong><span className="sidebar-connection"><i className={connDot} /><span>{conn === 'open' ? '本地连接' : conn === 'connecting' ? '连接中' : '已断开'}</span></span></div>
+      <div className="sidebar-workspace"><WorkspacePicker workspaces={settings?.workspaces ?? []} current={settings?.workspace ?? null} onPick={onSetWorkspace} /></div>
       {/* 新会话 */}
-      <div className="p-3 pb-2">
+      <div className="sidebar-controls">
         <button
           onClick={onNewSession}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border-strong bg-panel-2 px-3 py-2 text-xs font-medium transition-colors hover:border-accent hover:text-accent"
+          className="sidebar-new"
         >
-          {t('sb.new')}
-          <span className="font-mono text-[10px] text-text-faint">Ctrl N</span>
+          <IconPlus width={20} height={20} />{t('sb.new')}
+          <kbd>Ctrl N</kbd>
         </button>
-        <div className="relative mt-2">
+        <div className="sidebar-search relative">
           <IconSearch
             width={13}
             height={13}
@@ -176,13 +185,14 @@ export default function Sidebar({
 
       {/* 列表容器统一处理 dragover/drop(允许放置 + move 光标);行级 dragover 驱动换序 */}
       <div
-        className="flex-1 overflow-y-auto px-2 pb-2"
+        className="session-list flex-1 overflow-y-auto"
         onDragOver={(e) => {
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
         }}
         onDrop={(e) => e.preventDefault()}
       >
+        <p className="session-list-label">最近会话 <span>{filtered.length}</span></p>
         {filtered.length === 0 && (
           <p className="px-2 py-6 text-center text-xs text-text-faint">
             {query ? t('sb.noMatch') : t('sb.none')}
@@ -193,6 +203,7 @@ export default function Sidebar({
             key={s.id}
             s={s}
             active={s.id === activeId}
+            running={s.id === activeId && busy}
             dragging={s.id === dragId}
             onItemDragStart={handleItemDragStart}
             onItemDragOver={handleItemDragOver}
@@ -205,30 +216,14 @@ export default function Sidebar({
         ))}
       </div>
 
-      <button className="sidebar-settings" aria-label="settings" onClick={onOpenSettings}>设置</button>
-      <div className="border-t border-border p-3 text-xs text-text-dim">
-        <div className="flex items-center gap-2">
-          <span className={`size-2 rounded-full ${connDot}`} />
-          <span>{conn === 'open' ? t('sb.connected') : conn === 'connecting' ? t('sb.connecting') : t('sb.reconnecting')}</span>
-        </div>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="font-mono text-[10px] text-text-faint">v{serverVersion || '…'}</span>
-          <div className="flex gap-1">
-            <button onClick={onExport} title={t('sb.export')} className="icon-btn !size-6" aria-label={t('sb.export')}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
-            </button>
-            <button onClick={onToggleCollapse} title={t('sb.collapse')} className="icon-btn !size-6" aria-label={t('sb.collapse')}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
-            </button>
-          </div>
-        </div>
-      </div>
+      <footer className="sidebar-footer"><button aria-label="settings" onClick={onOpenSettings}><IconGear width={20} height={20} />设置</button><button onClick={onToggleCollapse} aria-label={t('sb.collapse')}><SectionIcon name="panel" width={20} height={20} />折叠侧栏</button><div className="sidebar-footer-meta"><span><i className={connDot} />{conn === 'open' ? t('sb.connected') : t('sb.connecting')}</span><span>v{serverVersion || '…'}</span><button onClick={onExport} aria-label={t('sb.export')} title={t('sb.export')}>↓</button></div></footer>
     </aside>
   )
 }
 
 function SessionRow({
   s,
+  running = false,
   active,
   dragging,
   onItemDragStart,
@@ -240,6 +235,7 @@ function SessionRow({
   onDelete,
 }: {
   s: SessionMeta
+  running?: boolean
   active: boolean
   dragging?: boolean
   onItemDragStart: (id: string) => void
@@ -276,7 +272,7 @@ function SessionRow({
           onOpen()
         }
       }}
-      className={`group relative mb-0.5 cursor-pointer rounded-lg px-2.5 py-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent/50 ${
+      className={`session-row group relative mb-0.5 cursor-pointer rounded-lg px-2.5 py-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent/50 ${
         active ? 'bg-panel-2' : 'hover:bg-panel-2/60'
       } ${dragging ? 'opacity-40' : ''}`}
       onClick={() => !editing && onOpen()}
@@ -315,7 +311,7 @@ function SessionRow({
             <p className="truncate pr-10 text-xs text-text-dim">{s.title || t('sb.untitled')}</p>
           )}
           <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-text-faint">
-            <span>{timeAgo(s.lastModified)}</span>
+            {running ? <span className="session-running">● 运行中</span> : <span>{timeAgo(s.lastModified)}</span>}
             {s.gitBranch && <span className="truncate font-mono">{s.gitBranch}</span>}
           </div>
         </div>
