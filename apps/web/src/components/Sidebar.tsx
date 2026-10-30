@@ -12,6 +12,7 @@ interface Props {
   onRename: (id: string, title: string) => void
   onDelete: (id: string) => void
   onExport: () => void
+  onOpenSettings?: () => void
 }
 
 // ---------- 拖拽排序(纯前端,localStorage 持久化) ----------
@@ -59,6 +60,7 @@ export default function Sidebar({
   onRename,
   onDelete,
   onExport,
+  onOpenSettings,
 }: Props) {
   const conn = useStore((s) => s.conn)
   const sessions = useStore((s) => s.sessions)
@@ -127,6 +129,7 @@ export default function Sidebar({
             </button>
           ))}
         </div>
+        <button onClick={onOpenSettings} title="设置" aria-label="settings" className="icon-btn">设置</button>
         <button onClick={onExport} title={t('sb.export')} aria-label={t('sb.export')} className="icon-btn">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
         </button>
@@ -146,7 +149,7 @@ export default function Sidebar({
     conn === 'open' ? 'bg-ok' : conn === 'connecting' ? 'bg-warn animate-pulse' : 'bg-danger'
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-panel">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-panel">
       {/* 新会话 */}
       <div className="p-3 pb-2">
         <button
@@ -202,6 +205,7 @@ export default function Sidebar({
         ))}
       </div>
 
+      <button className="sidebar-settings" aria-label="settings" onClick={onOpenSettings}>设置</button>
       <div className="border-t border-border p-3 text-xs text-text-dim">
         <div className="flex items-center gap-2">
           <span className={`size-2 rounded-full ${connDot}`} />

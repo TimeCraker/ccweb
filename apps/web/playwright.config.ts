@@ -9,6 +9,7 @@ import { defineConfig } from '@playwright/test'
  */
 const testHome = join(tmpdir(), 'ccweb-playwright-profile')
 mkdirSync(testHome, { recursive: true })
+mkdirSync(join(testHome, 'workspace'), { recursive: true })
 
 export default defineConfig({
   outputDir: '../../.ccweb-test/results',
@@ -19,11 +20,17 @@ export default defineConfig({
     channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
     baseURL: 'http://127.0.0.1:3477',
   },
-  webServer: {
+  webServer: [{
     command: `node "${process.env.CCWEB_E2E_BIN ?? "../server/bin/ccweb.mjs"}"`,
     url: 'http://127.0.0.1:3477/healthz',
     reuseExistingServer: false,
-    env: { USERPROFILE: testHome, HOME: testHome, CCWEB_PORT: '3477' },
+    env: { USERPROFILE: testHome, HOME: testHome, CCWEB_WORKSPACE: join(testHome, 'workspace'), CCWEB_PORT: '3477', CCWEB_HOME: join(testHome, '.ccweb'), CLAUDE_CONFIG_DIR: join(testHome, '.claude') },
     timeout: 20_000,
-  },
+  }, {
+    command: 'node ../server/test/fixture-server.mjs',
+    url: 'http://127.0.0.1:3495/healthz',
+    reuseExistingServer: false,
+    env: { USERPROFILE: testHome, HOME: testHome, CCWEB_WORKSPACE: join(testHome, 'workspace'), CCWEB_PORT: '3495', CCWEB_HOME: join(testHome, '.fixture'), CLAUDE_CONFIG_DIR: join(testHome, '.claude') },
+    timeout: 20_000,
+  }],
 })

@@ -1,0 +1,113 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve, sep } from 'node:path'
+import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
+import type { ServerMessage } from './protocol.js'
+const mock = vi.hoisted(() => ({ options: [] as Options[], mode: 'success', order: [] as string[] }))
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  query: ({ prompt, options }: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => {
+    mock.options.push(options)
+    const generator = (async function* () {
+      yield { type: 'system', subtype: 'init', session_id: options.resume ?? options.sessionId, model: options.model ?? 'sonnet', slash_commands: ['compact'] }
+      if (mock.mode === 'crash') throw new Error('synthetic crash')
+      for await (const message of prompt) {
+        if (mock.mode === 'plan') {
+          const directory = (options.settings as { plansDirectory: string }).plansDirectory
+          writeFileSync(join(directory, 'current.md'), '# Current plan\n\nReview before execution.')
+          await options.canUseTool!('ExitPlanMode', {}, { toolUseID: 'plan-test', requestId: 'plan-control', signal: new AbortController().signal })
+        }
+        if (mock.mode === 'approval') {
+          const result = await options.canUseTool!('Write', { file_path: 'test.txt' }, { toolUseID: 'approval-test', requestId: 'approval-control', signal: new AbortController().signal })
+          mock.order.push(result?.behavior ?? 'pending')
+        }
+        yield { type: 'result', subtype: 'success', usage: {}, modelUsage: {}, user_message_uuid: message.uuid }
+      }
+    })()
+    return Object.assign(generator, {
+      interrupt: async () => { mock.order.push('interrupt') },
+      close: () => undefined,
+      setModel: async (model?: string) => { mock.order.push(`model:${model}`) },
+      setPermissionMode: async (mode: string) => { if (mode === 'auto') throw new Error('auto unavailable'); mock.order.push(`mode:${mode}`) },
+      mcpServerStatus: async () => [{ name: 'test-server', status: 'connected' }],
+      getContextUsage: async () => ({ usage: { total_tokens: 50, raw_max_tokens: 100, percentage: 50 } }),
+    })
+  },
+}))
+let Agent: typeof import('./agent.js').AgentSession
+let settings: typeof import('./settings.js').runtimeSettings
+let temporary: string
+const agents: Array<InstanceType<typeof Agent>> = []
+beforeAll(async () => {
+  temporary = mkdtempSync(join(tmpdir(), 'ccweb-agent-test-'))
+  process.env.CCWEB_HOME = join(temporary, 'app')
+  process.env.CLAUDE_CONFIG_DIR = join(temporary, 'claude')
+  mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true })
+  Agent = (await import('./agent.js')).AgentSession
+  settings = (await import('./settings.js')).runtimeSettings
+})
+beforeEach(() => {
+  for (const agent of agents.splice(0)) agent.abort()
+  mock.mode = 'success'; mock.options.length = 0; mock.order.length = 0
+  Object.assign(settings, { model: 'sonnet', permissionMode: 'plan', contextScope: 'none', effort: null, endpointTemplate: null })
+})
+afterAll(() => {
+  for (const agent of agents) agent.abort()
+  if (!resolve(temporary).startsWith(resolve(tmpdir()) + sep)) throw new Error('Unsafe temporary path')
+  rmSync(temporary, { recursive: true, force: true })
+})
+function create(events: ServerMessage[]) { const agent = new Agent(event => events.push(event)); agents.push(agent); return agent }
+describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
+  it('passes initial model, native permission and explicit empty setting sources', async () => {
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('hello')
+    expect(mock.options[0]?.model).toBe('sonnet')
+    expect(mock.options[0]?.permissionMode).toBe('plan')
+    expect(mock.options[0]?.settingSources).toEqual([])
+    expect(mock.options[0]?.env?.TEMP).toBe(join(temporary, 'app', 'tmp'))
+    expect(mock.options[0]?.settings).toEqual({ plansDirectory: join(temporary, 'app', 'plans', agent.sessionId!) })
+    expect(mock.options[0]?.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' })
+    await vi.waitFor(() => expect(events.some(e => e.t === 'message')).toBe(true))
+    expect(await agent.mcpStatus()).toEqual([{ name: 'test-server', status: 'connected' }])
+  })
+  it('preserves a pending approval until explicitly resolved, without tool-wide allow', async () => {
+    mock.mode = 'approval'
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('write')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'permission.ask')).toBe(true))
+    expect(await agent.resolvePermission('approval-test', true, true)).toBe(true)
+    await vi.waitFor(() => expect(mock.order).toContain('allow'))
+    agent.send('write again')
+    await vi.waitFor(() => expect(events.filter(e => e.t === 'permission.ask')).toHaveLength(2))
+    await agent.interrupt()
+    expect(mock.order).toContain('deny')
+    expect(events.some(e => e.t === 'permission.resolved' && !e.allow)).toBe(true)
+  })
+  it('rebuilds the query after a crash without resubmitting the failed prompt', async () => {
+    mock.mode = 'crash'
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('first')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'error')).toBe(true))
+    mock.mode = 'success'; agent.send('explicit retry')
+    await vi.waitFor(() => expect(mock.options).toHaveLength(2))
+    expect(mock.options[1]?.resume).toBe(agent.sessionId)
+  })
+  it('does not acknowledge unsupported native auto mode as applied', async () => {
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('hello')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'init')).toBe(true))
+    await expect(agent.applySettings({ permissionMode: 'auto' })).rejects.toThrow('auto unavailable')
+    expect(agent.settings.permissionMode).toBe('plan')
+  })
+  it('presents the current native plan and switches to manual mode only after adoption', async () => {
+    mock.mode = 'plan'
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('plan')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'permission.ask' && e.plan?.includes('Review before execution.'))).toBe(true))
+    expect(agent.settings.permissionMode).toBe('plan')
+    await agent.resolvePermission('plan-test', true)
+    expect(agent.settings.permissionMode).toBe('default')
+    expect(mock.order).toContain('mode:default')
+  })
+
+})

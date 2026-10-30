@@ -14,6 +14,9 @@ import {
 } from './render/blocks'
 
 export interface PermissionRequest {
+  title?: string
+  description?: string
+  plan?: string
   requestId: string
   toolName: string
   input: Record<string, unknown>
@@ -77,6 +80,7 @@ export interface ContextUsage {
 
 interface AppState {
   conn: ConnState
+  lastAck: { id: string; ok: boolean } | null
   sessionId: string | null
   model: string | null
   endpoint: string | null
@@ -135,6 +139,7 @@ interface AppState {
 
 export const useStore = create<AppState>((set) => ({
   conn: 'connecting',
+  lastAck: null,
   sessionId: null,
   model: null,
   endpoint: null,
@@ -188,7 +193,7 @@ export const useStore = create<AppState>((set) => ({
   finishTurn: () =>
     set((s) => {
       const t = currentTurn(s.entries)
-      const totalS = s.turnStartedAt ? (Date.now() - s.turnStartedAt) / 1000 : 0
+      const totalS = s.turnStartedAt ? ((s.metrics?.completedAt ?? Date.now()) - s.turnStartedAt) / 1000 : 0
       const stats = {
         totalS,
         ttftMs: s.metrics?.ttftMs ?? null,
@@ -197,7 +202,7 @@ export const useStore = create<AppState>((set) => ({
       if (!t) return { busy: false, turnStartedAt: null, lastTurnStats: stats }
       const entries = s.entries.map((e) =>
         e.type === 'turn' && e.id === (t as TurnEntry).id
-          ? { ...e, done: true, tail: stats }
+          ? { ...e, done: true, tail: s.turnStartedAt ? stats : undefined }
           : e,
       )
       return { entries, busy: false, turnStartedAt: null, lastTurnStats: stats }
@@ -205,9 +210,9 @@ export const useStore = create<AppState>((set) => ({
   /** 历史回放:顺序跑渲染模型(与实时流同构--一条用户消息一个 turn,
    * assistant 消息经对账追加,tool_result 回填;新用户消息前收束上一 turn) */
   replayHistory: (messages) => {
-    set({ entries: [], busy: false, permissions: [], question: null })
+    set({ entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
     for (const raw of messages) {
-      const m = raw as { type?: string; message?: { content?: unknown } } | null
+      const m = raw as { type?: string; ccwebMetrics?: SessionMetrics; message?: { content?: unknown } } | null
       if (!m?.type) continue
       const st = useStore.getState()
       if (m.type === 'user') {
@@ -243,6 +248,7 @@ export const useStore = create<AppState>((set) => ({
         }
         if (texts.length > 0) {
           st.finishTurn()
+          useStore.setState({ metrics: m.ccwebMetrics ?? null, turnStartedAt: m.ccwebMetrics?.runStartedAt ?? null })
           for (const t of texts) {
             useStore.setState((s) => ({
               entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t }],
@@ -255,10 +261,10 @@ export const useStore = create<AppState>((set) => ({
     }
     useStore.getState().finishTurn()
   },
-  clearView: () => set({ entries: [], permissions: [], question: null, error: null, busy: false }),
-  setMetrics: (metrics) => set({ metrics }),
+  clearView: () => set({ entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
+  setMetrics: (metrics) => set(s => ({ metrics, ...(s.busy && metrics.runStartedAt ? { turnStartedAt: metrics.runStartedAt } : {}) })),
   setContext: (raw) => set({ context: { raw } }),
-  pushPermission: (p) => set((s) => ({ permissions: [...s.permissions, p] })),
+  pushPermission: (p) => set((s) => ({ permissions: [...s.permissions.filter(item => item.requestId !== p.requestId), p] })),
   resolvePermissionLocal: (requestId) =>
     set((s) => ({ permissions: s.permissions.filter((p) => p.requestId !== requestId) })),
   pushQuestion: (question) => set({ question }),

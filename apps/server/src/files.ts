@@ -12,8 +12,8 @@ const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist'])
 const MAX_RESULTS = 15
 const MAX_DEPTH = 10
 
-export function searchWorkspaceFiles(query: string): string[] {
-  const root = runtimeSettings.workspace ?? process.cwd()
+export function searchWorkspaceFiles(query: string, workspace?: string): string[] {
+  const root = workspace ?? runtimeSettings.workspace ?? process.env.CCWEB_WORKSPACE ?? process.cwd()
   const out: string[] = []
   try {
     walk(root, '', query.toLowerCase(), out, 0)

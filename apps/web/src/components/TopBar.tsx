@@ -1,94 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
-import { BrandMark, IconGear, IconMoon, IconSun, IconChevron, IconGauge, IconSparkle } from './Icon'
-import { cycleTheme, useThemeMode } from '../theme'
-
+import { BrandMark, IconChevron } from './Icon'
 interface Props {
   onOpenSettings: () => void
   onPatch: (patch: Record<string, unknown>) => void
   onSetWorkspace: (dir: string) => void
+  onToggleDetails?: () => void
+  onReview?: () => void
 }
-
-const MODELS = ['auto', 'opus', 'sonnet', 'haiku', 'inherit']
-const PERMISSIONS = ['default', 'acceptEdits', 'plan', 'bypassPermissions']
-
-/** 顶栏:品牌 + 工作区切换(dsh 语义)· 模型/权限一键切换 */
-export default function TopBar({ onOpenSettings, onPatch, onSetWorkspace }: Props) {
-  const { mode, resolved } = useThemeMode()
-  useLocale()
-  const model = useStore((s) => s.model ?? s.settings?.model ?? s.settings?.currentModel)
-  const permissionMode = useStore((s) => s.settings?.permissionMode ?? 'default')
-  const settings = useStore((s) => s.settings)
-
-  const modelLabel = model ?? 'auto'
-
-  return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-panel px-4">
-      <div className="flex items-center gap-2.5">
-        <BrandMark size={22} uid="top" />
-        <span className="text-sm font-semibold tracking-tight">ccweb</span>
-      </div>
-      <div className="mx-1 h-4 w-px bg-border" />
-
-      {/* 工作区切换(dsh 对齐):默认启动目录,可换任意历史项目 */}
-      <WorkspacePicker
-        workspaces={settings?.workspaces ?? []}
-        current={settings?.workspace ?? null}
-        onPick={onSetWorkspace}
-      />
-
-      <p
-        className="min-w-0 flex-1 truncate text-xs text-text-faint"
-        title={settings?.currentEndpoint ?? ''}
-      >
-        {settings?.currentEndpoint ? hostOf(settings.currentEndpoint) : ''}
-      </p>
-
-      <div className="flex items-center gap-2">
-        <Dropdown
-          icon={<IconSparkle width={13} height={13} />}
-          value={modelLabel}
-          options={[...new Set([modelLabel, ...MODELS])]}
-          onSelect={(m) => onPatch({ model: m })}
-        />
-        <Dropdown
-          icon={<IconGauge width={13} height={13} />}
-          value={permissionMode ?? 'default'}
-          options={PERMISSIONS}
-          onSelect={(p) => onPatch({ permissionMode: p })}
-        />
-        <button
-          className="icon-btn"
-          aria-label="cycle theme"
-          onClick={cycleTheme}
-          title={`${t('tp.theme')}:${
-            mode === 'system'
-              ? `${t('tp.themeSystem')}(${tf('tp.themeCurrent', resolved === 'dark' ? t('tp.themeDark') : t('tp.themeLight'))})`
-              : mode === 'dark'
-                ? t('tp.themeDark')
-                : t('tp.themeLight')
-          } — ${t('tp.themeCycle')}`}
-        >
-          {mode === 'system' ? (
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" />
-              <path d="M8 21h8M12 17v4" />
-            </svg>
-          ) : resolved === 'dark' ? (
-            <IconSun width={15} height={15} />
-          ) : (
-            <IconMoon width={15} height={15} />
-          )}
-        </button>
-        <button className="icon-btn" aria-label="settings" onClick={onOpenSettings} title={t('tp.settings')}>
-          <IconGear width={15} height={15} />
-        </button>
-      </div>
-    </header>
-  )
+export default function TopBar({ onSetWorkspace, onToggleDetails, onReview }: Props) {
+  const settings = useStore(s => s.settings)
+  return <header className="workbench-header"><BrandMark size={24} uid="top" /><strong>ccweb</strong><WorkspacePicker workspaces={settings?.workspaces ?? []} current={settings?.workspace ?? null} onPick={onSetWorkspace} /><div className="header-actions"><button onClick={onReview}>改动与检查</button><button onClick={onToggleDetails}>运行详情</button><kbd>Ctrl K</kbd></div></header>
 }
-
 /** 工作区选择:胶囊 + 下拉(启动目录 + 全部历史项目) */
 function WorkspacePicker({
   workspaces,
@@ -100,6 +24,7 @@ function WorkspacePicker({
   onPick: (dir: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [directory, setDirectory] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   useLocale()
 
@@ -144,6 +69,7 @@ function WorkspacePicker({
               </span>
             </button>
           ))}
+          <form className="workspace-entry" onSubmit={e => { e.preventDefault(); if (directory.trim()) { onPick(directory.trim()); setOpen(false) } }}><label>工作区目录<input aria-label="工作区目录" value={directory} onChange={e => setDirectory(e.target.value)} placeholder="输入现有目录的绝对路径" /></label><button type="submit" disabled={!directory.trim()}>打开目录</button></form>
           {workspaces.length === 0 && (
             <p className="px-3 py-4 text-center text-xs text-text-faint">{t('ws.none')}</p>
           )}
@@ -156,65 +82,4 @@ function WorkspacePicker({
 function baseName(dir: string): string {
   const parts = dir.split(/[\\/]/).filter(Boolean)
   return parts[parts.length - 1] ?? dir
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host
-  } catch {
-    return url
-  }
-}
-
-/** 胶囊下拉:点击展开小浮层,点外关闭 */
-function Dropdown({
-  icon,
-  value,
-  options,
-  onSelect,
-}: {
-  icon: React.ReactNode
-  value: string
-  options: string[]
-  onSelect: (v: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDoc = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [open])
-
-  return (
-    <div className="relative" ref={ref}>
-      <button className={`pill ${open ? 'active' : ''}`} onClick={() => setOpen((v) => !v)}>
-        {icon}
-        <span className="max-w-32 truncate font-mono text-[11px]">{value}</span>
-        <IconChevron width={12} height={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="animate-pop-in absolute right-0 top-9 z-30 min-w-36 overflow-hidden rounded-lg border border-border-strong bg-panel p-1 shadow-xl">
-          {options.map((o) => (
-            <button
-              key={o}
-              onClick={() => {
-                onSelect(o)
-                setOpen(false)
-              }}
-              className={`flex w-full items-center rounded-md px-2.5 py-1.5 text-left font-mono text-xs ${
-                o === value ? 'bg-panel-2 text-accent' : 'text-text-dim hover:text-text'
-              }`}
-            >
-              {o}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }

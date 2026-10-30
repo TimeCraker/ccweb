@@ -94,4 +94,18 @@ describe('render model', () => {
     const turn = entries[0]
     expect(turn?.type === 'turn' && turn.blocks[0]).toMatchObject({ kind: 'tool', status: 'done' })
   })
+  it('retains SDK 0.3 block envelopes with a shared message id and deduplicates UUIDs', () => {
+    let entries = reconcileAssistant([], { uuid:'thinking-frame', message:{id:'shared',content:[{type:'thinking',thinking:'reasoning'}]} })
+    entries = reconcileAssistant(entries, { uuid:'tool-frame',message:{id:'shared',content:[{type:'tool_use',id:'edit-id',name:'Edit',input:{file_path:'sample.ts'}}]} })
+    entries = applyToolResults(entries,{message:{content:[{type:'tool_result',tool_use_id:'edit-id',content:'saved'}]}})
+    const reply={uuid:'text-frame',message:{id:'shared',content:[{type:'text',text:'Done'}]}}
+    entries=reconcileAssistant(entries,reply)
+    entries=reconcileAssistant(entries,reply)
+    const turn=entries[0]
+    if(turn?.type!=='turn')throw new Error('Missing turn')
+    expect(turn.blocks).toHaveLength(3)
+    expect(turn.blocks[1]).toMatchObject({kind:'tool',toolName:'Edit',status:'done',resultText:'saved'})
+    expect(turn.blocks[2]).toMatchObject({kind:'text',text:'Done'})
+  })
+
 })

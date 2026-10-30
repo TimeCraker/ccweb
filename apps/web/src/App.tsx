@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { WsClient } from './ws'
 import { useStore, parseQuestions } from './store'
 import { t, tf, useLocale } from './i18n'
@@ -6,22 +6,27 @@ import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import MessageStream from './components/MessageStream'
 import Composer from './components/Composer'
+import ChangesReview from './components/ChangesReview'
 import MetricsBar from './components/MetricsBar'
 import PermissionCard from './components/PermissionCard'
 import QuestionCard from './components/QuestionCard'
 import ContextPanel from './components/ContextPanel'
 import CommandPalette from './components/CommandPalette'
-import SettingsModal from './components/SettingsModal'
+const SettingsModal = lazy(() => import('./components/SettingsCenter'))
 import Toast from './components/Toast'
 import QueueDock from './components/QueueDock'
 import { BrandMark } from './components/Icon'
 
 export default function App() {
+  const pendingPrompts = useRef(new Map<string, { key: string; text: string }>())
   const wsRef = useRef<WsClient | null>(null)
   const sendControl = useCallback((msg: Record<string, unknown>) => {
-    wsRef.current?.send(msg as { t: string })
+    const mutations = ['settings.patch', 'workspace.set', 'permission.resolve', 'queue.delete', 'queue.resume', 'session.new', 'session.rename', 'session.delete', 'abort', 'interrupt']
+    wsRef.current?.send({ ...msg, ...(mutations.includes(String(msg.t)) ? { commandId: crypto.randomUUID() } : {}) } as { t: string })
   }, [])
   const closeSettings = useCallback(() => setSettingsOpen(false), [])
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -71,23 +76,38 @@ export default function App() {
     wsRef.current = ws
     ws.connect()
 
+    let nativeCommands: Array<{ name: string; description: string }> = []
+    const mergeCommands = (discovered: Array<{ name: string; description: string }>) => [...new Map([...nativeCommands, ...discovered].map(item => [item.name, item])).values()]
     const off = ws.on((msg) => {
       const s = useStore.getState()
       switch (msg.t) {
+        case 'ack': {
+          if (!msg.requestId) break
+          const pending = pendingPrompts.current.get(msg.requestId)
+          if (pending && msg.ok && localStorage.getItem(pending.key)?.trim() === pending.text) localStorage.removeItem(pending.key)
+          pendingPrompts.current.delete(msg.requestId)
+          useStore.setState({ lastAck: { id: msg.requestId, ok: msg.ok === true } })
+          break
+        }
+        case 'accepted':
+          if (msg.sessionId && msg.sessionId !== s.sessionId) s.applyInit({ sessionId: msg.sessionId, model: s.model, endpoint: s.endpoint })
+          if (msg.text) s.appendUser(msg.text)
+          break
+        case 'state':
+          if (msg.state === 'cancelled' || msg.state === 'failed') s.finishTurn()
+          break
+        case 'permission.resolved':
+          if (msg.requestId) { s.resolvePermissionLocal(msg.requestId); s.resolveQuestionLocal(msg.requestId) }
+          break
         case 'init':
           s.applyInit({
             sessionId: msg.sessionId ?? null,
             model: msg.model ?? null,
             endpoint: msg.endpoint ?? null,
           })
-          if (msg.slashCommands?.length) {
-            const existing = s.slashCommands
-            const merged = [...existing]
-            for (const c of msg.slashCommands) {
-              if (!merged.some((x) => x.name === c.name)) merged.push(c)
-            }
-            s.setSlashCommands(merged)
-          }
+          if (!msg.sessionId) nativeCommands = []
+          else if (msg.slashCommands?.length) nativeCommands = msg.slashCommands
+          s.setSlashCommands(mergeCommands(s.settings?.slashCommands ?? []))
           break
         case 'sessions':
           if (msg.sessions) s.setSessions(msg.sessions)
@@ -99,7 +119,7 @@ export default function App() {
           if (msg.settings) {
             s.setSettings(msg.settings)
             // 斜杠命令:settings 提供(连接即有);SDK init 到达时合并去重(补内置)
-            if (msg.settings.slashCommands?.length) s.setSlashCommands(msg.settings.slashCommands)
+            s.setSlashCommands(mergeCommands(msg.settings.slashCommands ?? []))
           }
           break
         case 'queue':
@@ -154,7 +174,9 @@ export default function App() {
           else if (sm?.type === 'result') {
             // turn 错误行:result 非 success 时在流末尾追加红色错误行;
             // 用户主动中断(Esc/Stop)时若有 result 也走中性提示(通常中断无 result)
-            if (sm.subtype != null && sm.subtype !== 'success') {
+            if (sm.subtype === 'cancelled') {
+              if (s.interrupted) s.pushTurnError(t('ms.interrupted'), true)
+            } else if (sm.subtype != null && sm.subtype !== 'success') {
               if (s.interrupted) s.pushTurnError(t('ms.interrupted'), true)
               else s.pushTurnError(tf('err.turnError', sm.subtype))
             }
@@ -179,6 +201,7 @@ export default function App() {
               s.pushQuestion({ requestId: msg.requestId, questions })
             } else {
               s.pushPermission({
+                title: msg.title, description: msg.description, plan: msg.plan,
                 requestId: msg.requestId,
                 toolName: msg.toolName,
                 input: msg.input ?? {},
@@ -204,8 +227,9 @@ export default function App() {
       if (s.conn === 'open' && prev.conn !== 'open') {
         wsRef.current?.send({ t: 'session.list' })
         wsRef.current?.send({ t: 'settings.get' })
+        for (const commandId of pendingPrompts.current.keys()) wsRef.current?.send({ t: 'request.status', commandId })
         const last = localStorage.getItem('ccweb.lastSession')
-        if (last && !s.entries.length) wsRef.current?.send({ t: 'session.open', sessionId: last })
+        if (last) sendControl({ t: 'session.open', sessionId: last })
       }
       // 持久化当前会话,供刷新恢复
       if (s.sessionId !== prev.sessionId) {
@@ -217,18 +241,39 @@ export default function App() {
   }, [])
 
   const send = (text: string, images?: string[]) => {
+    const command = /^\/([\w:-]+)(?:\s+(.*))?$/.exec(text.trim())
+    if (command) {
+      const name = command[1]!, argument = command[2]?.trim()
+      if (['clear', 'new', 'settings', 'mcp', 'help', 'model', 'plan'].includes(name)) {
+        if (name === 'clear' || name === 'new') sendControl({ t: 'session.new' })
+        else if (name === 'plan') sendControl({ t: 'settings.patch', patch: { permissionMode: 'plan' } })
+        else if (name === 'model' && argument) sendControl({ t: 'settings.patch', patch: { model: argument } })
+        else setSettingsOpen(true)
+        localStorage.removeItem(`ccweb.draft:${useStore.getState().settings?.workspace ?? 'launch'}:${useStore.getState().sessionId ?? 'new'}`)
+        return 'local'
+      }
+      if (['login', 'logout', 'terminal-setup', 'vim', 'doctor', 'update', 'install'].includes(name)) {
+        useStore.getState().setError(`/${name} 需要在 Claude Code 终端执行；图形端请使用设置中心。`)
+        return false
+      }
+      if (!useStore.getState().slashCommands.some(item => item.name === name)) { useStore.getState().setError(`未发现 /${name}。新建或修改命令后请启动新会话重新加载。`); return false }
+    }
     const sessionId = useStore.getState().sessionId
-    useStore.getState().appendUser(images?.length ? `${text}\n${tf('ms.imageBadge', images.length)}` : text)
-    wsRef.current?.send({ t: 'prompt', sessionId: sessionId ?? undefined, text, images })
+    const commandId = crypto.randomUUID()
+    const workspace = useStore.getState().settings?.workspace ?? 'launch'
+    const key = `ccweb.draft:${workspace}:${sessionId ?? 'new'}`
+    const sent = wsRef.current?.send({ t: 'prompt', sessionId: sessionId ?? undefined, text, images, commandId })
+    if (!sent) { useStore.getState().setError('连接已断开，草稿已保留'); return false }
+    pendingPrompts.current.set(commandId, { key, text })
+    return commandId
   }
   const interrupt = () => {
-    wsRef.current?.send({ t: 'interrupt' })
+    sendControl({ t: 'interrupt' })
     useStore.getState().setInterrupted(true)
     useStore.getState().setBusy(false)
   }
   const resolvePermission = (requestId: string, allow: boolean, always = false) => {
-    useStore.getState().resolvePermissionLocal(requestId)
-    wsRef.current?.send({ t: 'permission.resolve', requestId, allow, always })
+    sendControl({ t: 'permission.resolve', requestId, allow, always })
   }
   /** 问题接管回执:提交带 answers(updatedInput),跳过 = deny */
   const resolveQuestion = (
@@ -236,25 +281,22 @@ export default function App() {
     allow: boolean,
     updatedInput?: Record<string, unknown>,
   ) => {
-    useStore.getState().resolveQuestionLocal(requestId)
-    wsRef.current?.send({ t: 'permission.resolve', requestId, allow, updatedInput })
+    sendControl({ t: 'permission.resolve', requestId, allow, updatedInput })
   }
   const openSession = (id: string, fork = false) => {
     // 生成中先中断(同新建会话保护)
-    if (useStore.getState().busy) interrupt()
-    wsRef.current?.send({ t: 'session.open', sessionId: id, fork })
+    sendControl({ t: 'session.open', sessionId: id, fork })
   }
   const newSession = () => {
     // 生成中先中断,避免直接丢弃进行中的回合
-    if (useStore.getState().busy) interrupt()
-    wsRef.current?.send({ t: 'session.new' })
+    sendControl({ t: 'session.new' })
   }
   newSessionRef.current = newSession
   const renameSession = (id: string, title: string) => {
-    wsRef.current?.send({ t: 'session.rename', sessionId: id, title })
+    sendControl({ t: 'session.rename', sessionId: id, title })
   }
   const deleteSession = (id: string) => {
-    wsRef.current?.send({ t: 'session.delete', sessionId: id })
+    sendControl({ t: 'session.delete', sessionId: id })
   }
   /** 导出当前对话为 Markdown(空对话提示而非导出空文件) */
   const exportMarkdown = () => {
@@ -300,7 +342,7 @@ export default function App() {
     if (lastUser && lastUser.type === 'user') send(lastUser.text)
   }
   const patchSettings = (patch: Record<string, unknown>) => {
-    wsRef.current?.send({ t: 'settings.patch', patch })
+    sendControl({ t: 'settings.patch', patch })
   }
   /** 消息级 fork 入口:SDK 仅支持会话级 fork(从末尾),故从现会话分叉即可 */
   const forkFromMessage = () => {
@@ -313,15 +355,15 @@ export default function App() {
   }
 
   const composer = (
-    <Composer onSend={send} onInterrupt={interrupt} onSearchFiles={searchFiles} hero={empty} />
+    <Composer onSend={send} onInterrupt={interrupt} onSearchFiles={searchFiles} sendControl={sendControl} hero={empty} />
   )
 
   const setWorkspace = (dir: string) => {
-    wsRef.current?.send({ t: 'workspace.set', dir })
+    sendControl({ t: 'workspace.set', dir })
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="app-shell flex h-full flex-col">
       {/* 断线重连通栏(dsh 对齐):仅断开且正在重连时显示 */}
       {connBanner && (
         <div className="animate-fade-in flex h-7 shrink-0 items-center justify-center gap-2 bg-warn/15 px-4 text-[11px] text-warn" role="status">
@@ -333,6 +375,8 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onPatch={patchSettings}
         onSetWorkspace={setWorkspace}
+        onToggleDetails={() => setDetailsOpen(v => !v)}
+        onReview={() => setReviewOpen(v => !v)}
       />
       <div className="flex min-h-0 flex-1">
         <Sidebar
@@ -343,14 +387,17 @@ export default function App() {
           onRename={renameSession}
           onDelete={deleteSession}
           onExport={exportMarkdown}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
         <main className="flex min-w-0 flex-1 flex-col border-l border-border">
+          {reviewOpen && <ChangesReview onClose={() => setReviewOpen(false)} />}
+          <div className="conversation-layout" hidden={reviewOpen}>
           {empty ? (
             <div className="hero-glow flex flex-1 flex-col items-center justify-center overflow-y-auto px-6">
               <BrandMark size={56} uid="hero" />
               <h1 className="mt-5 text-xl font-semibold tracking-tight">{t('hero.title')}</h1>
               <p className="mt-1.5 text-sm text-text-dim">{t('hero.sub')}</p>
-              <div className="mt-7 w-full max-w-2xl">{composer}</div>
+              <div className="mt-7 w-full max-w-2xl">{composer}<MetricsBar /></div>
               <p className="mt-3 text-[11px] text-text-faint">
                 <span className="font-mono">{settingsMeta}</span>
               </p>
@@ -364,15 +411,18 @@ export default function App() {
           ) : (
             <>
               <MessageStream onRegenerate={regenerate} onForkFromMessage={forkFromMessage} />
-              <QueueDock onDelete={(uuid) => wsRef.current?.send({ t: 'queue.delete', uuid })} />
+              <div className="action-dock">
+              <QueueDock onResume={() => sendControl({ t: 'queue.resume' })} onDelete={(uuid) => sendControl({ t: 'queue.delete', uuid })} />
               <PermissionCard onResolve={resolvePermission} />
               <QuestionCard onResolve={resolveQuestion} />
-              <MetricsBar />
               {composer}
+              </div>
+              <MetricsBar />
             </>
           )}
+          </div>
         </main>
-        <ContextPanel />
+        {detailsOpen && <div className="runtime-details"><button onClick={() => setDetailsOpen(false)}>关闭运行详情</button><ContextPanel /></div>}
       </div>
       <CommandPalette
         open={paletteOpen}
@@ -382,11 +432,11 @@ export default function App() {
         onOpenSession={openSession}
         onSetWorkspace={setWorkspace}
       />
-      <SettingsModal
+      {settingsOpen && <Suspense fallback={<div role="status">正在打开设置…</div>}><SettingsModal
         open={settingsOpen}
         onClose={closeSettings}
         send={sendControl}
-      />
+      /></Suspense>}
       <Toast />
     </div>
   )

@@ -31,6 +31,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional() }),
   z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
   z.object({ t: z.literal('session.delete'), sessionId: z.string() }),
+  z.object({ t: z.literal('queue.resume') }),
   z.object({ t: z.literal('queue.delete'), uuid: z.string() }),
   z.object({
     t: z.literal('workspace.set'),
@@ -42,21 +43,26 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
     t: z.literal('settings.patch'),
     patch: z.object({
       model: z.string().nullable().optional(),
-      permissionMode: z.enum(['default', 'acceptEdits', 'plan', 'bypassPermissions']).nullable().optional(),
-      effort: z.enum(['low', 'medium', 'high', 'max']).nullable().optional(),
+      permissionMode: z.enum(['auto', 'default', 'acceptEdits', 'plan', 'bypassPermissions']).nullable().optional(),
+      effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
       endpointTemplate: z.string().nullable().optional(),
       contextScope: z.enum(['full', 'project', 'none']).optional(),
     }),
   }),
   z.object({ t: z.literal('mcp.status') }),
+  z.object({ t: z.literal('request.status'), commandId: z.string().uuid() }),
   z.object({ t: z.literal('ping'), lastSeq: z.number().int().optional() }),
-])
+]).and(z.object({ commandId: z.string().uuid().optional() }))
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>
 
 // ---------- S→C ----------
 
 export type ServerMessage =
+  | { t: 'accepted'; seq: number; sessionId: string; runId: string; text: string }
+  | { t: 'state'; seq: number; sessionId: string; state: string }
+  | { t: 'ack'; seq: number; requestId: string; ok: boolean }
+
   | {
       t: 'init'
       seq: number
@@ -86,6 +92,9 @@ export type ServerMessage =
   | { t: 'message'; seq: number; sessionId: string; sdkMessage: unknown }
   | {
       t: 'permission.ask'
+      title?: string
+      description?: string
+      plan?: string
       seq: number
       requestId: string
       sessionId: string
@@ -115,6 +124,7 @@ export interface SessionMeta {
 
 /** 设置快照(下发前端;端点只带 name/url,无凭证) */
 export interface SettingsSnapshot {
+  active?: { model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
   /** server 包版本(package.json,前端页脚展示) */
   serverVersion: string
   /** 会话上下文注入档位 */
@@ -138,6 +148,14 @@ export interface SettingsSnapshot {
 
 /** 底栏指标条(SPEC §5 口径) */
 export interface SessionMetrics {
+  terminalStatus?: 'running' | 'completed' | 'failed' | 'cancelled'
+  runId?: string | null
+  firstContentMs?: number | null
+  speedScope?: 'last_request' | 'turn'
+  completedAt?: number | null
+  runStartedAt?: number | null
+  sampledRequests?: number
+  metricsComplete?: boolean
   /** 会话内用户消息数 */
   turns: number
   /** 权威累计 input tokens(result.modelUsage,含 subagent) */

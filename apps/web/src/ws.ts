@@ -9,6 +9,8 @@ export class WsClient {
   private backoff = 1000
   private closedByUser = false
   private lastSeq = 0
+  private reconnectTimer?: ReturnType<typeof setTimeout>
+  private epoch: string | undefined
   private handlers = new Set<(msg: ServerMessage) => void>()
 
   constructor(
@@ -16,6 +18,7 @@ export class WsClient {
   ) {}
 
   connect(): void {
+    if (this.closedByUser) return
     this.onState('connecting')
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
     const ws = new WebSocket(`${proto}://${location.host}/ws`)
@@ -30,6 +33,8 @@ export class WsClient {
     ws.onmessage = (ev) => {
       try {
         const msg = JSON.parse(String(ev.data)) as ServerMessage
+        if (msg.t === 'hello' && msg.epoch !== this.epoch) { this.epoch = msg.epoch; this.lastSeq = 0 }
+        if (msg.seq && msg.seq <= this.lastSeq) return
         if (typeof msg.seq === 'number' && msg.seq > this.lastSeq) this.lastSeq = msg.seq
         for (const h of this.handlers) h(msg)
       } catch {
@@ -39,15 +44,17 @@ export class WsClient {
     ws.onclose = () => {
       this.onState('closed')
       if (this.closedByUser) return
-      setTimeout(() => this.connect(), this.backoff)
+      this.reconnectTimer = setTimeout(() => this.connect(), this.backoff)
       this.backoff = Math.min(this.backoff * 2, 10_000)
     }
   }
 
-  send(msg: ClientMessage): void {
+  send(msg: ClientMessage): boolean {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg))
+      return true
     }
+    return false
   }
 
   on(handler: (msg: ServerMessage) => void): () => void {
@@ -57,6 +64,7 @@ export class WsClient {
 
   dispose(): void {
     this.closedByUser = true
+    clearTimeout(this.reconnectTimer)
     this.ws?.close()
   }
 }

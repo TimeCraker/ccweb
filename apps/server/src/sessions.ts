@@ -1,4 +1,7 @@
 import { listSessions, getSessionMessages, renameSession, deleteSession } from '@anthropic-ai/claude-agent-sdk'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { APP_DIR } from './settings.js'
 import type { SessionMeta } from './protocol.js'
 
 /**
@@ -67,10 +70,16 @@ export async function fetchHistory(sessionId: string, cwd?: string): Promise<unk
           id: string,
           o?: { dir?: string; limit?: number },
         ) => Promise<unknown[]>
-      )(sessionId, { ...(cwd ? { dir: toSdkDir(cwd) } : {}), limit: 200 }),
+      )(sessionId, { ...(cwd ? { dir: toSdkDir(cwd) } : {}) }),
     [],
   )
-  return msgs
+  return msgs.map(raw => {
+    const item = raw as { type?: string; uuid?: string }
+    if (item?.type === 'user' && item.uuid && /^[a-f0-9-]{36}$/i.test(item.uuid)) {
+      try { const metrics = JSON.parse(readFileSync(join(APP_DIR, 'metrics', sessionId, `${item.uuid}.json`), 'utf8')); if (metrics.completedAt) return { ...item, ccwebMetrics: metrics } } catch { /* Historical metrics were not recorded. */ }
+    }
+    return raw
+  })
 }
 
 export async function renameSessionMeta(sessionId: string, title: string): Promise<boolean> {

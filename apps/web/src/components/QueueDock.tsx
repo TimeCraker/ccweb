@@ -3,10 +3,12 @@ import { t, useLocale } from '../i18n'
 
 interface Props {
   onDelete: (uuid: string) => void
+  onResume?: () => void
 }
 
 /** 队列 dock(dsh 对齐):生成中可继续输入排队,排队项可见/可撤销 */
-export default function QueueDock({ onDelete }: Props) {
+export default function QueueDock({ onDelete, onResume }: Props) {
+  const busy = useStore(s => s.busy)
   const queue = useStore((s) => s.queue)
   useLocale()
   if (queue.length === 0) return null
@@ -15,7 +17,7 @@ export default function QueueDock({ onDelete }: Props) {
     <div className="animate-pop-in mx-auto mb-2 max-w-3xl px-6">
       <div className="overflow-hidden rounded-xl border border-accent/30 bg-accent/5">
         <p className="border-b border-accent/20 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-accent">
-          {t('queue.queued')} · {queue.length}
+          {t('queue.queued')} · {queue.length} {!busy && <button onClick={onResume}>继续队列</button>}
         </p>
         {queue.map((q) => (
           <div key={q.uuid} className="group flex items-center gap-2 px-3 py-1.5">

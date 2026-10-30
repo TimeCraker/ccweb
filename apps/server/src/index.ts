@@ -1,18 +1,23 @@
+import { atomicWrite, workspacePath, configApi } from './config-api.js'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { readFile } from 'node:fs/promises'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
+import { forkSession } from '@anthropic-ai/claude-agent-sdk'
 import { AgentSession } from './agent.js'
 import { fetchHistory, listSessionMetas, renameSessionMeta, deleteSessionMeta } from './sessions.js'
 import { searchWorkspaceFiles } from './files.js'
 import {
   runtimeSettings,
+  saveRuntimeSettings,
+  endpointEnv,
+  APP_DIR,
   listEndpointTemplates,
   readActiveEnv,
   listWorkspaces,
@@ -31,6 +36,7 @@ const PKG_VERSION = String(
 
 const app = new Hono()
 app.use(logger())
+app.route('/api', configApi)
 app.get('/healthz', (c) => c.json({ ok: true, name: 'ccweb', version: PKG_VERSION }))
 
 // 生产模式:服务内嵌 web 产物(public/);SPA fallback 到 index.html
@@ -61,15 +67,29 @@ const server = serve({ fetch: app.fetch, hostname: HOST, port: PORT }, (info) =>
 const wss = new WebSocketServer({ noServer: true })
 
 /**
- * 单连接模型(本地单人工具):seq 单调递增 + 环形缓冲,
- * 断线重连时客户端带 lastSeq 对账,server 重放缺口。
+ * 进程持有运行对象和每会话事件日志，连接只订阅目标会话。
+ * 重连通过 session.open 完整重建；epoch 区分服务重启，seq 用于帧去重。
  */
-const RING_SIZE = 500
-const ring: ServerMessage[] = []
 let seq = 0
+const epoch = crypto.randomUUID()
+const registry = new Map<string, AgentSession>()
+const commands = new Map<string, { epoch: string; done: boolean; ok: boolean }>()
+try {
+  const saved = JSON.parse(readFileSync(join(APP_DIR, 'requests.json'), 'utf8')) as Array<[string, { epoch: string; done: boolean; ok: boolean }]>
+  for (const [id, entry] of saved) if (typeof id === 'string' && typeof entry.epoch === 'string') commands.set(id, entry)
+} catch { /* No previous command receipts. */ }
+function persistCommands(): void {
+  while (commands.size > 1000) commands.delete(commands.keys().next().value!)
+  atomicWrite(join(APP_DIR, 'requests.json'), JSON.stringify([...commands]))
+}
+const observers = new Map<import('ws').WebSocket, AgentSession | null>()
+const journals = new WeakMap<AgentSession, ServerMessage[]>()
+let operationTail: Promise<void> = Promise.resolve()
 
 server.on('upgrade', (req, socket, head) => {
-  if (req.url === '/ws') {
+  const origin = req.headers.origin
+  const allowed = !origin || (() => { try { const u = new URL(origin); return ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname) && [String(PORT), '5173'].includes(u.port) } catch { return false } })()
+  if (req.url === '/ws' && allowed) {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
   } else {
     socket.destroy()
@@ -78,26 +98,19 @@ server.on('upgrade', (req, socket, head) => {
 
 wss.on('connection', (ws) => {
   let currentSession: AgentSession | null = null
-  const registry = new Map<string, AgentSession>()
+  let workspace = runtimeSettings.workspace ?? process.env.CCWEB_WORKSPACE ?? process.cwd()
+  observers.set(ws, null)
+  ws.send(JSON.stringify({ t: 'hello', epoch, seq: 0 }))
+  ws.on('close', () => observers.delete(ws))
 
   function emit(msg: ServerMessage): void {
     const withSeq = { ...msg, seq: ++seq }
-    ring.push(withSeq)
-    if (ring.length > RING_SIZE) ring.shift()
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(withSeq))
   }
 
-  function emitRaw(msg: ServerMessage): void {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg))
-  }
-
-  /** 重连对账:重放 lastSeq 之后的缺口(历史/元数据/瞬态补全结果不重放) */
-  function replaySince(lastSeq: number): void {
-    for (const m of ring) {
-      if ((m.seq ?? 0) > lastSeq && m.t !== 'history' && m.t !== 'sessions' && m.t !== 'files') {
-        emitRaw(m)
-      }
-    }
+  function replaySince(_lastSeq: number): void {
+    void _lastSeq
+    // Reattachment uses a complete session snapshot, never another client's ring.
   }
 
   /** 新建 AgentSession 并在 init(拿到真实 sessionId)后自注册进 registry */
@@ -108,43 +121,67 @@ wss.on('connection', (ws) => {
       if (msg.t === 'message' && (msg.sdkMessage as { type?: string } | undefined)?.type === 'result') {
         void pushSessionList()
       }
-      emit(msg)
+      const journal = journals.get(agent) ?? []
+      journal.push(msg)
+      // Complete assistant messages supersede their stream deltas during replay.
+      if (journal.length > 5000) {
+        for (let i = journal.length - 1; i >= 0; i--) if (journal[i]?.t === 'delta' || journal[i]?.t === 'block') journal.splice(i, 1)
+      }
+      journals.set(agent, journal)
+      const frame = JSON.stringify({ ...msg, seq: ++seq })
+      for (const [socket, owner] of observers) if (owner === agent && socket.readyState === socket.OPEN) socket.send(frame)
     }, opts)
+    registry.set(agent.sessionId!, agent)
     return agent
   }
 
   /** 退出当前会话:终止子进程并移出 registry(历史已落盘,切回时 resume 重建) */
   function retireCurrent(): void {
-    const old = currentSession
-    if (!old) return
-    if (old.sessionId) registry.delete(old.sessionId)
-    old.abort()
     currentSession = null
+    observers.set(ws, null)
   }
 
-  function getOrCreateSession(sessionId?: string, fork = false): AgentSession {
-    const ws = runtimeSettings.workspace ?? undefined
+  function getOrCreateSession(sessionId?: string): AgentSession {
+    const cwd = workspace
     if (!sessionId) {
       retireCurrent()
-      const agent = createTrackedAgent({ cwd: ws })
+      const agent = createTrackedAgent({ cwd })
       currentSession = agent
+      observers.set(ws, agent)
       return agent
     }
     const existing = registry.get(sessionId)
-    if (existing && !fork) {
+    if (existing) {
+      if (existing.workspace !== workspace) throw new Error('Session belongs to another workspace')
       if (existing !== currentSession) retireCurrent()
       currentSession = existing
+      observers.set(ws, existing)
       return existing
     }
     retireCurrent()
-    const agent = createTrackedAgent({ resume: sessionId, fork, cwd: ws })
-    agent.sessionId = fork ? null : sessionId
+    const agent = createTrackedAgent({ resume: sessionId, cwd })
+    registry.delete(agent.sessionId!)
+    agent.sessionId = sessionId
     registry.set(sessionId, agent)
     currentSession = agent
+    observers.set(ws, agent)
     return agent
   }
 
-  ws.on('message', async (raw) => {
+  let commandChain = Promise.resolve()
+  ws.on('message', raw => {
+    commandChain = commandChain.then(() => {
+      let sharedSettings = false
+      try { sharedSettings = JSON.parse(String(raw)).t === 'settings.patch' } catch { /* The schema handler reports invalid messages. */ }
+      if (!sharedSettings) return handleCommand(raw)
+      // Serialize shared defaults only; another connection must still be able to
+      // cancel a run while a native settings control request is waiting.
+      const operation = operationTail.then(() => handleCommand(raw))
+      operationTail = operation.catch(() => undefined)
+      return operation
+    }).catch(() => undefined)
+  })
+  async function handleCommand(raw: import('ws').RawData): Promise<void> {
     let parsed: unknown
     try {
       parsed = JSON.parse(String(raw))
@@ -158,42 +195,68 @@ wss.on('connection', (ws) => {
       return
     }
     const msg = result.data
+    if (msg.t === 'request.status') {
+      const receipt = commands.get(msg.commandId!)
+      emit({ t: 'ack', seq: 0, requestId: msg.commandId!, ok: receipt?.done === true && receipt.ok })
+      if (receipt && !receipt.done && receipt.epoch !== epoch) emit({ t: 'error', seq: 0, code: 'request_uncertain', message: '上次请求接收后服务重启，执行结果未知。请查看历史，不会自动重发。' })
+      return
+    }
+    if (msg.commandId && commands.has(msg.commandId)) {
+      const receipt = commands.get(msg.commandId)!
+      emit({ t: 'ack', seq: 0, requestId: msg.commandId, ok: receipt.done && receipt.ok })
+      return
+    }
+    if (msg.commandId) {
+      commands.set(msg.commandId, { epoch, done: false, ok: false })
+      try { persistCommands() } catch { commands.delete(msg.commandId); emit({ t: 'ack', seq: 0, requestId: msg.commandId, ok: false }); emit({ t: 'error', seq: 0, code: 'receipt_write_failed', message: '无法保存请求回执，操作未执行。' }); return }
+    }
 
+    try {
     switch (msg.t) {
       case 'prompt': {
         const agent = msg.sessionId
           ? getOrCreateSession(msg.sessionId)
           : (currentSession ?? getOrCreateSession())
-        agent.send(msg.text, msg.images)
+        if (agent.workspace !== workspace) throw new Error('Session belongs to another workspace')
+        agent.send(msg.text, msg.images, msg.commandId)
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, active: agent.settings } })
         break
       }
       case 'interrupt':
-        void currentSession?.interrupt()
+        await currentSession?.interrupt()
+        break
+      case 'queue.resume':
+        currentSession?.resumeQueue()
         break
       case 'queue.delete':
         if (!currentSession?.deleteQueued(msg.uuid)) {
-          emit({ t: 'error', seq: 0, code: 'queue_not_found', message: 'Queued message not found (may already be running).' })
+          throw new Error('Queued message not found (may already be running).')
         }
         break
       case 'abort':
+        if (currentSession?.sessionId) registry.delete(currentSession.sessionId)
         currentSession?.abort()
+        emit({ t: 'init', seq: 0, sessionId: null, model: null, endpoint: null, slashCommands: [] })
         currentSession = null
+        observers.set(ws, null)
         emit({ t: 'cleared', seq: 0 })
         break
       case 'permission.resolve':
         if (
-          !currentSession?.resolvePermission(
+          !await currentSession?.resolvePermission(
             msg.requestId,
             msg.allow,
             msg.always ?? false,
             msg.updatedInput,
           )
         ) {
-          emit({ t: 'error', seq: 0, code: 'permission_not_found', message: 'No pending permission with that id.' })
+          throw new Error('No pending permission with that id.')
         }
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
         break
       case 'session.new':
         retireCurrent()
+        emit({ t: 'init', seq: 0, sessionId: null, model: null, endpoint: null, slashCommands: [] })
         emit({ t: 'cleared', seq: 0 })
         void pushSessionList()
         break
@@ -202,16 +265,17 @@ wss.on('connection', (ws) => {
         break
       case 'files.search':
         // @文件补全:工作区扫描(同步,已 try/catch 兜底)
-        emit({ t: 'files', seq: 0, files: searchWorkspaceFiles(msg.query) })
+        emit({ t: 'files', seq: 0, files: searchWorkspaceFiles(msg.query, workspace) })
         break
       case 'session.open': {
         let openId: string | undefined = msg.sessionId
-        if (openId && !(await sessionExistsOnDisk(openId))) {
+        if (openId && !registry.has(openId) && !(await sessionExistsOnDisk(openId))) {
           // lastSession 可能来自其他工作区或已被删除:降级为新会话,
           // 避免 resume 死会话导致后续所有消息 error_during_execution
           openId = undefined
         }
-        const agent = getOrCreateSession(openId, msg.fork ?? false)
+        if (openId && msg.fork) openId = (await forkSession(openId, { dir: workspace.replace(/\\/g, '/') })).sessionId
+        const agent = getOrCreateSession(openId)
         emit({
           t: 'init',
           seq: 0,
@@ -221,46 +285,61 @@ wss.on('connection', (ws) => {
           slashCommands: [],
         })
         emit({ t: 'cleared', seq: 0 })
-        // 历史回放:归一化消息流供前端渲染模型重放
-        if (openId) {
-          void (async () => {
-            const history = await fetchHistory(openId)
-            emit({ t: 'history', seq: 0, sessionId: openId, messages: history })
-          })()
+        const journal = journals.get(agent)
+        if (journal?.length) {
+          for (const event of journal) emit(event)
+        } else if (openId) {
+          const history = await fetchHistory(openId, workspace)
+          const event: ServerMessage = { t: 'history', seq: 0, sessionId: openId, messages: history }
+          journals.set(agent, [event])
+          emit(event)
+          try {
+            const metricFiles = readdirSync(join(APP_DIR, 'metrics', openId)).filter(name => /^[a-f0-9-]{36}\.json$/i.test(name))
+            const all = metricFiles.map(name => JSON.parse(readFileSync(join(APP_DIR, 'metrics', openId, name), 'utf8'))).sort((a, b) => b.runStartedAt - a.runStartedAt)
+            if (all[0]?.completedAt) emit({ t: 'metrics', seq: 0, sessionId: openId, metrics: all[0] })
+            else if (all[0]) emit({ t: 'error', seq: 0, code: 'run_interrupted', message: '上次运行未记录终态，服务可能重启；不会自动重新执行。请检查文件和历史。' })
+          } catch { /* No saved metrics; show unrecorded. */ }
         }
+
         break
       }
       case 'session.rename': {
         const ok = await renameSessionMeta(msg.sessionId, msg.title)
         if (!ok) {
-          emit({ t: 'error', seq: 0, code: 'rename_failed', message: 'renameSession failed (SDK or fs).' })
+          throw new Error('renameSession failed (SDK or fs).')
         }
         await pushSessionList()
         break
       }
       case 'settings.get':
-        emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
         break
       case 'session.delete': {
         const ok = await deleteSessionMeta(msg.sessionId)
         if (!ok) {
-          emit({ t: 'error', seq: 0, code: 'delete_failed', message: 'deleteSession failed.' })
+          throw new Error('deleteSession failed.')
         }
-        if (currentSession?.sessionId === msg.sessionId) retireCurrent()
+        if (currentSession?.sessionId === msg.sessionId) { currentSession.abort(); registry.delete(msg.sessionId); retireCurrent() }
         await pushSessionList()
         break
       }
       case 'workspace.set': {
+        workspace = workspacePath(msg.dir)
+        emit({ t: 'init', seq: 0, sessionId: null, model: null, endpoint: null, slashCommands: [] })
         runtimeSettings.workspace = msg.dir
+        saveRuntimeSettings()
         // 切工作区 = 会话上下文切换:清当前会话,列表按新工作区拉
         currentSession = null
+        observers.set(ws, null)
         emit({ t: 'cleared', seq: 0 })
         await pushSessionList()
-        emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace } })
         break
       }
       case 'settings.patch': {
         const p = msg.patch
+        const previous = { ...runtimeSettings }
+        try {
         if (p.model !== undefined) runtimeSettings.model = p.model
         if (p.permissionMode !== undefined) runtimeSettings.permissionMode = p.permissionMode
         if (p.effort !== undefined) runtimeSettings.effort = p.effort
@@ -272,14 +351,15 @@ wss.on('connection', (ws) => {
           if (runtimeSettings.endpointTemplate !== p.endpointTemplate) {
             // 端点是子进程 env:当前会话作废,新会话生效
             runtimeSettings.endpointTemplate = p.endpointTemplate
-            currentSession = null
           }
         }
-        currentSession?.applySettings({
-          model: p.model ?? undefined,
-          permissionMode: p.permissionMode ?? undefined,
+        await currentSession?.applySettings({
+          model: p.model,
+          permissionMode: p.permissionMode,
         })
-        emit({ t: 'settings', seq: 0, settings: settingsSnapshot() })
+        saveRuntimeSettings()
+        } catch (error) { Object.assign(runtimeSettings, previous); throw error }
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
         break
       }
       case 'mcp.status': {
@@ -297,22 +377,27 @@ wss.on('connection', (ws) => {
         emit({ t: 'pong', seq: 0 })
         break
     }
-  })
+    if (msg.commandId) { commands.set(msg.commandId, { epoch, done: true, ok: true }); persistCommands(); emit({ t: 'ack', seq: 0, requestId: msg.commandId, ok: true }) }
+    } catch (error) {
+      if (msg.commandId) { commands.set(msg.commandId, { epoch, done: true, ok: false }); try { persistCommands() } catch { /* keep in-memory receipt */ }; emit({ t: 'ack', seq: 0, requestId: msg.commandId, ok: false }) }
+      emit({ t: 'error', seq: 0, code: 'operation_failed', message: error instanceof Error ? error.message : 'Operation failed', retry: true })
+    }
+  }
 
   async function pushSessionList(): Promise<void> {
-    const sessions = await listSessionMetas(runtimeSettings.workspace ?? process.cwd())
+    const sessions = await listSessionMetas(workspace)
     emit({ t: 'sessions', seq: 0, sessions })
   }
 
   /** 会话是否存在于当前工作区磁盘(registry 命中也算;防跨工作区/已删除的 resume) */
   async function sessionExistsOnDisk(sessionId: string): Promise<boolean> {
-    const metas = await listSessionMetas(runtimeSettings.workspace ?? process.cwd())
+    const metas = await listSessionMetas(workspace)
     return metas.some((m) => m.id === sessionId)
   }
 })
 
-function settingsSnapshot(): SettingsSnapshot {
-  const activeEnv = readActiveEnv()
+function settingsSnapshot(workspace: string): SettingsSnapshot {
+  const activeEnv = { ...readActiveEnv(), ...endpointEnv(runtimeSettings.endpointTemplate) }
   return {
     serverVersion: PKG_VERSION,
     contextScope: runtimeSettings.contextScope,
@@ -328,12 +413,13 @@ function settingsSnapshot(): SettingsSnapshot {
     skills: listUserSkills().map(({ name, description }) => ({ name, description })),
     rules: listUserRules(),
     claudeMd: readClaudeMd(),
-    slashCommands: listSlashCommands(runtimeSettings.workspace),
+    slashCommands: listSlashCommands(workspace),
   }
 }
 
 process.on('SIGINT', () => {
   console.log('[ccweb] shutting down')
+  for (const agent of new Set(registry.values())) agent.abort()
   server.close()
   process.exit(0)
 })

@@ -25,7 +25,7 @@ export interface ToolBlock {
   resultText: string | null
 }
 
-export type Block = ThinkingBlock | TextBlock | ToolBlock
+export type Block = (ThinkingBlock | TextBlock | ToolBlock) & { frameId?: string }
 
 export interface UserEntry {
   type: 'user'
@@ -163,6 +163,27 @@ export function reconcileAssistant(entries: Entry[], msg: SDKAssistantLike): Ent
     entries = [...entries, turn]
   }
   const msgId = msg.message?.id ?? null
+  // SDK 0.3 emits one content block per assistant envelope. Distinct UUIDs
+  // can share the API message id; replacing the whole turn loses earlier tools.
+  if (msg.uuid && msg.message?.content?.length === 1) {
+    const previous = new Map<string, ToolBlock>()
+    for (const block of turn.blocks) if (block.kind === 'tool') previous.set(block.toolUseId, block)
+    const completed = buildBlocksFromMessage(msg, previous)[0]
+    if (!completed) return entries
+    const blocks = [...turn.blocks]
+    let index = blocks.findIndex(block => block.frameId === msg.uuid)
+    if (index < 0 && completed.kind === 'tool') index = blocks.findIndex(block => block.kind === 'tool' && block.toolUseId === completed.toolUseId)
+    if (index < 0 && completed.kind !== 'tool') {
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        const block = blocks[i]
+        if (block && !block.frameId && block.kind === completed.kind && block.streaming) { index = i; break }
+      }
+    }
+    const block = { ...completed, frameId: msg.uuid }
+    if (index >= 0) blocks[index] = block
+    else blocks.push(block)
+    return withTurn(entries, { ...turn, blocks, lastAssistantId: msgId ?? undefined })
+  }
   const isNewMessage =
     msgId != null && turn.lastAssistantId != null && turn.lastAssistantId !== msgId
 
@@ -254,6 +275,7 @@ export function toolResultText(content: unknown): string {
 }
 
 interface SDKAssistantLike {
+  uuid?: string
   message?: { id?: string; content?: Array<{ type: string; text?: string; thinking?: string; id?: string; name?: string; input?: unknown } | null> } | null
 }
 

@@ -1,63 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useStore } from '../store'
-import { t, useLocale } from '../i18n'
-
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-  return String(n)
-}
-
-function Item({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="text-[10px] uppercase tracking-wider text-text-faint">{label}</span>
-      <span className="font-mono text-xs tabular text-text-dim">{value}</span>
-    </span>
-  )
-}
-
-/** 值变化时闪一次 accent 高亮(600ms),消失不打扰 */
-function usePulseKey(value: string): number {
-  const [key, setKey] = useState(0)
-  const prev = useRef(value)
-  useEffect(() => {
-    if (prev.current !== value && value !== '—') {
-      prev.current = value
-      setKey((k) => k + 1)
-    }
-  }, [value])
-  return key
-}
-
+function format(value: number | null | undefined, suffix = '') { return value == null ? '—' : `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })}${suffix}` }
 export default function MetricsBar() {
-  const m = useStore((s) => s.metrics)
-  useLocale()
-  const turns = m?.turns ?? 0
-  const costStr = m?.totalCostUsd != null ? `$${m.totalCostUsd.toFixed(4)}` : '—'
-  const pulse = usePulseKey(costStr)
-
-  return (
-    <div
-      key={pulse}
-      className={`flex items-center gap-4 border-t border-border bg-panel px-6 py-1.5 ${pulse ? 'animate-metric' : ''}`}
-    >
-      <Item label={t('mt.turns')} value={String(turns)} />
-      <Item label="in" value={m ? fmt(m.inputTokens) : '—'} />
-      <Item label="out" value={m ? fmt(m.outputTokens) : '—'} />
-      <Item
-        label={t('mt.ttft')}
-        value={m?.ttftMs != null ? `${(m.ttftMs / 1000).toFixed(2)}s` : '—'}
-      />
-      <Item
-        label={t('mt.speed')}
-        value={m?.tokensPerSecond != null ? `${m.tokensPerSecond.toFixed(1)}/s` : '—'}
-      />
-      <Item
-        label={t('mt.cache')}
-        value={m?.cacheHitRate != null ? `${(m.cacheHitRate * 100).toFixed(0)}%` : '—'}
-      />
-      <Item label={t('mt.cost')} value={costStr} />
-    </div>
-  )
+  const metrics = useStore(s => s.metrics)
+  const busy = useStore(s => s.busy)
+  const context = useStore(s => s.context)
+  const [open, setOpen] = useState(false)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { if (!busy) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [busy])
+  const raw = context?.raw
+  const usage = raw?.usage && typeof raw.usage === 'object' ? raw.usage as Record<string, unknown> : raw
+  const percentage = typeof usage?.percentage === 'number' ? usage.percentage : null
+  const duration = metrics?.runStartedAt ? Math.max(0, ((metrics.completedAt ?? now) - metrics.runStartedAt) / 1000) : null
+  return <div className="metrics-dock" aria-label="运行指标">
+    <div className="metrics-strip"><span>{metrics?.speedScope === 'turn' ? '本轮均速' : busy ? '最近请求' : '上次请求'} <strong>{format(metrics?.tokensPerSecond, ' tok/s')}</strong></span><span>首个输出 <strong>{format(metrics?.firstContentMs == null ? null : metrics.firstContentMs / 1000, 's')}</strong></span><span>本轮 <strong>{format(duration, 's')}</strong>{metrics?.terminalStatus === 'failed' ? ' · 失败' : metrics?.terminalStatus === 'cancelled' ? ' · 已取消' : ''}</span><span title="原生运行时报告的当前上下文窗口占用">上下文 <strong>{format(percentage, '%')}</strong></span><button aria-expanded={open} onClick={() => setOpen(!open)}>用量详情 {open ? '⌃' : '⌄'}</button></div>
+    {open && <div className="metrics-details"><dl><dt>会话输入</dt><dd>{format(metrics?.inputTokens)}</dd><dt>会话输出</dt><dd>{format(metrics?.outputTokens)}</dd><dt>缓存命中</dt><dd>{format(metrics?.cacheHitRate == null ? null : metrics.cacheHitRate * 100, '%')}</dd><dt>SDK TTFT（原生字段）</dt><dd>{format(metrics?.ttftMs, 'ms')}</dd><dt>SDK 估算费用</dt><dd>{metrics?.totalCostUsd == null ? '未提供计价' : `$${metrics.totalCostUsd.toFixed(4)}`}</dd><dt>配对请求</dt><dd>{format(metrics?.sampledRequests)} · {metrics?.metricsComplete ? '完整' : '统计中或数据不完整'}</dd></dl><p>速度仅使用配对的实际 Token 与模型输出耗时，不包含审批、工具或排队等待。缺失值不按字符估算。SDK 费用为本地估算，不是账单。</p></div>}
+  </div>
 }

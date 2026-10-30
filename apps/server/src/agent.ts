@@ -1,3 +1,8 @@
+import { StreamMetrics } from './stream-metrics.js'
+import { atomicWrite } from './config-api.js'
+import { APP_DIR } from './settings.js'
+import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type {
   Query,
@@ -14,7 +19,7 @@ type UserContentBlock =
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
 import type { ServerMessage } from './protocol.js'
 import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metrics.js'
-import { runtimeSettings, endpointEnv } from './settings.js'
+import { runtimeSettings, endpointEnv, readActiveEnv } from './settings.js'
 
 /**
  * Agent 桥接层(SPEC §2)
@@ -30,10 +35,14 @@ import { runtimeSettings, endpointEnv } from './settings.js'
 
 /** 构建 agent 子进程 env —— 整体替换语义,必须展开 process.env(否则丢 PATH);
  * 运行时设置(端点模板/effort)叠加其上,新会话生效 */
-export function buildAgentEnv(): Record<string, string | undefined> {
-  const extra = endpointEnv(runtimeSettings.endpointTemplate)
-  const env: Record<string, string | undefined> = { ...process.env, ...extra }
-  if (runtimeSettings.effort) env.CLAUDE_CODE_EFFORT_LEVEL = runtimeSettings.effort
+export function buildAgentEnv(config = runtimeSettings): Record<string, string | undefined> {
+  const extra = endpointEnv(config.endpointTemplate)
+  const env: Record<string, string | undefined> = { ...process.env, ...readActiveEnv(), ...extra }
+  const temporary = join(APP_DIR, 'tmp')
+  mkdirSync(temporary, { recursive: true, mode: 0o700 })
+  env.TMPDIR = temporary; env.TEMP = temporary; env.TMP = temporary
+  env.CLAUDE_CODE_TMPDIR = temporary
+  if (config.effort) env.CLAUDE_CODE_EFFORT_LEVEL = config.effort
   return env
 }
 
@@ -41,18 +50,8 @@ export function buildAgentEnv(): Record<string, string | undefined> {
  * 上下文注入档位 → SDK settingSources(dsh 对照:完全不传 = none 档)。
  * full 与 claude CLI 行为一致;project/none 隔离跨工作区记忆泄漏。
  */
-function scopeToSettingSources():
-  | ['user', 'project', 'local']
-  | ['project', 'local']
-  | undefined {
-  switch (runtimeSettings.contextScope) {
-    case 'project':
-      return ['project', 'local']
-    case 'none':
-      return undefined
-    default:
-      return ['user', 'project', 'local']
-  }
+export function scopeToSettingSources(): Array<'user' | 'project' | 'local'> {
+  return runtimeSettings.contextScope === 'none' ? [] : runtimeSettings.contextScope === 'project' ? ['project', 'local'] : ['user', 'project', 'local']
 }
 
 /** 推送到前端的消息出口 */
@@ -101,6 +100,10 @@ class PromptQueue {
 
 /** canUseTool 挂起闸门:WS 回执 resolve + 会话级工具 allowlist */
 class PermissionGate {
+  constructor(private readonly onResolved: (id: string, allow: boolean) => void) {}
+  toolName(id: string): string | undefined { return this.pending.get(id)?.toolName }
+  private timers = new Map<string, ReturnType<typeof setTimeout>>()
+  cancelAll(): void { for (const id of [...this.pending.keys()]) this.resolve(id, false, false) }
   private pending = new Map<
     string,
     { toolName: string; input: Record<string, unknown>; resolve: (r: PermissionResult) => void }
@@ -114,12 +117,13 @@ class PermissionGate {
     input: Record<string, unknown>,
     onAsk: (requestId: string, toolName: string, input: Record<string, unknown>) => void,
   ): Promise<PermissionResult> {
-    if (this.alwaysAllow.has(toolName)) {
-      return Promise.resolve({ behavior: 'allow' })
-    }
-    onAsk(requestId, toolName, input)
+
     return new Promise((resolve) => {
       this.pending.set(requestId, { toolName, input, resolve })
+      const timer = setTimeout(() => this.resolve(requestId, false, false), 15 * 60_000)
+      timer.unref()
+      this.timers.set(requestId, timer)
+      onAsk(requestId, toolName, input)
     })
   }
 
@@ -132,12 +136,15 @@ class PermissionGate {
     const entry = this.pending.get(requestId)
     if (!entry) return false
     this.pending.delete(requestId)
-    if (allow && always) this.alwaysAllow.add(entry.toolName)
+    clearTimeout(this.timers.get(requestId))
+    this.timers.delete(requestId)
+    void always // Tool-wide implicit approvals are deliberately unsupported.
     if (allow) {
-      entry.resolve({ behavior: 'allow', updatedInput })
+      entry.resolve({ behavior: 'allow', updatedInput: { ...entry.input, ...updatedInput } })
     } else {
-      entry.resolve({ behavior: 'deny', message: 'User denied this action in ccweb.' })
+      entry.resolve({ behavior: 'deny', message: entry.toolName === 'ExitPlanMode' ? '用户要求继续修改计划。请先将完整计划写入原生计划文件，在对话中给出摘要后再调用 ExitPlanMode。不要修改业务文件，等待用户采纳。' : 'User denied this action in ccweb.' })
     }
+    this.onResolved(requestId, allow)
     return true
   }
 
@@ -150,19 +157,32 @@ class PermissionGate {
 }
 
 export class AgentSession {
-  readonly promptQueue = new PromptQueue()
-  private readonly gate = new PermissionGate()
+  promptQueue = new PromptQueue()
+  private readonly gate = new PermissionGate((requestId, allow) => this.emit({ t: "permission.resolved", seq: 0, requestId, allow }))
   private readonly acc: MetricsAccumulator = newAccumulator()
+  private readonly streamMetrics = new StreamMetrics()
+  private runId: string | null = null
+  private runStartedAt = 0
+  private firstContentMs: number | null = null
+  private speedScope: 'last_request' | 'turn' = 'last_request'
   private q: Query | undefined
   private started = false
-  private readonly abortController = new AbortController()
+  private abortController = new AbortController()
   /** 自定义 spawn 捕获的子进程 pid(树杀入口;dsh 借鉴:Windows 不信任优雅退出) */
   private childPid: number | null = null
   /** 排队未处理的消息(dsh QueueDock 对齐:可见、可撤销)+ 当前 turn 状态 */
   private turnActive = false
   private readonly pendingQueue: Array<{ uuid: string; summary: string; content: UserContentBlock[] }> = []
 
-  sessionId: string | null = null
+  sessionId: string | null = crypto.randomUUID()
+  private paused = false
+  private disposed = false
+  private initialized = false
+  private completedAt: number | null = null
+  private terminalStatus: 'running' | 'completed' | 'failed' | 'cancelled' = 'running'
+  private modelError: string | null = null
+  readonly settings = { ...runtimeSettings }
+  get workspace(): string { return this.opts.cwd ?? process.cwd() }
 
   /** 最近 content_block_start(tool_use) 的 id——input_json_delta 只有 index,按最近 tool 块归属 */
   private activeToolUseId: string | null = null
@@ -184,9 +204,10 @@ export class AgentSession {
     this.acc.turns = n
   }
 
-  send(text: string, images?: string[]): void {
+  send(text: string, images?: string[], uuid: string = crypto.randomUUID()): void {
+    if (this.disposed) throw new Error("Session is closed. Start a new conversation.")
+    const resumeNewRequest = this.paused
     this.ensureStarted()
-    const uuid = crypto.randomUUID()
     const summary = text.length > 80 ? `${text.slice(0, 80)}…` : text
     const content: UserContentBlock[] = [{ type: 'text', text }]
     // 图片附件:data URL → Anthropic image block
@@ -200,13 +221,22 @@ export class AgentSession {
     }
     // dsh Inbox 模式:排队由 server hold(SDK 会贪读 generator,直接进 queue 不可见);
     // turn 结束(result)后才 flush 下一条
-    this.pendingQueue.push({ uuid, summary, content })
-    this.emitQueue()
-    if (!this.turnActive) this.flushNext()
+    if (resumeNewRequest && !this.turnActive) {
+      // A new explicit prompt runs first; interrupted backlog stays paused afterwards.
+      this.pendingQueue.unshift({ uuid, summary, content })
+      this.paused = false
+      this.flushNext()
+      this.paused = true
+    } else {
+      this.pendingQueue.push({ uuid, summary, content })
+      this.emitQueue()
+      if (!this.turnActive) this.flushNext()
+    }
   }
 
   /** 把最旧一条排队消息交给 SDK */
   private flushNext(): void {
+    if (this.paused) return
     const next = this.pendingQueue.shift()
     if (!next) {
       this.emitQueue()
@@ -214,6 +244,14 @@ export class AgentSession {
     }
     this.emitQueue() // 立即从展示中消失
     this.turnActive = true
+    this.runId = next.uuid
+    this.runStartedAt = Date.now()
+    this.completedAt = null
+    this.terminalStatus = 'running'
+    this.streamMetrics.begin(this.runStartedAt)
+    this.firstContentMs = null
+    this.modelError = null
+    this.speedScope = "last_request"
     const msg: SDKUserMessage = {
       type: 'user',
       session_id: this.sessionId ?? crypto.randomUUID(),
@@ -222,6 +260,9 @@ export class AgentSession {
       uuid: next.uuid,
       timestamp: new Date().toISOString(),
     } as SDKUserMessage
+    this.emit({ t: "accepted", seq: 0, sessionId: this.sessionId ?? "", text: next.content.filter(c => c.type === "text").map(c => c.text).join("\n"), runId: next.uuid })
+    this.acc.ttftMs = null
+    this.acc.tokensPerSecond = null
     this.acc.turns += 1
     this.emitMetrics()
     this.promptQueue.push(msg)
@@ -229,8 +270,18 @@ export class AgentSession {
 
   /** 软中断:仅流式输入模式可用;进程存活、会话可继续 */
   async interrupt(): Promise<void> {
+    this.paused = true
+    this.terminalStatus = 'cancelled'
+    this.gate.cancelAll()
     await this.q?.interrupt()
+    this.turnActive = false
+    this.completedAt = Date.now()
+    this.terminalStatus = 'cancelled'
+    this.emitMetrics()
+    this.emit({ t: "state", seq: 0, sessionId: this.sessionId ?? "", state: "cancelled" })
   }
+
+  resumeQueue(): void { this.paused = false; this.ensureStarted(); if (!this.turnActive) this.flushNext() }
 
   /** 撤销排队消息(未开始处理的) */
   deleteQueued(uuid: string): boolean {
@@ -255,6 +306,9 @@ export class AgentSession {
    * 资源释放以子进程死亡为准,不以 close 事件为准。
    */
   abort(): void {
+    this.disposed = true
+    if (this.turnActive) { this.completedAt = Date.now(); this.terminalStatus = 'cancelled'; this.emitMetrics() }
+    this.gate.cancelAll()
     this.abortController.abort()
     void (this.q as unknown as { close?: () => Promise<void> } | undefined)?.close?.()
     this.promptQueue.close()
@@ -293,59 +347,51 @@ export class AgentSession {
   }
 
   /** 热切设置:模型/权限模式即时生效(q 方法);其余新会话生效 */
-  applySettings(patch: {
-    model?: string | null
-    permissionMode?: string | null
-  }): void {
-    if (patch.model != null) {
-      void (this.q as unknown as { setModel?: (m: string) => Promise<void> })?.setModel?.(patch.model)
-    }
-    if (patch.permissionMode != null) {
-      void (this.q as unknown as { setPermissionMode?: (p: string) => Promise<void> })?.setPermissionMode?.(
-        patch.permissionMode,
-      )
+  async applySettings(patch: { model?: string | null; permissionMode?: string | null }): Promise<void> {
+    if (patch.model !== undefined) { await this.q?.setModel(patch.model ?? undefined); this.settings.model = patch.model }
+    if (patch.permissionMode !== undefined) {
+      const mode = patch.permissionMode ?? 'default'
+      if (!['default', 'auto', 'acceptEdits', 'plan', 'bypassPermissions'].includes(mode)) throw new Error('Unsupported permission mode')
+      await this.q?.setPermissionMode(mode as NonNullable<typeof runtimeSettings.permissionMode>)
+      this.settings.permissionMode = mode as NonNullable<typeof runtimeSettings.permissionMode>
     }
   }
 
-  /** MCP 服务器状态(设置页展示) */
   async mcpStatus(): Promise<Array<{ name: string; status: string }>> {
-    try {
-      const status = await (
-        this.q as unknown as { mcpServerStatus?: () => Promise<Record<string, unknown>> }
-      )?.mcpServerStatus?.()
-      if (status && typeof status === 'object') {
-        return Object.entries(status).map(([name, v]) => ({
-          name,
-          status: typeof v === 'object' && v && 'status' in (v as object)
-            ? String((v as { status: unknown }).status)
-            : String(v),
-        }))
-      }
-    } catch {
-      // 查询失败按空处理
-    }
-    return []
+    if (!this.q) return []
+    const status = await this.q.mcpServerStatus()
+    return status.map(({ name, status }) => ({ name, status }))
   }
 
-  resolvePermission(
+  async resolvePermission(
     requestId: string,
     allow: boolean,
     always = false,
     updatedInput?: Record<string, unknown>,
-  ): boolean {
+  ): Promise<boolean> {
+    if (allow && this.gate.toolName(requestId) === "ExitPlanMode") await this.applySettings({ permissionMode: "default" })
     const ok = this.gate.resolve(requestId, allow, always, updatedInput)
-    if (ok) this.emit({ t: 'permission.resolved', seq: 0, requestId, allow })
     return ok
   }
 
   private async run(): Promise<void> {
     try {
-      const settingSources = scopeToSettingSources()
+      const settingSources = this.settings.contextScope === 'none' ? [] : this.settings.contextScope === 'project' ? ['project', 'local'] as const : ['user', 'project', 'local'] as const
+      const plansDirectory = join(APP_DIR, 'plans', this.sessionId!)
+      mkdirSync(plansDirectory, { recursive: true, mode: 0o700 })
       const q = query({
         prompt: this.promptQueue.stream(),
         options: {
           includePartialMessages: true,
-          ...(settingSources ? { settingSources } : {}),
+          systemPrompt: { type: 'preset', preset: 'claude_code' },
+          settings: { plansDirectory },
+          ...(process.env.CCWEB_MAX_BUDGET_USD ? { maxBudgetUsd: Number(process.env.CCWEB_MAX_BUDGET_USD) } : {}),
+          ...(process.env.CCWEB_MAX_TURNS ? { maxTurns: Number(process.env.CCWEB_MAX_TURNS) } : {}),
+          model: this.settings.model ?? undefined,
+          permissionMode: this.settings.permissionMode ?? undefined,
+          allowDangerouslySkipPermissions: this.settings.permissionMode === 'bypassPermissions',
+          ...(this.opts.resume || this.initialized ? {} : { sessionId: this.sessionId ?? undefined }),
+          settingSources: [...settingSources],
           abortController: this.abortController,
           // 接管 spawn:记录 pid 供树杀(dsh ManagedClaudeCodeProcess 借鉴)
           spawnClaudeCodeProcess: (opts: SpawnOptions): SpawnedProcess => {
@@ -358,14 +404,14 @@ export class AgentSession {
             this.childPid = cp.pid ?? null
             return cp
           },
-          env: buildAgentEnv(),
+          env: buildAgentEnv(this.settings),
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
-          ...(this.opts.resume ? { resume: this.opts.resume } : {}),
+          ...(this.initialized ? { resume: this.sessionId ?? undefined } : this.opts.resume ? { resume: this.opts.resume } : {}),
           ...(this.opts.resume && this.opts.fork ? { forkSession: true } : {}),
           canUseTool: async (
             toolName: string,
             input: Record<string, unknown>,
-            ctx: { toolUseID: string },
+            ctx: { toolUseID: string; title?: string; description?: string; signal?: AbortSignal },
           ): Promise<PermissionResult> => {
             const { toolUseID } = ctx
             return this.gate.wait(toolUseID, toolName, input, (id, name, inp) => {
@@ -375,6 +421,9 @@ export class AgentSession {
                 requestId: id,
                 sessionId: this.sessionId ?? '',
                 toolName: name,
+                title: ctx.title,
+                description: ctx.description,
+                ...(name === 'ExitPlanMode' ? { plan: typeof inp.plan === 'string' ? inp.plan : readCurrentPlan(plansDirectory, this.runStartedAt) } : {}),
                 input: inp,
               })
             })
@@ -385,7 +434,23 @@ export class AgentSession {
       for await (const msg of q) {
         this.handle(msg as Record<string, unknown>)
       }
+      if (!this.disposed) throw new Error('Claude Code 运行流已关闭；请明确发送新请求以恢复。')
     } catch (err) {
+      if (this.disposed) return
+      this.gate.cancelAll()
+      this.started = false
+      this.turnActive = false
+      this.paused = true
+      this.q = undefined
+      this.promptQueue.close()
+      this.promptQueue = new PromptQueue()
+      this.abortController = new AbortController()
+      this.completedAt = Date.now()
+      const cancelled = this.terminalStatus === 'cancelled'
+      this.terminalStatus = cancelled ? 'cancelled' : 'failed'
+      this.emitMetrics()
+      this.emit({ t: 'state', seq: 0, sessionId: this.sessionId ?? '', state: this.terminalStatus })
+      if (cancelled) return
       this.emit({
         t: 'error',
         seq: 0,
@@ -401,16 +466,17 @@ export class AgentSession {
     const subtype = msg.subtype as string | undefined
 
     if (type === 'system' && subtype === 'init') {
+      this.initialized = true
       this.sessionId = (msg.session_id as string) ?? this.sessionId
       this.emit({
         t: 'init',
         seq: 0,
         sessionId: this.sessionId,
         model: (msg.model as string) ?? null,
-        endpoint: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+        endpoint: buildAgentEnv(this.settings).ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
         slashCommands: Array.isArray(msg.slash_commands)
-          ? (msg.slash_commands as Array<{ name?: string; description?: string }>)
-              .map((c) => ({ name: c.name ?? '', description: c.description ?? '' }))
+          ? (msg.slash_commands as Array<string | { name?: string; description?: string }>)
+              .map((c) => typeof c === 'string' ? ({ name: c, description: '' }) : ({ name: c.name ?? '', description: c.description ?? '' }))
               .filter((c) => c.name !== '')
           : [],
       })
@@ -422,16 +488,28 @@ export class AgentSession {
       return
     }
 
-    if (type === 'result' && subtype === 'success') {
-      applyResult(this.acc, msg)
+    if (type === 'assistant' && typeof msg.error === 'string') this.modelError = msg.error
+    if (type === 'result') {
+      if (this.terminalStatus === 'cancelled') msg = { ...msg, subtype: 'cancelled', is_error: false }
+      else if (this.modelError || msg.is_error === true) {
+        msg = { ...msg, subtype: 'error_during_execution', is_error: true }
+        this.paused = true
+        this.emit({ t: 'error', seq: 0, code: this.modelError ?? 'model_error', message: `模型请求失败：${this.modelError ?? '运行时报告错误'}。请检查连接、模型权限与额度。`, retry: false })
+      }
+      if (this.terminalStatus !== 'cancelled') this.terminalStatus = msg.subtype === 'success' ? 'completed' : 'failed'
+      const summary = this.streamMetrics.summary()
+      this.acc.tokensPerSecond = summary.speed
+      this.speedScope = 'turn'
+      this.firstContentMs = this.streamMetrics.firstContentMs
+      this.turnActive = false
+      this.completedAt = Date.now()
+      if (msg.subtype === 'success') applyResult(this.acc, msg)
+      else this.paused = true
       this.emitMetrics()
       this.emitContext()
-    }
-
-    // turn 结束(成功或错误):释放队列,flush 下一条排队消息
-    if (type === 'result') {
-      this.turnActive = false
+      if (this.sessionId) this.emit({ t: 'message', seq: 0, sessionId: this.sessionId, sdkMessage: msg })
       this.flushNext()
+      return
     }
 
     // 完整消息(message/result)一律转发,前端负责渲染其余类型
@@ -444,6 +522,12 @@ export class AgentSession {
   private handleStreamEvent(msg: Record<string, unknown>): void {
     const event = msg.event as Record<string, unknown> | undefined
     if (!event) return
+    if (msg.parent_tool_use_id == null) {
+      this.streamMetrics.observe(event, Date.now())
+      this.firstContentMs = this.streamMetrics.firstContentMs
+      this.acc.tokensPerSecond = this.streamMetrics.latestSpeed
+      if (event.type === 'message_stop') this.emitMetrics()
+    }
     const sid = this.sessionId ?? ''
 
     if (event.type === 'message_start' && typeof msg.ttft_ms === 'number') {
@@ -508,21 +592,18 @@ export class AgentSession {
 
   /** 上下文水位:每轮 result 后从 accumulator 推送(usedTokens/maxTokens,前端兼容) */
   private emitContext(): void {
-    if (!this.sessionId) return
-    this.emit({
-      t: 'context',
-      seq: 0,
-      sessionId: this.sessionId,
-      usage: {
-        usedTokens: this.acc.contextUsed,
-        maxTokens: this.acc.contextMax,
-      },
-    })
+    void this.q?.getContextUsage().then(usage => {
+      this.emit({ t: 'context', seq: 0, sessionId: this.sessionId ?? '', usage })
+    }).catch(() => { /* Native context unavailable; do not label accounting totals as context. */ })
   }
 
   private emitMetrics(): void {
     if (!this.sessionId) return
-    this.emit({ t: 'metrics', seq: 0, sessionId: this.sessionId, metrics: computeMetrics(this.acc) })
+    const metrics = { ...computeMetrics(this.acc), terminalStatus: this.terminalStatus, runId: this.runId, firstContentMs: this.firstContentMs, speedScope: this.speedScope, runStartedAt: this.runStartedAt || null, completedAt: this.completedAt, sampledRequests: this.streamMetrics.summary().sampled, metricsComplete: this.streamMetrics.summary().complete }
+    this.emit({ t: 'metrics', seq: 0, sessionId: this.sessionId, metrics })
+    if (this.runId) {
+      try { atomicWrite(join(APP_DIR, 'metrics', this.sessionId, `${this.runId}.json`), JSON.stringify(metrics)) } catch { /* Metrics persistence must not break execution. */ }
+    }
   }
 }
 
@@ -562,9 +643,13 @@ function applyResult(acc: MetricsAccumulator, result: Record<string, unknown>): 
       (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
   }
 
-  // 本轮回转输出速度:主循环 output ÷ (duration - ttft)
-  const durationMs = typeof result.duration_ms === 'number' ? result.duration_ms : null
-  if (usage?.output_tokens && durationMs && acc.ttftMs != null && durationMs > acc.ttftMs) {
-    acc.tokensPerSecond = (usage.output_tokens / (durationMs - acc.ttftMs)) * 1000
-  }
+  // Decode throughput is supplied by paired stream samples, never total turn duration.
+}
+
+/** Read only the current session's native plan, never arbitrary tool paths. */
+function readCurrentPlan(directory: string, startedAt: number): string | undefined {
+  try {
+    const files = readdirSync(directory, { withFileTypes: true }).filter(file => file.isFile() && file.name.endsWith('.md')).map(file => ({ path: join(directory, file.name), stat: statSync(join(directory, file.name)) })).filter(file => file.stat.mtimeMs >= startedAt - 1000 && file.stat.size <= 1024 * 1024).sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs)
+    return files[0] ? readFileSync(files[0].path, 'utf8') : undefined
+  } catch { return undefined }
 }

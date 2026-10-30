@@ -6,12 +6,13 @@ import type { ToolBlock } from '../render/blocks'
 /** 从 getContextUsage 透传对象中宽松提取水位(字段名跨版本可能不同) */
 function extractUsage(raw: Record<string, unknown> | null): { used: number; max: number } | null {
   if (!raw) return null
+  if (raw.usage && typeof raw.usage === 'object') raw = raw.usage as Record<string, unknown>
   const num = (v: unknown): number | null => (typeof v === 'number' && v > 0 ? v : null)
   // 常见字段形状逐一尝试
   const used =
-    num(raw.usedTokens) ?? num(raw.used_tokens) ?? num(raw.inputTokens) ?? num(raw.contextTokens)
+    num(raw.total_tokens) ?? num(raw.usedTokens) ?? num(raw.used_tokens) ?? num(raw.inputTokens) ?? num(raw.contextTokens)
   const max =
-    num(raw.maxTokens) ?? num(raw.max_tokens) ?? num(raw.contextWindow) ?? num(raw.contextLimit)
+    num(raw.raw_max_tokens) ?? num(raw.maxTokens) ?? num(raw.max_tokens) ?? num(raw.contextWindow) ?? num(raw.contextLimit)
   if (used != null && max != null) return { used, max }
   return null
 }

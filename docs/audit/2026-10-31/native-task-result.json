@@ -1,0 +1,42 @@
+{
+  "source": "Native SDK event journal; generated test task only",
+  "model": "glm-5.3",
+  "simulated": false,
+  "tools": [
+    {
+      "tool": "Skill",
+      "skill": "e2e-review-mvv71xr9",
+      "output": "Launching skill: e2e-review-mvv71xr9"
+    },
+    {
+      "tool": "Bash",
+      "command": "node --test sum.test.mjs",
+      "output": "✔ 2 + 3 = 5 (0.7124ms)\n✔ -2 + 2 = 0 (0.1801ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 81.5855"
+    }
+  ],
+  "result": {
+    "subtype": "success",
+    "durationMs": 19902,
+    "sdkEstimatedCostUsd": 0.111081
+  },
+  "metrics": {
+    "turns": 1,
+    "inputTokens": 15943,
+    "outputTokens": 502,
+    "cacheReadTokens": 37632,
+    "cacheCreationTokens": 0,
+    "ttftMs": 8023,
+    "tokensPerSecond": 85.97362562082549,
+    "cacheHitRate": 0.7024171721885207,
+    "totalCostUsd": 0.111081,
+    "terminalStatus": "completed",
+    "runId": "8ca6b333-e38c-41a6-a39e-c15685c1cf03",
+    "firstContentMs": 5192,
+    "speedScope": "turn",
+    "runStartedAt": 1793379786818,
+    "completedAt": 1793379807372,
+    "sampledRequests": 3,
+    "metricsComplete": true
+  },
+  "costIsEstimate": true
+}

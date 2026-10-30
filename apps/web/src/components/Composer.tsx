@@ -2,24 +2,46 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
 import { IconSend, IconStop, IconFile } from './Icon'
+import RunControls from './RunControls'
 import Lightbox from './Lightbox'
 
 interface Props {
-  onSend: (text: string, images?: string[]) => void
+  onSend: (text: string, images?: string[]) => string | false
   onInterrupt: () => void
   /** @文件补全:向 server 发起工作区文件搜索 */
   onSearchFiles?: (query: string) => void
   /** hero 模式:空态居中大输入框 */
   hero?: boolean
+  sendControl?: (message: Record<string, unknown>) => void
 }
 
-export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = false }: Props) {
-  const [text, setText] = useState('')
+export default function Composer({ onSend, onInterrupt, onSearchFiles, sendControl, hero = false }: Props) {
+  const sessionId = useStore(s => s.sessionId)
+  const settingsReady = useStore(s => s.settings !== null)
+  const workspace = useStore(s => s.settings?.workspace)
+  const key = `ccweb.draft:${workspace ?? 'launch'}:${sessionId ?? 'new'}`
+  const [text, setText] = useState(() => localStorage.getItem(key) ?? '')
+  const draftKey = useRef(key)
+  useEffect(() => {
+    if (draftKey.current === key) return
+    const previous = draftKey.current
+    const saved = localStorage.getItem(key)
+    const launchDraft = previous.startsWith('ccweb.draft:launch:') ? localStorage.getItem(previous) : null
+    draftKey.current = key
+    if (!saved && launchDraft) { localStorage.setItem(key, launchDraft); localStorage.removeItem(previous); setText(launchDraft) }
+    else setText(saved ?? '')
+  }, [key])
+  const updateText = (value: string) => { setText(value); localStorage.setItem(key, value) }
   const [images, setImages] = useState<string[]>([])
   const [slashSel, setSlashSel] = useState(0)
   const [fileSel, setFileSel] = useState(0)
   const [lightbox, setLightbox] = useState<string | null>(null)
   useLocale()
+  const conn = useStore(s => s.conn)
+  const waiting = useStore(s => s.permissions.length > 0 || s.question !== null)
+  const lastAck = useStore(s => s.lastAck)
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => { if (!lastAck || (pending && lastAck.id !== pending)) return; setText(localStorage.getItem(draftKey.current) ?? ''); setPending(null) }, [lastAck, pending])
   const busy = useStore((s) => s.busy)
   const slashCommands = useStore((s) => s.slashCommands)
   const fileResults = useStore((s) => s.fileResults)
@@ -76,21 +98,21 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
   const submit = () => {
     const txt = text.trim()
     // busy 时 Enter = 排队发送(dsh Queue 语义),不吞输入;@路径 原样保留(Claude 自行理解)
-    if (!txt && images.length === 0) return
-    onSend(txt || t('cp.imageOnly'), images.length ? images : undefined)
-    setText('')
-    setImages([])
+    if (!settingsReady || pending || conn !== "open" || waiting || (!txt && images.length === 0)) return
+    const request = onSend(txt || t('cp.imageOnly'), images.length ? images : undefined)
+    if (request === 'local') { updateText(''); setImages([]) }
+    else if (request) { setPending(request); setImages([]) }
   }
 
   const pickSlash = (name: string) => {
-    setText(`/${name} `)
+    updateText(`/${name} `)
     setSlashSel(0)
     taRef.current?.focus()
   }
 
   /** 选中文件:把末尾 @词 替换为 @相对路径 (带尾空格,结束补全态) */
   const pickFile = (path: string) => {
-    setText((prev) => prev.replace(/@[^\s@]*$/, `@${path} `))
+    updateText(text.replace(/@[^\s@]*$/, `@${path} `))
     setFileSel(0)
     taRef.current?.focus()
   }
@@ -192,7 +214,8 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
           <textarea
             ref={taRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            aria-label="任务输入"
+            onChange={(e) => updateText(e.target.value)}
             onPaste={(e) => {
               const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
                 f.type.startsWith('image/'),
@@ -205,7 +228,7 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
             onKeyDown={(e) => {
               // IME 组合中一律让路(Enter 确认候选/方向键选词),避免误发送误中断
               const ne = e.nativeEvent as KeyboardEvent & { isComposing?: boolean }
-              if (ne.isComposing) return
+              if (ne.isComposing || ne.keyCode === 229) return
               if (slashMatches.length > 0) {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault()
@@ -217,7 +240,7 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
                   setSlashSel((s) => Math.max(s - 1, 0))
                   return
                 }
-                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
                   e.preventDefault()
                   pickSlash(slashMatches[slashSel]?.name ?? '')
                   return
@@ -233,7 +256,7 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
                   setFileSel((s) => Math.max(s - 1, 0))
                   return
                 }
-                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
                   e.preventDefault()
                   pickFile(fileMatches[fileSel] ?? fileMatches[0] ?? '')
                   return
@@ -251,7 +274,7 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
             placeholder={busy ? t('cp.queuePlaceholder') : t('cp.placeholder')}
             className="max-h-48 min-h-6 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-text-faint"
           />
-          {busy ? (
+          {busy || waiting ? (
             <button
               onClick={onInterrupt}
               aria-label={t('cp.stop')}
@@ -262,7 +285,7 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
           ) : (
             <button
               onClick={submit}
-              disabled={!text.trim() && images.length === 0}
+              disabled={!settingsReady || !!pending || conn !== "open" || waiting || (!text.trim() && images.length === 0)}
               aria-label={t('cp.send')}
               className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent text-white transition-all hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-35"
             >
@@ -270,6 +293,10 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, hero = fa
             </button>
           )}
         </div>
+        {sendControl && <RunControls send={sendControl} />}
+        {busy && !waiting && <button className="queue-send" disabled={!settingsReady || !!pending || !text.trim() || conn !== "open"} onClick={submit}>排队发送</button>}
+        {!settingsReady && <p role="status" className="draft-preserved">正在读取工作区配置，草稿已保留…</p>}
+        {waiting && <p className="draft-preserved">正在等待你的回应，草稿已保留</p>}
         {!hero && (
           <p className="mt-2 text-center text-[11px] text-text-faint">{t('cp.hint')}</p>
         )}

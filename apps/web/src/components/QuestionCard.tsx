@@ -16,7 +16,7 @@ export default function QuestionCard({ onResolve }: Props) {
   const question = useStore((s) => s.question)
   useLocale()
   // 每题作答状态(选项 label / 其他答案开关 / 其他答案文本)
-  const [sel, setSel] = useState<Record<number, string>>({})
+  const [sel, setSel] = useState<Record<number, string[]>>({})
   const [otherOpen, setOtherOpen] = useState<Record<number, boolean>>({})
   const [otherText, setOtherText] = useState<Record<number, string>>({})
 
@@ -30,14 +30,14 @@ export default function QuestionCard({ onResolve }: Props) {
   if (!question) return null
 
   const answered = (i: number) =>
-    sel[i] != null || (otherText[i] ?? '').trim() !== ''
+    (sel[i]?.length ?? 0) > 0 || (otherText[i] ?? '').trim() !== ''
   const allAnswered = question.questions.every((_, i) => answered(i))
 
   const submit = () => {
-    const answers = question.questions.map((_, i) => {
+    const answers = Object.fromEntries(question.questions.map((item, i) => {
       const other = (otherText[i] ?? '').trim()
-      return other !== '' ? other : (sel[i] ?? '')
-    })
+      return [item.question, other !== '' ? other : (sel[i] ?? []).join(', ')]
+    }))
     onResolve(question.requestId, true, { answers })
   }
 
@@ -61,10 +61,11 @@ export default function QuestionCard({ onResolve }: Props) {
               {q.options.map((o) => (
                 <button
                   key={o.label}
-                  onClick={() => setSel((s) => ({ ...s, [qi]: o.label }))}
+                  onClick={() => setSel((s) => ({ ...s, [qi]: q.multiSelect ? (s[qi]?.includes(o.label) ? s[qi].filter(v => v !== o.label) : [...(s[qi] ?? []), o.label]) : [o.label] }))}
+                  aria-pressed={sel[qi]?.includes(o.label) ?? false}
                   title={o.description}
                   className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
-                    sel[qi] === o.label
+                    sel[qi]?.includes(o.label)
                       ? 'border-accent bg-accent/10 text-accent'
                       : 'border-border-strong text-text-dim hover:border-accent/50 hover:text-text'
                   }`}

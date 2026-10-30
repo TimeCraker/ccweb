@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   check:
@@ -24,6 +25,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm --filter ccweb-console test:runtime
       - name: Smoke (server boots + healthz)
         run: |
           node apps/server/dist/index.js &
@@ -32,7 +34,6 @@ jobs:
         shell: bash
 
   e2e:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +43,22 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @ccweb/web add -D @playwright/test
       - run: pnpm --filter @ccweb/web exec playwright install --with-deps chromium
       - run: pnpm build
+      - run: pnpm --filter ccweb-console test:runtime
       - run: pnpm --filter @ccweb/web exec playwright test
+      - name: Install the actual tarball
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/ccweb-pack" "$RUNNER_TEMP/ccweb-installed"
+          pnpm -C apps/server pack --pack-destination "$RUNNER_TEMP/ccweb-pack"
+          npm install --prefix "$RUNNER_TEMP/ccweb-installed" "$RUNNER_TEMP"/ccweb-pack/*.tgz --no-audit --no-fund
+          echo "CCWEB_E2E_BIN=$RUNNER_TEMP/ccweb-installed/node_modules/ccweb-console/bin/ccweb.mjs" >> "$GITHUB_ENV"
+          echo "CCWEB_FIXTURE_ENTRY=$RUNNER_TEMP/ccweb-installed/node_modules/ccweb-console/dist/index.js" >> "$GITHUB_ENV"
+      - name: Exercise the installed package
+        run: pnpm --filter @ccweb/web exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failure-evidence
+          path: .ccweb-test/results

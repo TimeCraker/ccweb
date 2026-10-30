@@ -1,6 +1,14 @@
 /** 与 server/src/protocol.ts 对应的前端侧类型(P0 子集) */
 
 export interface SessionMetrics {
+  terminalStatus?: 'running' | 'completed' | 'failed' | 'cancelled'
+  runId?: string | null
+  firstContentMs?: number | null
+  speedScope?: 'last_request' | 'turn'
+  completedAt?: number | null
+  runStartedAt?: number | null
+  sampledRequests?: number
+  metricsComplete?: boolean
   turns: number
   inputTokens: number
   outputTokens: number
@@ -20,6 +28,7 @@ export interface SessionMeta {
 }
 
 export interface SettingsSnapshot {
+  active?: { model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
   serverVersion: string
   contextScope: 'full' | 'project' | 'none'
   model: string | null
@@ -39,6 +48,9 @@ export interface SettingsSnapshot {
 
 export interface ServerMessage {
   t: string
+  ok?: boolean
+  state?: string
+  epoch?: string
   seq?: number
   sessionId?: string | null
   model?: string | null
@@ -50,6 +62,9 @@ export interface ServerMessage {
   kind?: 'text' | 'thinking' | 'tool_input'
   text?: string
   toolUseId?: string
+  title?: string
+  description?: string
+  plan?: string
   toolName?: string
   sdkMessage?: unknown
   requestId?: string

@@ -1,6 +1,8 @@
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
 import { IconWarn } from './Icon'
+import Markdown from './Markdown'
+import { currentTurn } from '../render/blocks'
 import DiffView from './DiffView'
 
 interface Props {
@@ -13,6 +15,8 @@ const DANGEROUS = /\b(rm\s+-rf|del\s+\/[sq]|format|mkfs|shutdown|reboot|git\s+pu
 export default function PermissionCard({ onResolve }: Props) {
   const permissions = useStore((s) => s.permissions)
   useLocale()
+  const entries = useStore(s => s.entries)
+  const currentText = currentTurn(entries)?.blocks.filter(b => b.kind === "text").map(b => b.kind === "text" ? b.text : "").join("\n") ?? ""
   const p = permissions[permissions.length - 1]
   if (!p) return null
 
@@ -24,7 +28,7 @@ export default function PermissionCard({ onResolve }: Props) {
   const dangerous = command != null && DANGEROUS.test(command)
 
   return (
-    <div className="mx-auto mb-2 max-w-3xl px-6">
+    <div className="permission-dock mx-auto mb-2 max-w-3xl px-6">
       <div
         className={`rounded-xl border p-4 shadow-lg backdrop-blur ${
           dangerous ? 'border-danger/50 bg-danger/5' : 'border-warn/40 bg-panel-2/95'
@@ -34,12 +38,14 @@ export default function PermissionCard({ onResolve }: Props) {
           <span className={`grid size-6 place-items-center rounded-md ${dangerous ? 'bg-danger/15 text-danger' : 'bg-warn/15 text-warn'}`}>
             <IconWarn width={14} height={14} />
           </span>
-          <span className="text-sm font-medium">{dangerous ? t('pm.danger') : t('pm.title')}</span>
+          <span className="text-sm font-medium">{p.title ?? (dangerous ? t('pm.danger') : t('pm.title'))}</span>
           <span className="rounded bg-border px-1.5 py-0.5 font-mono text-[11px] text-text-dim">
             {p.toolName}
           </span>
         </div>
 
+        {p.description && <p className="mt-2 text-sm text-text-dim">{p.description}</p>}
+        {p.toolName === 'ExitPlanMode' && (p.plan?.trim() ? (currentText.includes(p.plan.trim()) ? <p>计划已在上方正文展示，请核对后采纳。</p> : <section aria-label="待采纳计划"><Markdown text={p.plan} /></section>) : <p>尚未收到可供审查的计划正文，请继续修改计划或停止。</p>)}
         {file && <p className="mt-2 truncate font-mono text-xs text-text-dim" title={file}>{file}</p>}
         {command && (
           <pre className="mt-3 overflow-x-auto rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-text-dim">
@@ -47,7 +53,7 @@ export default function PermissionCard({ onResolve }: Props) {
           </pre>
         )}
         {isEdit && <DiffView oldStr={oldStr} newStr={newStr} className="mt-3" />}
-        {!command && !isEdit && !file && (
+        {p.toolName !== 'ExitPlanMode' && !command && !isEdit && !file && (
           <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-text-dim">
             {JSON.stringify(p.input, null, 2)}
           </pre>
@@ -60,19 +66,14 @@ export default function PermissionCard({ onResolve }: Props) {
               onClick={() => onResolve(p.requestId, false)}
               className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-danger hover:text-danger"
             >
-              {t('pm.deny')}
+              {p.toolName === 'ExitPlanMode' ? '继续修改计划' : t('pm.deny')}
             </button>
             <button
-              onClick={() => onResolve(p.requestId, true, true)}
-              className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-accent hover:text-accent"
-            >
-              {t('pm.always')}
-            </button>
-            <button
+              disabled={p.toolName === 'ExitPlanMode' && !p.plan?.trim()}
               onClick={() => onResolve(p.requestId, true)}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover"
+              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {t('pm.allow')}
+              {p.toolName === 'ExitPlanMode' ? '采纳并执行（手动审批）' : t('pm.allow')}
             </button>
           </div>
         </div>

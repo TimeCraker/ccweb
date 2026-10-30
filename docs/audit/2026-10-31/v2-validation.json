@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-31",
+  "scope": "V2 Stage 5 and Stage 6; standalone Harness lab deferred",
+  "published": false,
+  "runtime": {
+    "sdk": "0.3.314",
+    "sdkSpecifier": "0.3.314",
+    "bundledCli": "2.1.314",
+    "source": "SDK bundled",
+    "localCliReplacement": false
+  },
+  "quality": {
+    "command": "pnpm check",
+    "passed": true,
+    "unitAndProtocolTests": 43,
+    "serverTests": 21,
+    "webTests": 22
+  },
+  "browser": {
+    "engine": "Microsoft Edge",
+    "source": {
+      "tests": 15,
+      "status": "passed"
+    },
+    "installedTarball": {
+      "tests": 15,
+      "status": "passed"
+    },
+    "widths": [
+      1280,
+      1440,
+      1920
+    ],
+    "cssZoom": [
+      1.25,
+      1.5
+    ],
+    "nativeBrowserZoomVerified": false
+  },
+  "nativeModel": {
+    "simulated": false,
+    "model": "glm-5.3",
+    "sourceGeneratedFiles": [
+      "sum.mjs",
+      "sum.test.mjs"
+    ],
+    "independentNodeTests": {
+      "passed": 2,
+      "failed": 0
+    },
+    "installedCommandInvoked": true,
+    "installedSkillInvoked": true,
+    "installedBashApprovedInGui": true,
+    "installedNodeTests": {
+      "passed": 2,
+      "failed": 0
+    },
+    "planBusinessFilesUnchanged": true,
+    "modelOmittedPlanBody": true,
+    "planAdopted": false,
+    "notes": [
+      "Complete plan adoption and AskUserQuestion use simulated SDK regression evidence; native read-only and empty-plan boundary verified separately.",
+      "Default FlashX model rejected by current provider subscription; glm-5.3 succeeded.",
+      "Shared temporary directory EPERM resolved using app-owned temp; native Bash retest passed.",
+      "SDK cost is an estimate, not provider billing."
+    ]
+  },
+  "simulatedCoverage": [
+    "initial query parameters and native preset",
+    "configuration restart persistence",
+    "approval reconnect and cross-client isolation",
+    "command deduplication and failure receipts",
+    "workspace attachment rejection",
+    "queue pause/resume and explicit crash recovery",
+    "API error classification and neutral cancellation",
+    "paired speed metrics and missing-data handling",
+    "native plan-file presentation and explicit adoption",
+    "empty plan blocked",
+    "SDK 0.3 UUID block reconciliation and retained changes review",
+    "Skills and Commands CRUD and invocation",
+    "delayed initial settings and early SDK reconnect"
+  ],
+  "limits": [
+    "Remote CI and Dependabot configuration not yet executed on GitHub.",
+    "All third-party MCP/Hook services, image understanding, and every terminal-specific interaction are not covered.",
+    "Auto permissions depend on native runtime, account and model capabilities."
+  ],
+  "artifacts": {
+    "workbench": "../../screenshots/v2-workbench.png",
+    "approvalSimulated": "../../screenshots/v2-approval.png",
+    "settings": "../../screenshots/v2-settings.png",
+    "nativeToolOutput": "native-task-result.json"
+  },
+  "package": {
+    "name": "ccweb-console",
+    "version": "0.1.4",
+    "published": false,
+    "sha256": "10f21eef2633891ff0540bb55ac13574efa9c11e3bb2d15ebf619c4806d9e775",
+    "testFilesBundled": false
+  }
+}

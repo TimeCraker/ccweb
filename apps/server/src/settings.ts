@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 
@@ -10,7 +10,7 @@ import { homedir } from 'node:os'
 
 export interface RuntimeSettings {
   model: string | null
-  permissionMode: 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions' | null
+  permissionMode: 'auto' | 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions' | null
   effort: string | null
   /** 端点模板 key(settings.<key>.json) */
   endpointTemplate: string | null
@@ -40,7 +40,23 @@ export interface EndpointTemplate {
   baseUrl: string | null
 }
 
-const CC_DIR = join(homedir(), '.claude')
+export const CC_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
+export const APP_DIR = process.env.CCWEB_HOME ?? join(homedir(), '.ccweb')
+try {
+  const saved = JSON.parse(readFileSync(join(APP_DIR, 'settings.json'), 'utf8')) as Partial<RuntimeSettings>
+  for (const key of ['model', 'effort', 'endpointTemplate', 'workspace'] as const) {
+    if (typeof saved[key] === 'string' || saved[key] === null) runtimeSettings[key] = saved[key] ?? null
+  }
+  if (['full', 'project', 'none'].includes(String(saved.contextScope))) runtimeSettings.contextScope = saved.contextScope!
+  if (['default', 'auto', 'acceptEdits', 'plan'].includes(String(saved.permissionMode))) runtimeSettings.permissionMode = saved.permissionMode!
+} catch { /* First run uses defaults. */ }
+export function saveRuntimeSettings(): void {
+  mkdirSync(APP_DIR, { recursive: true })
+  const path = join(APP_DIR, 'settings.json')
+  const temp = `${path}.${crypto.randomUUID()}.tmp`
+  writeFileSync(temp, JSON.stringify(runtimeSettings, null, 2), { mode: 0o600 })
+  renameSync(temp, path)
+}
 
 /** ~/.claude/settings.json 的 env 段(用户权威生效配置) */
 export function readActiveEnv(): Record<string, string> {
@@ -85,6 +101,7 @@ export function listEndpointTemplates(): EndpointTemplate[] {
 /** 应用端点模板:返回需注入子进程的 env 片段(含 token,仅留在 server 侧) */
 export function endpointEnv(templateKey: string | null): Record<string, string> {
   if (!templateKey) return {}
+  if (!/^[a-zA-Z0-9_-]+$/.test(templateKey)) throw new Error('Invalid endpoint template key')
   const dir = join(CC_DIR, 'cc-toolkit', 'settings')
   try {
     const json = JSON.parse(
@@ -227,27 +244,19 @@ export function readClaudeMd(): string | null {
  */
 export function listSlashCommands(workspace?: string | null): Array<{ name: string; description: string }> {
   const out: Array<{ name: string; description: string }> = []
-  const scan = (dir: string) => {
-    let files: string[]
-    try {
-      files = readdirSync(dir).filter((f) => f.endsWith('.md'))
-    } catch {
-      return
-    }
-    for (const f of files) {
-      const name = f.replace(/\.md$/, '')
-      let description = ''
-      try {
-        const md = readFileSync(join(dir, f), 'utf8')
-        const m = md.match(/^description:\s*(.+)$/m)
-        if (m?.[1]) description = m[1].trim().slice(0, 100)
-      } catch {
-        // 描述可选
-      }
-      out.push({ name, description })
-    }
+  function add(path: string, name: string) {
+    try { const md = readFileSync(path, 'utf8'); out.push({ name, description: md.match(/^description:\s*(.+)$/m)?.[1]?.trim().slice(0, 100) ?? '' }) } catch { /* Optional resource. */ }
   }
-  scan(join(CC_DIR, 'commands'))
-  if (workspace) scan(join(workspace, '.claude', 'commands'))
-  return out
+  function scan(dir: string, prefix = '', depth = 0): void {
+    if (depth > 5) return
+    try { for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory()) scan(join(dir, entry.name), `${prefix}${entry.name}:`, depth + 1)
+      else if (entry.name.endsWith('.md')) add(join(dir, entry.name), prefix + entry.name.slice(0, -3))
+    } } catch { /* No commands. */ }
+  }
+  for (const config of [CC_DIR, ...(workspace ? [join(workspace, '.claude')] : [])]) {
+    scan(join(config, 'commands'))
+    try { for (const name of readdirSync(join(config, 'skills'))) add(join(config, 'skills', name, 'SKILL.md'), name) } catch { /* No skills. */ }
+  }
+  return [...new Map(out.map(item => [item.name, item])).values()]
 }
