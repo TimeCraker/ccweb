@@ -14,3 +14,5 @@ Thumbs.db
 apps/server/dist/
 apps/server/public/
 ccweb-e2e2/
+
+.ccweb-test/

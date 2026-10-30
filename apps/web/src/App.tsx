@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { WsClient } from './ws'
 import { useStore, parseQuestions } from './store'
 import { t, tf, useLocale } from './i18n'
@@ -18,6 +18,10 @@ import { BrandMark } from './components/Icon'
 
 export default function App() {
   const wsRef = useRef<WsClient | null>(null)
+  const sendControl = useCallback((msg: Record<string, unknown>) => {
+    wsRef.current?.send(msg as { t: string })
+  }, [])
+  const closeSettings = useCallback(() => setSettingsOpen(false), [])
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -380,8 +384,8 @@ export default function App() {
       />
       <SettingsModal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        send={(m) => wsRef.current?.send(m as { t: string })}
+        onClose={closeSettings}
+        send={sendControl}
       />
       <Toast />
     </div>
