@@ -1,0 +1,172 @@
+import { expect, test, type Page } from '@playwright/test'
+
+test.use({ baseURL: 'http://127.0.0.1:3495' })
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('ccweb.locale', 'zh')
+    localStorage.setItem('ccweb.theme', 'light')
+  })
+})
+
+async function ready(page: Page) {
+  await page.goto('/')
+  await expect(page.getByText(/^(已连接|Connected)$/)).toBeVisible()
+  await expect(page.getByRole('button', { name: '工作方式', exact: true })).toBeEnabled()
+}
+
+async function send(page: Page, text: string) {
+  const box = page.getByRole('textbox', { name: '任务输入' })
+  await box.fill(text)
+  await box.press('Enter')
+}
+
+test('only one menu layer is open, outside click closes, Esc returns focus', async ({ page }) => {
+  await ready(page)
+  await page.getByRole('button', { name: '工作方式', exact: true }).click()
+  await expect(page.getByRole('menu', { name: '工作方式' })).toBeVisible()
+  await page.getByRole('button', { name: '模型', exact: true }).click()
+  await expect(page.getByRole('menu', { name: '模型' })).toBeVisible()
+  await expect(page.getByRole('menu', { name: '工作方式' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu', { name: '模型' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '模型', exact: true })).toBeFocused()
+
+  await page.locator('.workspace-trigger').click()
+  await expect(page.getByRole('menu', { name: '最近项目' })).toBeVisible()
+  await page.locator('.header h1').click()
+  await expect(page.getByRole('menu', { name: '最近项目' })).toHaveCount(0)
+})
+
+test('menus are keyboard navigable and Chinese IME Enter never sends', async ({ page }) => {
+  await ready(page)
+  await page.getByRole('button', { name: '工作方式', exact: true }).click()
+  await page.keyboard.press('ArrowDown')
+  await expect(page.locator('[role=menuitemradio]:focus')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+
+  const box = page.getByRole('textbox', { name: '任务输入' })
+  await box.fill('中文输入法组合中')
+  await box.evaluate((element) => {
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: true }))
+  })
+  await expect(box).toHaveValue('中文输入法组合中')
+  await expect(page.getByRole('log')).toHaveCount(0)
+})
+
+test('usage popover opens on demand, survives inner interaction and returns focus on Esc', async ({ page }) => {
+  await ready(page)
+  await send(page, 'metrics contract')
+  await expect(page.getByText('【E2E】模拟完成：metrics contract', { exact: true })).toBeVisible()
+  const usage = page.locator('.usage')
+  await expect(usage).toContainText('tok/s')
+  await expect(usage).toContainText('上下文')
+
+  const trigger = page.getByRole('button', { name: '用量', exact: true })
+  await trigger.click()
+  const panel = page.locator('.usage-panel')
+  await expect(panel).toBeVisible()
+  await expect(panel).toContainText('本次对话')
+  // 弹层内部的选择/展开不应关闭
+  await panel.locator('summary').first().click()
+  await expect(panel).toBeVisible()
+  await expect(panel.locator('.usage-details').first()).toHaveAttribute('open', '')
+  await page.keyboard.press('Escape')
+  await expect(panel).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+  // 外点关闭
+  await trigger.click()
+  await expect(panel).toBeVisible()
+  await page.locator('.header h1').click()
+  await expect(panel).toHaveCount(0)
+})
+
+test('settings modal: categories, backdrop dismissal and unsaved-draft protection', async ({ page }) => {
+  await ready(page)
+  await page.keyboard.press('Control+,')
+  const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+  await expect(dialog).toBeVisible()
+  for (const tab of ['模型与连接', '工作方式与权限', '技能', '指令', '上下文与规则', 'MCP 与工具', 'Hooks', '通用', '关于与更新']) {
+    await expect(dialog.getByRole('tab', { name: tab, exact: true })).toBeVisible()
+  }
+  await dialog.getByRole('button', { name: '添加连接' }).click()
+  await page.getByLabel('连接名称').fill('草稿保护')
+  // Esc 触发放弃确认;拒绝后弹窗与草稿都保留
+  page.once('dialog', (prompt) => void prompt.dismiss())
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeVisible()
+  await expect(page.getByLabel('连接名称')).toHaveValue('草稿保护')
+  page.once('dialog', (prompt) => void prompt.accept())
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})
+
+test('connection form validates drafts and marks stale test results', async ({ page }) => {
+  await page.route('**/api/connections/test', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        category: 'ok',
+        status: 200,
+        model: 'glm-5.3',
+        elapsedMs: 220,
+        requestUrl: 'https://api.example.com/anthropic/v1/messages',
+        message: '连接成功。测试只验证文本接口可达，工具与图片能力仍需在任务中确认。',
+      }),
+    })
+  })
+  await ready(page)
+  await page.keyboard.press('Control+,')
+  const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+  await dialog.getByRole('button', { name: '添加连接' }).click()
+  await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/anthropic')
+  await page.getByLabel('API Key').fill('sk-contract-test')
+  await page.getByLabel('模型 ID').fill('glm-5.3')
+  await page.getByRole('button', { name: '测试连接' }).click()
+  await expect(dialog.getByText('连通成功')).toBeVisible()
+  await expect(dialog.getByText(/anthropic\/v1\/messages/)).toBeVisible()
+  await page.getByLabel('模型 ID').fill('glm-5.4')
+  await expect(dialog.getByText('表单已修改，以上结果不再代表当前草稿。')).toBeVisible()
+
+  await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/v1/chat/completions')
+  await expect(dialog.getByText(/OpenAI Chat Completions 接口/)).toBeVisible()
+  await page.getByLabel('接口地址（Base URL）').fill('not-a-url')
+  await page.getByRole('button', { name: '保存并使用' }).click()
+  await expect(dialog.getByText(/接口地址不是合法 URL|请包含 http/)).toBeVisible()
+})
+
+test('drawers keep the conversation mounted and composer reachable', async ({ page }) => {
+  await ready(page)
+  await send(page, 'VISUAL drawer contract')
+  await expect(page.getByText('【E2E】模拟完成：VISUAL drawer contract', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '更多', exact: true }).click()
+  await page.getByRole('menuitem', { name: /运行详情/ }).click()
+  const drawer = page.getByRole('complementary', { name: '运行详情' })
+  await expect(drawer).toBeVisible()
+  await expect(page.getByText('【E2E】模拟完成：VISUAL drawer contract', { exact: true })).toBeVisible()
+  await expect(page.locator('.composer')).toBeInViewport()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await drawer.getByRole('tab', { name: '调用轨迹', exact: true }).click()
+  await expect(drawer.getByText('Read', { exact: true })).toBeVisible()
+  await drawer.getByRole('button', { name: '关闭面板' }).click()
+  await expect(drawer).toHaveCount(0)
+})
+
+test('composer draft survives settings, sidebar collapse and session list toggles', async ({ page }) => {
+  await ready(page)
+  const box = page.getByRole('textbox', { name: '任务输入' })
+  await box.fill('切换前草稿')
+  await page.keyboard.press('Control+,')
+  const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(box).toHaveValue('切换前草稿')
+  await page.getByRole('button', { name: /折叠侧栏/ }).click()
+  await expect(box).toHaveValue('切换前草稿')
+  await page.getByRole('button', { name: '会话', exact: true }).click()
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: /展开侧栏/ }).click()
+  await expect(box).toHaveValue('切换前草稿')
+})
