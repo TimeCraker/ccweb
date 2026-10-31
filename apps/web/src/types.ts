@@ -49,6 +49,7 @@ export interface SettingsSnapshot {
 }
 
 export interface ServerMessage {
+  models?: Array<{ value: string; displayName: string; description: string }>
   t: string
   ok?: boolean
   state?: string
@@ -78,7 +79,7 @@ export interface ServerMessage {
   files?: string[]
   messages?: unknown[]
   settings?: SettingsSnapshot
-  servers?: Array<{ name: string; status: string }>
+  servers?: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }>
   items?: Array<{ uuid: string; text: string }>
   code?: string
   message?: string

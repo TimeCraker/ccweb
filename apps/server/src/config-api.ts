@@ -10,8 +10,8 @@ import { parseDocument } from 'yaml'
 import { APP_DIR, CC_DIR, runtimeSettings, endpointEnv, listEndpointTemplates, readActiveEnv } from './settings.js'
 
 type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp'
-type Source = 'user' | 'project' | 'plugin'
-interface Resource { id: string; name: string; kind: Kind; source: Source; path: string; writable: boolean }
+type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
+interface Resource { id: string; name: string; kind: Kind; source: Source; path: string; writable: boolean; description?: string; invocation?: string; scope?: string }
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
 const read = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : ''
 export function atomicWrite(path: string, content: string): void {
@@ -38,7 +38,7 @@ export function listResources(workspace: string): Resource[] {
   const out: Resource[] = []
   const add = (path: string, name: string, kind: Kind, source: Source, root: string) => {
     const id = Buffer.from(JSON.stringify([source, kind, path])).toString('base64url')
-    out.push({ id, name, kind, source, path, writable: source !== 'plugin' && safeTarget(path, root) })
+    out.push({ id, name, kind, source, path, writable: !['plugin', 'inherited', 'managed'].includes(source) && safeTarget(path, root) })
   }
   function scan(dir: string, kind: Kind, source: Source, root: string, prefix = '', depth = 0): void {
     if (!existsSync(dir) || depth > 5) return
@@ -68,6 +68,28 @@ export function listResources(workspace: string): Resource[] {
     // MCP's native user file is ~/.claude.json, project file is .mcp.json.
     const mcpRoot = source === 'user' ? homedir() : workspace
     add(join(mcpRoot, source === 'user' ? '.claude.json' : '.mcp.json'), 'MCP servers', 'mcp', source, mcpRoot)
+  }
+  // Native parent instructions are additive. They are shown read-only outside the selected workspace.
+  for (let parent = dirname(workspace); ; parent = dirname(parent)) {
+    for (const file of ['CLAUDE.md', 'CLAUDE.local.md', '.claude/CLAUDE.md']) {
+      const path = join(parent, file)
+      if (existsSync(path)) add(path, `${file} · ${parent}`, 'rule', 'inherited', parent)
+    }
+    scan(join(parent, '.claude', 'rules'), 'rule', 'inherited', parent)
+    if (dirname(parent) === parent) break
+  }
+  const managed = process.platform === 'win32' ? join(process.env.ProgramFiles ?? 'C:/Program Files', 'ClaudeCode') : process.platform === 'darwin' ? '/Library/Application Support/ClaudeCode' : '/etc/claude-code'
+  if (existsSync(join(managed, 'CLAUDE.md'))) add(join(managed, 'CLAUDE.md'), '组织托管指令', 'rule', 'managed', managed)
+  if (existsSync(join(managed, 'managed-settings.json'))) add(join(managed, 'managed-settings.json'), 'Hooks · 组织托管', 'hooks', 'managed', managed)
+  for (const item of out) {
+    if (!['skill', 'command'].includes(item.kind)) continue
+    try {
+      const text = read(item.path), front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)
+      const fields = front ? parseDocument(front[1] ?? '') : null
+      item.description = String(fields?.get('description') ?? '')
+      item.invocation = '/' + (item.kind === 'skill' ? String(fields?.get('name') ?? item.name) : item.name)
+      item.scope = item.source === 'project' ? (item.path.includes('settings.local') ? '项目本地' : '项目共享') : item.source
+    } catch { /* Invalid content remains visible and editable. */ }
   }
   try {
     const installed = JSON.parse(read(join(CC_DIR, 'plugins', 'installed_plugins.json'))) as { plugins?: Record<string, Array<{ installPath?: string }>> }
@@ -104,15 +126,55 @@ function jsonRoot(raw: string): Record<string, unknown> {
 }
 export function validateContent(kind: Kind, content: string): string[] {
   if (Buffer.byteLength(content) > 1024 * 1024) return ['配置文件最大 1 MiB']
-  if (kind === 'hooks' || kind === 'mcp') { try { jsonRoot(content); return [] } catch (error) { return [String(error)] } }
+  if (kind === 'hooks' || kind === 'mcp') {
+    try {
+      const root = jsonRoot(content), errors: string[] = []
+      for (const [name, value] of Object.entries(root)) {
+        if (kind === 'mcp') {
+          if (!value || typeof value !== 'object' || Array.isArray(value)) { errors.push(`${name}: 服务配置必须是对象`); continue }
+          const config = value as Record<string, unknown>
+          if (!config.type || config.type === 'stdio') { if (typeof config.command !== 'string' || !config.command.trim()) errors.push(`${name}: stdio 需要 command`) }
+          else if (config.type === 'http' || config.type === 'sse') { try { const url = new URL(String(config.url)); if (!['http:', 'https:'].includes(url.protocol)) throw new Error() } catch { errors.push(`${name}: HTTP/SSE 需要有效 URL`) } }
+          else errors.push(`${name}: 文件配置不支持此 MCP type`)
+          if (config.args !== undefined && (!Array.isArray(config.args) || config.args.some(arg => typeof arg !== 'string'))) errors.push(`${name}: args 必须是字符串数组`)
+          if (config.env !== undefined && (!config.env || typeof config.env !== 'object' || Array.isArray(config.env) || Object.values(config.env).some(v => typeof v !== 'string'))) errors.push(`${name}: env 必须是字符串映射`)
+        } else {
+          // Event names from SDK 0.3.314 HOOK_EVENTS; unknown fields are preserved.
+          const events = ['PreToolUse','PostToolUse','PostToolUseFailure','PostToolBatch','Notification','UserPromptSubmit','UserPromptExpansion','SessionStart','SessionEnd','Stop','StopFailure','SubagentStart','SubagentStop','PreCompact','PostCompact','PreModelSwitch','PostModelSwitch','PermissionRequest','PermissionDenied','Setup','TeammateIdle','TaskCreated','TaskCompleted','Elicitation','ElicitationResult','ConfigChange','WorktreeCreate','WorktreeRemove','InstructionsLoaded','CwdChanged','FileChanged','DirectoryAdded','MessageDisplay']
+          if (!events.includes(name)) errors.push(`${name}: 锁定版本未定义此 Hook 事件`)
+          if (!Array.isArray(value)) { errors.push(`${name}: 事件配置必须是数组`); continue }
+          for (const group of value) {
+            if (!group || !Array.isArray(group.hooks)) { errors.push(`${name}: 每项需要 hooks 数组`); continue }
+            if (group.matcher !== undefined && typeof group.matcher !== 'string') errors.push(`${name}: matcher 必须是字符串`)
+            for (const hook of group.hooks) {
+              if (!hook || typeof hook !== 'object' || typeof hook.type !== 'string') { errors.push(`${name}: Hook 需要 type`); continue }
+              if (hook.type === 'command' && (typeof hook.command !== 'string' || !hook.command.trim())) errors.push(`${name}: command Hook 缺少命令`)
+              if (['prompt', 'agent'].includes(hook.type) && typeof hook.prompt !== 'string') errors.push(`${name}: prompt/agent Hook 缺少 prompt`)
+              if (hook.type === 'http' && typeof hook.url !== 'string') errors.push(`${name}: HTTP Hook 缺少 URL`)
+              if (hook.timeout !== undefined && (typeof hook.timeout !== 'number' || hook.timeout <= 0)) errors.push(`${name}: timeout 必须大于 0`)
+            }
+          }
+        }
+      }
+      return errors
+    } catch (error) { return [String(error)] }
+  }
   const front = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content)
-  if (kind === 'skill' && !front) return ['Skill 需要 YAML frontmatter，包含 name 和 description']
+  // Native 2.1.314 permits a body-only skill and optional metadata.
   if (!front) return []
   const doc = parseDocument(front[1] ?? '')
   if (doc.errors.length) return doc.errors.map(error => error.message)
-  if (kind === 'skill') {
-    if (typeof doc.get('name') !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(String(doc.get('name')))) return ['name 必须为小写英文、数字或连字符，最多 64 字符']
-    if (typeof doc.get('description') !== 'string' || !String(doc.get('description')).trim()) return ['description 不能为空']
+  if (kind === 'skill' || kind === 'command') {
+    const name = doc.get('name')
+    if (name !== undefined && (typeof name !== 'string' || !name.trim() || /[<>\p{Cc}\p{Cf}\p{Co}\p{Cn}]|^ | $| {2}/u.test(name))) return ['name 包含原生命令不接受的字符']
+    if (doc.has('description') && typeof doc.get('description') !== 'string') return ['description 必须为字符串']
+    for (const field of ['disable-model-invocation', 'user-invocable']) {
+      const value = doc.get(field)
+      if (value !== undefined && !/^(true|false|yes|no|on|off|1|0)$/i.test(String(value))) return [`${field} 必须为原生布尔值`]
+    }
+    if (doc.has('context') && doc.get('context') !== 'fork') return ['context 只支持 fork']
+    const tools = doc.get('allowed-tools')
+    if (tools !== undefined && typeof tools !== 'string' && !(Array.isArray(tools) && tools.every(value => typeof value === 'string'))) return ['allowed-tools 必须为字符串或字符串数组']
   }
   return []
 }

@@ -12,6 +12,7 @@ import PermissionCard from './components/PermissionCard'
 import QuestionCard from './components/QuestionCard'
 import ContextPanel from './components/ContextPanel'
 import CommandPalette from './components/CommandPalette'
+const NativeTerminal = lazy(() => import('./components/NativeTerminal'))
 const SettingsModal = lazy(() => import('./components/SettingsCenter'))
 import Toast from './components/Toast'
 import QueueDock from './components/QueueDock'
@@ -25,6 +26,7 @@ export default function App() {
     wsRef.current?.send({ ...msg, ...(mutations.includes(String(msg.t)) ? { commandId: crypto.randomUUID() } : {}) } as { t: string })
   }, [])
   const closeSettings = useCallback(() => setSettingsOpen(false), [])
+  const [nativeOpen, setNativeOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -52,6 +54,7 @@ export default function App() {
   const newSessionRef = useRef<() => void>(() => {})
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest('.native-panel')) return
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setPaletteOpen((v) => !v)
@@ -153,6 +156,11 @@ export default function App() {
           break
         case 'message': {
           const sm = msg.sdkMessage as { type?: string; subtype?: string } | undefined
+          const diagnostic = msg.sdkMessage as { subtype?: string; hook_id?: string; hook_name?: string; hook_event?: string; outcome?: string; output?: string; stderr?: string; exit_code?: number } | undefined
+          if (sm?.type === 'system' && diagnostic?.hook_id && ['hook_started', 'hook_progress', 'hook_response'].includes(diagnostic.subtype ?? '')) {
+            const record = { id: diagnostic.hook_id, event: diagnostic.hook_event ?? 'Hook', name: diagnostic.hook_name ?? '', status: diagnostic.outcome ?? diagnostic.subtype ?? 'unknown', output: String(diagnostic.output ?? diagnostic.stderr ?? '').slice(0, 16000), exitCode: diagnostic.exit_code }
+            useStore.setState({ runtimeDiagnostics: [...s.runtimeDiagnostics.filter(item => item.id !== record.id), record].slice(-200) })
+          }
           if (sm?.type === 'assistant') s.onAssistantMessage(msg.sdkMessage)
           else if (sm?.type === 'user') {
             // SDK 中断协议:不发 result,而是注入 [Request interrupted by user] 的 user 消息。
@@ -185,6 +193,9 @@ export default function App() {
           }
           break
         }
+        case 'models':
+          if (msg.models) useStore.setState({ availableModels: msg.models })
+          break
         case 'metrics':
           if (msg.metrics) s.setMetrics(msg.metrics)
           break
@@ -252,8 +263,8 @@ export default function App() {
         localStorage.removeItem(`ccweb.draft:${useStore.getState().settings?.workspace ?? 'launch'}:${useStore.getState().sessionId ?? 'new'}`)
         return 'local'
       }
-      if (['login', 'logout', 'terminal-setup', 'vim', 'doctor', 'update', 'install'].includes(name)) {
-        useStore.getState().setError(`/${name} 需要在 Claude Code 终端执行；图形端请使用设置中心。`)
+      if (['login', 'logout', 'terminal-setup', 'vim', 'doctor', 'update', 'install', 'compact', 'rewind', 'tasks', 'plugins', 'permissions', 'add-dir', 'context'].includes(name)) {
+        setNativeOpen(true)
         return false
       }
       if (!useStore.getState().slashCommands.some(item => item.name === name)) { useStore.getState().setError(`未发现 /${name}。新建或修改命令后请启动新会话重新加载。`); return false }
@@ -389,11 +400,13 @@ export default function App() {
         onPatch={patchSettings}
         onSetWorkspace={setWorkspace}
         onToggleDetails={() => setDetailsOpen(v => !v)}
+        onNative={() => setNativeOpen(v => !v)}
         onReview={() => setReviewOpen(v => !v)}
       />
 
-          {reviewOpen && <ChangesReview onClose={() => setReviewOpen(false)} />}
-          <div className="conversation-layout" hidden={reviewOpen}>
+          {nativeOpen && <Suspense fallback={<p>正在加载原生终端…</p>}><NativeTerminal onClose={() => setNativeOpen(false)} /></Suspense>}
+          {reviewOpen && !nativeOpen && <ChangesReview onClose={() => setReviewOpen(false)} />}
+          <div className="conversation-layout" hidden={reviewOpen || nativeOpen}>
           {empty ? (
             <>
               <div className="empty-welcome">

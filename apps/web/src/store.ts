@@ -98,7 +98,9 @@ interface AppState {
   /** 上一轮完成时的统计(turn 尾渲染) */
   lastTurnStats: { totalS: number; ttftMs: number | null; tps: number | null } | null
   settings: SettingsSnapshot | null
-  mcpServers: Array<{ name: string; status: string }>
+  runtimeDiagnostics: Array<{ id: string; event: string; name: string; status: string; output: string; exitCode?: number }>
+  availableModels: Array<{ value: string; displayName: string; description: string }>
+  mcpServers: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }>
   slashCommands: Array<{ name: string; description: string }>
   /** @文件补全结果(server files.search 的相对路径列表,≤15) */
   fileResults: string[]
@@ -111,7 +113,7 @@ interface AppState {
   applyInit: (p: { sessionId: string | null; model: string | null; endpoint: string | null }) => void
   setSessions: (list: SessionMeta[]) => void
   setSettings: (s: SettingsSnapshot) => void
-  setMcp: (list: Array<{ name: string; status: string }>) => void
+  setMcp: (list: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }>) => void
   setSlashCommands: (list: Array<{ name: string; description: string }>) => void
   setFileResults: (files: string[]) => void
   setQueue: (items: Array<{ uuid: string; text: string }>) => void
@@ -154,6 +156,8 @@ export const useStore = create<AppState>((set) => ({
   turnStartedAt: null,
   lastTurnStats: null,
   settings: null,
+  runtimeDiagnostics: [],
+  availableModels: [],
   mcpServers: [],
   slashCommands: [],
   fileResults: [],
@@ -210,7 +214,7 @@ export const useStore = create<AppState>((set) => ({
   /** 历史回放:顺序跑渲染模型(与实时流同构--一条用户消息一个 turn,
    * assistant 消息经对账追加,tool_result 回填;新用户消息前收束上一 turn) */
   replayHistory: (messages) => {
-    set({ entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
+    set({ runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
     for (const raw of messages) {
       const m = raw as { type?: string; ccwebMetrics?: SessionMetrics; message?: { content?: unknown } } | null
       if (!m?.type) continue
@@ -261,7 +265,7 @@ export const useStore = create<AppState>((set) => ({
     }
     useStore.getState().finishTurn()
   },
-  clearView: () => set({ entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
+  clearView: () => set({ runtimeDiagnostics: [], availableModels: [], entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
   setMetrics: (metrics) => set(s => ({ metrics, ...(s.busy && metrics.runStartedAt ? { turnStartedAt: metrics.runStartedAt } : {}) })),
   setContext: (raw) => set({ context: { raw } }),
   pushPermission: (p) => set((s) => ({ permissions: [...s.permissions.filter(item => item.requestId !== p.requestId), p] })),

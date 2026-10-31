@@ -81,4 +81,20 @@ describe('native configuration persistence contracts', () => {
     expect(items.some(item => item.name === 'CLAUDE.local.md')).toBe(true)
   })
 
+  it('validates native optional skill metadata and structured MCP/Hooks without losing extensions', () => {
+    expect(module.validateContent('skill', '# Instructions only')).toEqual([])
+    expect(module.validateContent('skill', '---\nname: 中文审查\ndisable-model-invocation: yes\ncustom: keep\n---\nBody')).toEqual([])
+    expect(module.validateContent('skill', '---\ndisable-model-invocation: perhaps\n---\nBody').length).toBeGreaterThan(0)
+    expect(module.validateContent('mcp', '{"broken":{"type":"http","url":"file:///secret"}}').length).toBeGreaterThan(0)
+    expect(module.validateContent('hooks', '{"Stop":[{"hooks":[{"type":"command"}]}]}').length).toBeGreaterThan(0)
+    expect(module.validateContent('hooks', '{"Stop":[{"hooks":[{"type":"command","command":"node hook.mjs","custom":true}]}]}')).toEqual([])
+  })
+  it('discovers inherited rules as read-only and refuses writes outside the selected workspace', () => {
+    writeFileSync(join(temporary, 'CLAUDE.md'), 'parent instructions')
+    const item = module.listResources(workspace).find(item => item.source === 'inherited' && item.path === join(temporary, 'CLAUDE.md'))!
+    expect(item.writable).toBe(false)
+    const document = module.readResource(workspace, item.id)
+    expect(() => module.writeResource(workspace, item.id, 'overwrite', document.revision)).toThrow('只读')
+  })
+
 })

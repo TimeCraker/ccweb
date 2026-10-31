@@ -8,11 +8,11 @@ import DiffView from './DiffView'
 
 type Kind = 'skill' | 'command' | 'rule' | 'mcp' | 'hooks'
 type Tab = 'general' | 'connection' | 'permission' | Kind | 'about'
-interface Resource { id: string; name: string; kind: Kind; source: 'user' | 'project' | 'plugin'; path: string; writable: boolean }
+interface Resource { id: string; name: string; kind: Kind; source: 'user' | 'project' | 'plugin' | 'inherited' | 'managed'; path: string; writable: boolean; description?: string; invocation?: string }
 interface Document extends Resource { content: string; revision: string; errors: string[] }
 interface Runtime { configDirectory?: string; sdkVersion: string; binarySource: string; credentialConfigured: boolean; endpoint: string }
 const tabs: Array<[Tab, string]> = [['general', '通用'], ['connection', '模型与连接'], ['permission', '运行与权限'], ['skill', 'Skills'], ['command', 'Commands'], ['rule', '上下文与规则'], ['mcp', 'MCP 与工具'], ['hooks', 'Hooks'], ['about', '关于与更新']]
-const sourceLabel = { user: '用户', project: '当前项目', plugin: '插件 · 只读' }
+const sourceLabel = { user: '用户', project: '当前项目', plugin: '插件 · 只读', inherited: '父级继承 · 只读', managed: '组织托管 · 只读' }
 async function api<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: body === undefined ? undefined : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal })
   const data = await response.json() as T & { error?: string }
@@ -28,6 +28,8 @@ function frontmatter(content: string) {
 export default function SettingsCenter({ open, onClose, send }: { open: boolean; onClose: () => void; send: (message: Record<string, unknown>) => void }) {
   const settings = useStore(s => s.settings)
   const operationError = useStore(s => s.error)
+  const diagnostics = useStore(s => s.runtimeDiagnostics)
+  const availableModels = useStore(s => s.availableModels)
   const mcp = useStore(s => s.mcpServers)
   const slashCommands = useStore(s => s.slashCommands)
   const locale = useLocale()
@@ -40,6 +42,7 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
   const [source, setSource] = useState('all')
   const [search, setSearch] = useState('')
   const [sourceMode, setSourceMode] = useState(false)
+  const [conflict, setConflict] = useState<Document | null>(null)
   const [preview, setPreview] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -89,14 +92,14 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
     return () => { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('keydown', key, true) }
   }, [open, hasUnsaved, close])
   useEffect(() => { if (open) box.current?.focus() }, [open])
-  async function load(item: Resource) {
-    if (!dismissDraft()) return
+  async function load(item: Resource, committed = false) {
+    if (!committed && !dismissDraft()) return
     const id = ++request.current
     setError(''); setNotice(''); setSaving(true)
     try {
       const document = await api<Document>(`resource?${query}&id=${encodeURIComponent(item.id)}`)
       if (id !== request.current) return
-      setSelected(document); setDraft(document.content); setPreview(false); setSourceMode(false)
+      setConflict(null); setSelected(document); setDraft(document.content); setPreview(false); setSourceMode(false)
     } catch (e) { if (id === request.current) setError(String(e)) }
     finally { if (id === request.current) setSaving(false) }
   }
@@ -114,7 +117,7 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
       const result = await api<Document>('resource', { workspace, id: selected.id, content: draft, revision: selected.revision })
       setSelected(result); setDraft(result.content); setNotice('已保存。当前运行保持已加载配置；新会话使用保存版本。'); setPreview(false)
       await refresh(); send({ t: 'settings.get' })
-    } catch (e) { setError(String(e)) } finally { setSaving(false) }
+    } catch (e) { setError(String(e)); if (String(e).includes('其他操作修改')) { try { setConflict(await api<Document>(`resource?${query}&id=${encodeURIComponent(selected.id)}`)) } catch { /* Keep draft if disk reload fails. */ } } } finally { setSaving(false) }
   }
   async function create() {
     if (!newName || !['skill', 'command', 'rule'].includes(tab)) return
@@ -127,7 +130,7 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
     try {
       const item = await api<Resource>('resource/create', { workspace, source: createSource, kind: tab, name: newName, content })
       if (item.kind === 'command' || item.kind === 'skill') { const state = useStore.getState(); state.setSlashCommands([...state.slashCommands.filter(command => command.name !== item.name), { name: item.name, description: '' }]) }
-      setNewName(null); setCopyContent(null); await refresh(); await load(item); send({ t: 'settings.get' })
+      setNewName(null); setCopyContent(null); await refresh(); await load(item, true); send({ t: 'settings.get' })
       setNotice('已创建，可继续编辑内容。')
     } catch (e) { setError(String(e)) } finally { setSaving(false) }
   }
@@ -160,26 +163,29 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
       {(error || operationError) && <div role="alert" className="settings-error">{error || operationError}</div>}
       {notice && <div role="status" className="settings-notice">{notice}</div>}
       {isResource ? <>
-        <div className="resource-filters"><span>来源</span><div className="source-segments" role="group" aria-label="配置来源">{[["all","全部"],["user","用户"],["project","当前项目"],["plugin","插件"]].map(([id,label]) => <button key={id} aria-pressed={source === id} onClick={() => { if (dismissDraft()) setSource(id!) }}>{label}</button>)}</div><div className="resource-search"><IconSearch width={19} height={19} /><input placeholder="搜索技能或命令…" aria-label="搜索配置条目" value={search} onChange={e => setSearch(e.target.value)} /></div>{['skill', 'command', 'rule'].includes(tab) && <button onClick={() => { if (dismissDraft()) { setSelected(null); setDraft(''); setCopyContent(null); setNewName('') } }} className="resource-new"><IconPlus width={19} height={19} />新建{currentLabel}</button>}</div>
-        {tab === 'command' && <div className="settings-notice"><p>图形操作（只读）：/plan、/model、/clear、/new、/settings、/mcp、/help。登录、终端设置、升级等 TUI 操作请在终端执行。</p><p>发现的命令：{slashCommands.map(item => `/${item.name}`).join(' · ') || '暂无'}。文件扫描只表示发现；原生运行时会在新会话加载并验证可调用能力。</p></div>}
-        {tab === 'mcp' && <div className="settings-notice"><button onClick={() => send({ t: 'mcp.status' })}>刷新运行时状态</button>{mcp.length ? mcp.map(server => <span key={server.name}> {server.name}: {server.status} </span>) : ' 尚无已启动会话的 MCP 状态；配置文件存在不代表已连接。'}</div>}
+        <div className="resource-filters"><span>来源</span><div className="source-segments" role="group" aria-label="配置来源">{[["all","全部"],["user","用户"],["project","当前项目"],["plugin","插件"],["inherited","父级继承"],["managed","组织托管"]].map(([id,label]) => <button key={id} aria-pressed={source === id} onClick={() => { if (dismissDraft()) setSource(id!) }}>{label}</button>)}</div><div className="resource-search"><IconSearch width={19} height={19} /><input placeholder="搜索技能或命令…" aria-label="搜索配置条目" value={search} onChange={e => setSearch(e.target.value)} /></div>{['skill', 'command', 'rule'].includes(tab) && <button onClick={() => { if (dismissDraft()) { setSelected(null); setDraft(''); setCopyContent(null); setNewName('') } }} className="resource-new"><IconPlus width={19} height={19} />新建{currentLabel}</button>}</div>
+        {tab === 'rule' && <p className="settings-notice">指令可叠加加载；父级规则以只读方式显示。子目录规则和 @ 导入按实际访问惰性加载。此清单是来源发现，不声称所有文件已进入当前上下文；原生 /context 可核对实际加载。设置一般按托管→显式运行参数→本地→项目→用户优先，部分数组合并，权限规则另按原生契约。</p>}
+        {tab === 'command' && <div className="settings-notice"><p>图形操作（只读）：/plan、/model、/clear、/new、/settings、/mcp、/help。登录、终端设置等 TUI 操作可从工作台顶部「原生终端」进入。</p><p>发现的命令：{slashCommands.map(item => `/${item.name}`).join(' · ') || '暂无'}。文件扫描只表示发现；原生运行时会在新会话加载并验证可调用能力。</p></div>}
+        {tab === 'hooks' && <section className="settings-notice"><h3>当前会话 Hook 执行诊断</h3>{diagnostics.length ? diagnostics.map(item => <details key={item.id}><summary>{item.event} · {item.name} · {item.status}{item.exitCode !== undefined ? ` · 退出码 ${item.exitCode}` : ''}</summary><pre>{item.output || '原生未提供输出'}</pre></details>) : <p>尚无原生 Hook 事件。配置存在不代表已执行；事件来源与返回结果由运行时报告。</p>}</section>}
+        {tab === 'mcp' && <div className="settings-notice"><button onClick={() => send({ t: 'mcp.status' })}>刷新运行时状态</button>{mcp.length ? mcp.map(server => <span key={server.name}> <strong>{server.name}</strong>: {server.status} · {server.source ?? server.scope ?? "来源未知"}{server.error && <p role="alert">{server.error}</p>}{server.tools && <small>工具：{server.tools.join("、")}</small>}{([ ["reconnect", "重连"], ["enable", "启用"], ["disable", "停用"] ] as const).map(([action, label]) => <button key={action} onClick={() => send({ t: "mcp.control", name: server.name, action })}>{label}</button>)}</span>) : ' 尚无已启动会话的 MCP 状态；配置文件存在不代表已连接。'}</div>}
         {(tab === 'mcp' || tab === 'hooks') && <p className="settings-help">按原生 JSON 配置编辑；保存时只更新当前分区，保留文件中的其他设置。凭证使用遮罩，保持占位符即可保留原值。新会话生效。</p>}
         {newName !== null && <form className="resource-create" onSubmit={e => { e.preventDefault(); void create() }}><label>名称<input autoFocus value={newName} onChange={e => setNewName(e.target.value)} placeholder="review-changes" required /></label><label>保存到<select value={createSource} onChange={e => setCreateSource(e.target.value)}><option value="project">当前项目</option><option value="user">用户</option></select></label><button type="submit" disabled={saving || !newName.trim()}>创建</button><button type="button" onClick={() => setNewName(null)}>取消</button></form>}
-        <div className="resource-workspace"><div className="resource-list">{items.map(item => <button key={item.id} className={selected?.id === item.id ? 'selected' : ''} onClick={() => void load(item)}><strong>{item.name}</strong><span className={`source-badge ${item.source}`}>{sourceLabel[item.source]}</span><small>{!item.writable ? "原生只读条目 · 可复制编辑" : "原生配置 · 新会话加载"}</small></button>)}{!items.length && <p>此来源暂无条目。可新建用户或项目配置。</p>}</div>
+        <div className="resource-workspace"><div className="resource-list">{items.map(item => <button key={item.id} className={selected?.id === item.id ? 'selected' : ''} onClick={() => void load(item)}><strong>{item.name}</strong><span className={`source-badge ${item.source}`}>{sourceLabel[item.source]}</span><small>{!item.writable ? "原生只读条目 · 可复制编辑" : "原生配置 · 新会话加载"}</small><small>{item.invocation} {item.description}</small></button>)}{!items.length && <p>此来源暂无条目。可新建用户或项目配置。</p>}</div>
           <div className="resource-editor">{selected ? <>
             <div className="resource-heading"><div><h3>{selected.name}{dirty && <span className="dirty-indicator">● 有未保存更改</span>}</h3><p>来源：{sourceLabel[selected.source]}<span className="metadata-divider">|</span>生效：新会话</p></div><div><div className="editor-segments"><button aria-pressed={!sourceMode} onClick={() => setSourceMode(false)}>编辑</button><button aria-pressed={sourceMode} onClick={() => setSourceMode(true)}>源码</button></div>{['skill', 'command', 'rule'].includes(tab) && <button onClick={() => { if (dismissDraft()) { setCopyContent(draft); setNewName(`${selected.name.replace(/:/g, '-')}-copy`) } }}>复制</button>}<details className="resource-more"><summary aria-label="条目操作">⋯</summary><div><button disabled={saving} onClick={() => { if (dismissDraft()) void load(selected) }}>重新加载</button>{selected.writable && ['skill', 'command', 'rule'].includes(tab) && <button className="danger" disabled={saving} onClick={() => void remove()}>删除</button>}</div></details></div></div>
             {selected.errors.length > 0 && <div className="settings-error">{selected.errors.join('\n')}</div>}
             {!selected.writable && <p className="settings-notice">此来源只读，可复制为用户或项目条目后修改。</p>}
             {!sourceMode && ['skill', 'command'].includes(tab) && !parsed.document.errors.length ? <><label>名称<input value={String(parsed.document.get('name') ?? selected.name)} readOnly /></label><label>说明<input value={String(parsed.document.get('description') ?? '')} disabled={!selected.writable} onChange={e => setField('description', e.target.value)} /></label><label className="body-editor">指令正文<LineEditor label="指令正文" value={parsed.body} readOnly={!selected.writable} onChange={value => setDraft(parsed.match ? draft.slice(0, parsed.match[0].length) + value : value)} /></label></> : <label className="body-editor">{tab === 'mcp' || tab === 'hooks' ? 'JSON 配置' : 'Markdown 源码'}<LineEditor label="配置源码" value={draft} readOnly={!selected.writable} onChange={setDraft} /></label>}
+            {conflict && <section className="settings-error"><h4>磁盘版本与当前草稿比较（草稿已保留）</h4><DiffView oldStr={conflict.content} newStr={draft} /><button onClick={() => { setSelected(conflict); setConflict(null); setPreview(true); setNotice('已使用最新磁盘版本作为比较基线；请核对差异后明确保存。') }}>以此磁盘版本为比较基线</button></section>}
             {preview && <DiffView oldStr={selected.content} newStr={draft} />}
-            <footer className="resource-save"><div><small>写入位置</small><code title={selected.path}>{selected.source === 'project' ? selected.path.replace(workspace, '').replace(/^[\\/]/, '') : selected.path}</code><small>当前会话沿用已加载版本</small></div><button onClick={() => setPreview(!preview)}>查看差异</button>{selected.writable && <><button disabled={saving || !dirty} onClick={() => { setDraft(selected.content); setError('') }}>取消更改</button><button className="primary" disabled={!dirty || saving} onClick={() => void save()}>{saving ? '保存中…' : preview ? '确认保存' : '保存更改'}</button></>}</footer>
+            <footer className="resource-save"><div><small>写入位置</small><code title={selected.path}>{selected.source === 'project' ? selected.path.replace(workspace, '').replace(/^[\\/]/, '') : selected.path}</code><small>当前会话沿用已加载版本</small></div><button onClick={() => setPreview(!preview)}>查看差异</button>{selected.writable && <><button disabled={saving || !dirty} onClick={() => { setDraft(selected.content); setError('') }}>取消更改</button><button className="primary" disabled={!dirty || saving || conflict !== null} onClick={() => void save()}>{saving ? '保存中…' : preview ? '确认保存' : '保存更改'}</button></>}</footer>
           </> : <div className="settings-empty">选择一个条目，查看来源与内容。</div>}</div></div>
       </> : <div className="settings-form">
         {tab === 'general' && <><label>主题<select value={mode} onChange={e => setTheme(e.target.value as 'system' | 'dark' | 'light')}><option value="system">跟随系统</option><option value="dark">深色</option><option value="light">浅色</option></select></label><label>语言<select value={locale} onChange={e => setLocale(e.target.value as 'zh' | 'en')}><option value="zh">中文</option><option value="en">English</option></select></label><p>外观偏好保存在本浏览器，不修改 Claude 配置。</p></>}
         {tab === 'connection' && <>
           <p>配置来源：Claude 用户设置、启动环境与选择的端点模板。凭证只保留在本机服务端。</p><dl><dt>当前连接</dt><dd>{settings?.currentEndpoint ?? runtime?.endpoint ?? '尚未读取'}</dd><dt>当前会话模式</dt><dd>{settings?.active?.permissionMode ?? '尚未启动；使用默认值'}</dd><dt>默认模型</dt><dd>{settings?.model ?? settings?.currentModel ?? '继承运行时'}</dd><dt>凭证检查</dt><dd>{runtime?.credentialConfigured ? '检测到凭证配置，实际调用仍需验证' : '未检测到环境凭证；也可使用 Claude 原生登录或配置端点'}</dd></dl>
-          <button disabled={saving} onClick={() => { setSaving(true); setError(''); void api<{ binaryStarted: boolean; version: string; credentialConfigured: boolean }>('readiness').then(result => setNotice(`${result.binaryStarted ? '本机运行时启动成功' : '本机运行时不可用'}：${result.version}。${result.credentialConfigured ? '检测到凭证配置' : '未检测到环境凭证，可检查原生登录'}；此检查没有调用模型，账号权限与额度需由实际任务验证。`)).catch(e => setError(String(e))).finally(() => setSaving(false)) }}>检查本机就绪状态</button>
-          <label>默认模型<input value={model} placeholder={settings?.model ?? '留空恢复继承'} onChange={e => setModel(e.target.value)} /></label><button onClick={() => patch({ model: model.trim() || null })}>应用模型</button>
+          <button onClick={() => send({ t: "models.list" })}>发现原生模型（已启动会话）</button><button disabled={saving} onClick={() => { setSaving(true); setError(''); void api<{ binaryStarted: boolean; version: string; credentialConfigured: boolean }>('readiness').then(result => setNotice(`${result.binaryStarted ? '本机运行时启动成功' : '本机运行时不可用'}：${result.version}。${result.credentialConfigured ? '检测到凭证配置' : '未检测到环境凭证，可检查原生登录'}；此检查没有调用模型，账号权限与额度需由实际任务验证。`)).catch(e => setError(String(e))).finally(() => setSaving(false)) }}>检查本机就绪状态</button>
+          <label>默认模型<input list="native-models" value={model} placeholder={settings?.model ?? '留空恢复继承'} onChange={e => setModel(e.target.value)} /></label><datalist id="native-models">{availableModels.map(item => <option key={item.value} value={item.value}>{item.displayName}</option>)}</datalist><button onClick={() => patch({ model: model.trim() || null })}>应用模型</button>
           <label>思考力度<select value={settings?.effort ?? ''} onChange={e => patch({ effort: e.target.value || null })}><option value="">继承默认</option>{['low', 'medium', 'high', 'xhigh', 'max'].map(value => <option key={value}>{value}</option>)}</select></label>
           <label>端点模板<select value={settings?.endpointTemplate ?? ''} onChange={e => patch({ endpointTemplate: e.target.value || null })}><option value="">继承当前环境</option>{settings?.endpoints.map(item => <option key={item.key} value={item.key}>{item.name} · {item.baseUrl}</option>)}</select></label>
           <details><summary>添加或更新连接</summary><form onSubmit={e => { e.preventDefault(); setError(''); setSaving(true); void api<{ path: string; key: string }>('connection', connection).then(result => { setConnection({ name: '', url: '', token: '', model: '' }); setNotice(`已保存到 ${result.path}，请选择该模板以应用。`); send({ t: 'settings.get' }) }).catch(e => setError(String(e))).finally(() => setSaving(false)) }}>

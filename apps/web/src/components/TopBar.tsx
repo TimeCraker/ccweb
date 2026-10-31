@@ -7,14 +7,15 @@ interface Props {
   onPatch: (patch: Record<string, unknown>) => void
   onSetWorkspace: (dir: string) => void
   onToggleDetails?: () => void
+  onNative?: () => void
   onReview?: () => void
 }
-export default function TopBar({ onToggleDetails, onReview }: Props) {
+export default function TopBar({ onToggleDetails, onReview, onNative }: Props) {
   const sessionId = useStore(s => s.sessionId)
   const session = useStore(s => s.sessions.find(item => item.id === s.sessionId))
   const firstPrompt = useStore(s => s.entries.find(entry => entry.type === "user"))
   const title = session?.title ?? (firstPrompt?.type === "user" ? firstPrompt.text.split("\n")[0]!.slice(0, 80) : undefined) ?? (sessionId ? '当前会话' : '新会话')
-  return <header className="workbench-header"><div className="conversation-heading"><h1>{title}</h1>{session?.gitBranch && <span className="branch-label"><IconForkSmall />{session.gitBranch}</span>}</div><div className="header-actions"><button onClick={onReview}>改动与检查</button><button onClick={onToggleDetails}><SectionIcon name="panel" width={17} height={17} />运行详情</button><kbd><span>⌕</span> Ctrl K</kbd></div></header>
+  return <header className="workbench-header"><div className="conversation-heading"><h1>{title}</h1>{session?.gitBranch && <span className="branch-label"><IconForkSmall />{session.gitBranch}</span>}</div><div className="header-actions"><button onClick={onNative}>原生终端</button><button onClick={onReview}>改动与检查</button><button onClick={onToggleDetails}><SectionIcon name="panel" width={17} height={17} />运行详情</button><kbd><span>⌕</span> Ctrl K</kbd></div></header>
 }
 function IconForkSmall() { return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10m0-6c7 0 12 0 12-3"/></svg> }
 /** 工作区选择:胶囊 + 下拉(启动目录 + 全部历史项目) */

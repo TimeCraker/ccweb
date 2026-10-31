@@ -361,10 +361,21 @@ export class AgentSession {
     }
   }
 
-  async mcpStatus(): Promise<Array<{ name: string; status: string }>> {
+  async mcpStatus(): Promise<Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }>> {
     if (!this.q) return []
     const status = await this.q.mcpServerStatus()
-    return status.map(({ name, status }) => ({ name, status }))
+    // Do not return config/env/headers; SDK status may contain credentials.
+    return status.map(({ name, status, error, scope, source, tools }) => ({ name, status, ...(error ? { error } : {}), ...(scope ? { scope } : {}), ...(source ? { source } : {}), ...(tools ? { tools: tools.map(tool => tool.name) } : {}) }))
+  }
+  async controlMcp(name: string, action: 'reconnect' | 'enable' | 'disable'): Promise<void> {
+    if (!this.q) throw new Error('请先启动会话；保存配置不等于 MCP 已启动')
+    if (!(await this.q.mcpServerStatus()).some(server => server.name === name)) throw new Error('当前运行时未发现此 MCP')
+    if (action === 'reconnect') await this.q.reconnectMcpServer(name)
+    else await this.q.toggleMcpServer(name, action === 'enable')
+  }
+  async models(): Promise<Array<{ value: string; displayName: string; description: string }>> {
+    if (!this.q) throw new Error('模型发现需要已启动的原生会话；可先使用自定义模型')
+    return this.q.supportedModels()
   }
 
   async resolvePermission(
@@ -484,6 +495,19 @@ export class AgentSession {
               .filter((c) => c.name !== '')
           : [],
       })
+      return
+    }
+
+    if (type === 'conversation_reset' && typeof msg.new_conversation_id === 'string') {
+      if (this.sessionId === msg.new_conversation_id) return
+      Object.assign(this.acc, newAccumulator())
+      this.gate.cancelAll()
+      this.sessionId = msg.new_conversation_id
+      this.streamMetrics.begin(Date.now())
+      this.firstContentMs = null
+      this.emit({ t: 'cleared', seq: 0 })
+      this.emit({ t: 'init', seq: 0, sessionId: this.sessionId, model: this.settings.model, endpoint: buildAgentEnv(this.settings).ANTHROPIC_BASE_URL ?? null, slashCommands: [] })
+      this.emitMetrics()
       return
     }
 

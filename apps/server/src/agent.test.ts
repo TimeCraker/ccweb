@@ -12,6 +12,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
       yield { type: 'system', subtype: 'init', session_id: options.resume ?? options.sessionId, model: options.model ?? 'sonnet', slash_commands: ['compact'] }
       if (mock.mode === 'crash') throw new Error('synthetic crash')
       for await (const message of prompt) {
+        if (mock.mode === 'reset') { yield { type: 'conversation_reset', new_conversation_id: 'reset-session', session_id: options.sessionId }; yield { type: 'conversation_reset', new_conversation_id: 'reset-session', session_id: options.sessionId } }
         if (mock.mode === 'plan') {
           const directory = (options.settings as { plansDirectory: string }).plansDirectory
           writeFileSync(join(directory, 'current.md'), '# Current plan\n\nReview before execution.')
@@ -108,6 +109,18 @@ describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
     await agent.resolvePermission('plan-test', true)
     expect(agent.settings.permissionMode).toBe('default')
     expect(mock.order).toContain('mode:default')
+  })
+
+  it('resets usage on native conversation reset instead of keeping an eternal maximum', async () => {
+    mock.mode = 'failed-usage'
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('spend')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'metrics' && e.metrics.outputTokens === 7)).toBe(true))
+    mock.mode = 'reset'; agent.send('reset')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'init' && e.sessionId === 'reset-session')).toBe(true))
+    const last = events.filter(e => e.t === 'metrics').at(-1)
+    expect(last?.t === 'metrics' && last.metrics.outputTokens).toBe(0)
+    expect(events.filter(e => e.t === 'cleared')).toHaveLength(1)
   })
 
   it('retains failure usage and does not erase it on a zeroed failure', async () => {

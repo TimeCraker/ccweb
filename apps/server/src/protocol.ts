@@ -50,6 +50,8 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
     }),
   }),
   z.object({ t: z.literal('mcp.status') }),
+  z.object({ t: z.literal('mcp.control'), name: z.string().min(1), action: z.enum(['reconnect', 'enable', 'disable']) }),
+  z.object({ t: z.literal('models.list') }),
   z.object({ t: z.literal('request.status'), commandId: z.string().uuid() }),
   z.object({ t: z.literal('ping'), lastSeq: z.number().int().optional() }),
 ]).and(z.object({ commandId: z.string().uuid().optional() }))
@@ -109,7 +111,8 @@ export type ServerMessage =
   | { t: 'queue'; seq: number; items: Array<{ uuid: string; text: string }> }
   | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
   | { t: 'settings'; seq: number; settings: SettingsSnapshot }
-  | { t: 'mcpStatus'; seq: number; servers: Array<{ name: string; status: string }> }
+  | { t: 'models'; seq: number; models: Array<{ value: string; displayName: string; description: string }> }
+  | { t: 'mcpStatus'; seq: number; servers: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }> }
   | { t: 'cleared'; seq: number }
   | { t: 'error'; seq: number; code: string; message: string; retry?: boolean }
   | { t: 'pong'; seq: number }

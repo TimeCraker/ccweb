@@ -1,3 +1,4 @@
+import { attachNative, startNative, nativeWorkspaceBusy } from './native-terminal.js'
 import { atomicWrite, workspacePath, configApi } from './config-api.js'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -37,6 +38,18 @@ const PKG_VERSION = String(
 const app = new Hono()
 app.use(logger())
 app.route('/api', configApi)
+app.post('/api/native/start', async c => {
+  const origin = c.req.header('origin')
+  if (origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin ?? '')) return c.json({ error: 'Origin rejected' }, 403)
+  try {
+    const body = await c.req.json<{ workspace?: string; action: string }>()
+    const workspace = workspacePath(body.workspace)
+    const agents = [...new Set(registry.values())].filter(agent => agent.workspace === workspace)
+    if (agents.some(agent => agent.isRunning)) return c.json({ error: '先停止或完成此工作区的 GUI 任务，再启动原生进程' }, 409)
+    for (const agent of agents) { agent.abort(); for (const [key, value] of registry) if (value === agent) registry.delete(key); for (const [socket, value] of observers) if (value === agent) { observers.set(socket, null); socket.send(JSON.stringify({ t: 'state', state: 'cancelled', sessionId: agent.sessionId, seq: ++seq })) } }
+    return c.json(startNative(workspace, body.action))
+  } catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 400) }
+})
 app.get('/healthz', (c) => c.json({ ok: true, name: 'ccweb', version: PKG_VERSION }))
 
 // 生产模式:服务内嵌 web 产物(public/);SPA fallback 到 index.html
@@ -89,6 +102,13 @@ let operationTail: Promise<void> = Promise.resolve()
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin
   const allowed = !origin || (() => { try { const u = new URL(origin); return ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname) && [String(PORT), '5173'].includes(u.port) } catch { return false } })()
+  if (req.url === '/native' && allowed && !!origin) {
+    wss.handleUpgrade(req, socket, head, ws => {
+      const timer = setTimeout(() => ws.close(1008), 5000)
+      ws.once('message', raw => { clearTimeout(timer); try { const msg = JSON.parse(String(raw)); attachNative(ws, String(msg.id), String(msg.token), Number(msg.after) || 0) } catch { ws.close(1008) } })
+    })
+    return
+  }
   if (req.url === '/ws' && allowed) {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req))
   } else {
@@ -116,7 +136,10 @@ wss.on('connection', (ws) => {
   /** 新建 AgentSession 并在 init(拿到真实 sessionId)后自注册进 registry */
   function createTrackedAgent(opts: { cwd?: string; resume?: string; fork?: boolean }): AgentSession {
     const agent = new AgentSession((msg) => {
-      if (msg.t === 'init' && msg.sessionId) registry.set(msg.sessionId, agent)
+      if (msg.t === 'init' && msg.sessionId) {
+        for (const [key, value] of registry) if (value === agent && key !== msg.sessionId) registry.delete(key)
+        registry.set(msg.sessionId, agent)
+      }
       // turn 结束后刷新侧栏列表--新会话/新标题第一时间可见
       if (msg.t === 'message' && (msg.sdkMessage as { type?: string } | undefined)?.type === 'result') {
         void pushSessionList()
@@ -142,6 +165,7 @@ wss.on('connection', (ws) => {
   }
 
   function getOrCreateSession(sessionId?: string): AgentSession {
+    if (nativeWorkspaceBusy(workspace)) throw new Error('原生进程正在控制工作区；结束进程后可恢复 GUI 会话')
     const cwd = workspace
     if (!sessionId) {
       retireCurrent()
@@ -214,6 +238,8 @@ wss.on('connection', (ws) => {
     try {
     switch (msg.t) {
       case 'prompt': {
+        if (nativeWorkspaceBusy(workspace)) throw new Error('此工作区正在由原生终端控制，请结束原生进程后恢复 GUI 会话')
+        if (currentSession && ![...registry.values()].includes(currentSession)) retireCurrent()
         const agent = msg.sessionId
           ? getOrCreateSession(msg.sessionId)
           : (currentSession ?? getOrCreateSession())
@@ -226,6 +252,7 @@ wss.on('connection', (ws) => {
         await currentSession?.interrupt()
         break
       case 'queue.resume':
+        if (nativeWorkspaceBusy(workspace)) throw new Error('原生终端使用中，不能恢复 GUI 队列')
         currentSession?.resumeQueue()
         break
       case 'queue.delete':
@@ -362,6 +389,15 @@ wss.on('connection', (ws) => {
         emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
         break
       }
+      case 'models.list':
+        if (!currentSession) throw new Error('先启动原生会话以发现模型；可使用自定义模型')
+        emit({ t: 'models', seq: 0, models: await currentSession.models() })
+        break
+      case 'mcp.control':
+        if (!currentSession) throw new Error('请先启动会话')
+        await currentSession.controlMcp(msg.name, msg.action)
+        emit({ t: 'mcpStatus', seq: 0, servers: await currentSession.mcpStatus() })
+        break
       case 'mcp.status': {
         const agent = currentSession
         if (!agent) {
