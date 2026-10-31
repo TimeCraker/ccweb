@@ -41,6 +41,13 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('settings.get') }),
   z.object({
     t: z.literal('settings.patch'),
+    /**
+     * 作用范围:
+     * session = 只应用到当前对话(模型/工作方式)
+     * default = 只保存为新会话默认
+     * both    = 兼容旧客户端的默认行为
+     */
+    scope: z.enum(['session', 'default', 'both']).optional(),
     patch: z.object({
       authentication: z.enum(['inherit', 'native']).optional(),
       model: z.string().nullable().optional(),

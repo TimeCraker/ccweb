@@ -403,29 +403,53 @@ wss.on('connection', (ws) => {
         break
       }
       case 'settings.patch': {
+        // 作用范围:session=只影响当前对话;default=只影响新会话默认;both=旧行为(两者)
         const p = msg.patch
+        const scope = msg.scope ?? 'both'
+        const hasSessionField = p.model !== undefined || p.permissionMode !== undefined
+        const hasDefaultOnlyField =
+          p.authentication !== undefined ||
+          p.effort !== undefined ||
+          p.contextScope !== undefined ||
+          p.endpointTemplate !== undefined
+        if (scope === 'session') {
+          if (hasDefaultOnlyField) throw new Error('这些设置需要新会话生效，请保存为默认设置')
+          if (!currentSession) throw new Error('当前没有可应用的会话；请先发送一条任务，或保存为默认')
+        }
         const previous = { ...runtimeSettings }
+        const previousSession = currentSession
+          ? { model: currentSession.settings.model, permissionMode: currentSession.settings.permissionMode }
+          : null
         try {
-        if (p.authentication !== undefined) runtimeSettings.authentication = p.authentication
-        if (p.model !== undefined) runtimeSettings.model = p.model
-        if (p.permissionMode !== undefined) runtimeSettings.permissionMode = p.permissionMode
-        if (p.effort !== undefined) runtimeSettings.effort = p.effort
-        if (p.contextScope !== undefined && ['full', 'project', 'none'].includes(String(p.contextScope))) {
-          // 上下文注入是子进程启动参数:新会话生效
-          runtimeSettings.contextScope = p.contextScope as 'full' | 'project' | 'none'
-        }
-        if (p.endpointTemplate !== undefined) {
-          if (runtimeSettings.endpointTemplate !== p.endpointTemplate) {
-            // 端点是子进程 env:当前会话作废,新会话生效
-            runtimeSettings.endpointTemplate = p.endpointTemplate
+          if (scope !== 'session') {
+            if (p.authentication !== undefined) runtimeSettings.authentication = p.authentication
+            if (p.model !== undefined) runtimeSettings.model = p.model
+            if (p.permissionMode !== undefined) runtimeSettings.permissionMode = p.permissionMode
+            if (p.effort !== undefined) runtimeSettings.effort = p.effort
+            if (p.contextScope !== undefined && ['full', 'project', 'none'].includes(String(p.contextScope))) {
+              // 上下文注入是子进程启动参数:新会话生效
+              runtimeSettings.contextScope = p.contextScope as 'full' | 'project' | 'none'
+            }
+            if (p.endpointTemplate !== undefined) {
+              // 端点是子进程 env:当前会话作废,新会话生效
+              if (runtimeSettings.endpointTemplate !== p.endpointTemplate) runtimeSettings.endpointTemplate = p.endpointTemplate
+            }
+            saveRuntimeSettings()
           }
+          if (scope !== 'default' && hasSessionField) {
+            const sessionPatch: { model?: string | null; permissionMode?: string | null } = {}
+            if (p.model !== undefined) sessionPatch.model = p.model
+            if (p.permissionMode !== undefined) sessionPatch.permissionMode = p.permissionMode
+            await currentSession?.applySettings(sessionPatch)
+          }
+        } catch (error) {
+          Object.assign(runtimeSettings, previous)
+          try { saveRuntimeSettings() } catch { /* keep in-memory state authoritative */ }
+          if (previousSession && currentSession) {
+            try { await currentSession.applySettings(previousSession) } catch { /* best-effort rollback */ }
+          }
+          throw error
         }
-        await currentSession?.applySettings({
-          model: p.model,
-          permissionMode: p.permissionMode,
-        })
-        saveRuntimeSettings()
-        } catch (error) { Object.assign(runtimeSettings, previous); throw error }
         emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
         break
       }

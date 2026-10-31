@@ -59,3 +59,29 @@ it('failed operations have false receipts and persisted settings survive restart
  expect((await b.wait(f=>f.t==='ack'&&f.requestId===id)).ok).toBe(true)
  expect(b.frames.some(f=>f.t==='accepted')).toBe(false)
 },15000)
+
+it('scopes session changes away from persisted defaults', async () => {
+  const a = await client()
+  const runId = crypto.randomUUID()
+  a.send({ t: 'prompt', text: 'scope check', commandId: runId })
+  await a.wait((f) => f.t === 'accepted' && f.runId === runId)
+  await a.wait((f) => f.t === 'message' && f.sdkMessage?.type === 'result')
+
+  const sessionCmd = crypto.randomUUID()
+  a.send({ t: 'settings.patch', scope: 'session', patch: { model: 'fixture-session-only' }, commandId: sessionCmd })
+  expect((await a.wait((f) => f.t === 'ack' && f.requestId === sessionCmd)).ok).toBe(true)
+  const sessionSnapshot = await a.wait((f) => f.t === 'settings' && f.settings?.active?.model === 'fixture-session-only')
+  expect(sessionSnapshot.settings.model).not.toBe('fixture-session-only')
+
+  // 启动期设置不能只作用于当前会话
+  const rejected = crypto.randomUUID()
+  a.send({ t: 'settings.patch', scope: 'session', patch: { effort: 'max' }, commandId: rejected })
+  expect((await a.wait((f) => f.t === 'ack' && f.requestId === rejected)).ok).toBe(false)
+
+  // 默认作用域不改变当前会话的已确认值
+  const defaultCmd = crypto.randomUUID()
+  a.send({ t: 'settings.patch', scope: 'default', patch: { model: 'fixture-default-only' }, commandId: defaultCmd })
+  expect((await a.wait((f) => f.t === 'ack' && f.requestId === defaultCmd)).ok).toBe(true)
+  const defaultSnapshot = await a.wait((f) => f.t === 'settings' && f.settings?.model === 'fixture-default-only')
+  expect(defaultSnapshot.settings.active?.model).toBe('fixture-session-only')
+}, 15000)
