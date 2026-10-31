@@ -127,12 +127,13 @@ test('connection form validates drafts and marks stale test results', async ({ p
   await expect(dialog.getByText('连通成功')).toBeVisible()
   await expect(dialog.getByText(/anthropic\/v1\/messages/)).toBeVisible()
   await page.getByLabel('模型 ID').fill('glm-5.4')
-  await expect(dialog.getByText('表单已修改，以上结果不再代表当前草稿。')).toBeVisible()
+  await expect(dialog.getByText('旧测试结果已失效')).toBeVisible()
 
   await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/v1/chat/completions')
   await expect(dialog.getByText('此接口格式当前不兼容。')).toBeVisible()
   await page.getByLabel('接口地址（Base URL）').fill('not-a-url')
-  await expect(dialog.getByText('请输入完整地址，例如 https://api.example.com/anthropic')).toBeVisible()
+  await dialog.getByRole('button', { name: /连接测试/ }).click()
+  await expect(dialog.locator('.field-error')).toContainText('请输入完整地址')
   await expect(dialog.getByRole('button', { name: '保存并使用' })).toBeDisabled()
 })
 

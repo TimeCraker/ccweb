@@ -154,6 +154,9 @@ export function Menu({
 
   const onPanelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return
+    const target = event.target as HTMLElement
+    // 输入框内的 Home/End/方向键属于文本编辑,不能被菜单导航截获
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) return
     const items = Array.from(
       panel.current?.querySelectorAll<HTMLElement>(
         '[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]',
@@ -174,9 +177,8 @@ export function Menu({
     } else if (event.key === 'End') {
       event.preventDefault()
       items[items.length - 1]?.focus()
-    } else if (event.key === 'Tab') {
-      close(false)
     }
+    // Tab/Shift+Tab 交给浏览器:焦点真正离开面板时由 onBlur 关闭
   }
 
   return (
@@ -192,6 +194,11 @@ export function Menu({
           aria-label={label}
           tabIndex={-1}
           onKeyDown={onPanelKeyDown}
+          onBlur={(event) => {
+            const next = event.relatedTarget as Node | null
+            if (next && panel.current?.contains(next)) return
+            close(false)
+          }}
           className={`menu ${className ?? ''}`}
           style={{
             left: pos?.left ?? 0,

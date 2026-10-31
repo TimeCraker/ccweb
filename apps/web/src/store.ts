@@ -137,7 +137,15 @@ interface AppState {
   checkpoints: Array<{ id: string; text: string }>
   rewind: { preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } } | null
   runtimeDiagnostics: Array<{ id: string; event: string; name: string; status: string; output: string; exitCode?: number }>
-  availableModels: Array<{ value: string; displayName: string; description: string }>
+  availableModels: Array<{
+    value: string
+    displayName: string
+    description: string
+    resolvedModel?: string
+    supportsEffort?: boolean
+    supportedEffortLevels?: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'>
+    supportsAdaptiveThinking?: boolean
+  }>
   mcpServers: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }>
   slashCommands: Array<{ name: string; description: string }>
   /** @文件补全结果(server files.search 的相对路径列表,≤15) */

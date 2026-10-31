@@ -49,7 +49,7 @@ export function useConnectionLabel(): { name: string | null; endpoint: string | 
 }
 
 export function currentModelOf(settings: ReturnType<typeof useStore.getState>['settings'], live: string | null): string | null {
-  return settings?.active?.model ?? live ?? settings?.model ?? settings?.currentModel ?? null
+  return settings?.active?.model ?? settings?.model ?? settings?.currentModel ?? live ?? null
 }
 
 /** 设置变更统一入口:scope 决定只影响当前会话、只保存默认,还是两者 */
@@ -180,12 +180,39 @@ export function ModelMenu({
   const endpoints = settings?.endpoints ?? []
   const currentEffort = settings?.active?.effort ?? settings?.effort ?? null
   const defaultEffort = settings?.effort ?? null
+  const sessionOverride = sessionId ? settings?.active?.model ?? null : null
+  const currentSelection = sessionId ? sessionOverride : settings?.model ?? null
+  const currentModelInfo = availableModels.find(
+    (item) => item.value === (currentSelection ?? activeConnection?.model) || item.resolvedModel === (currentSelection ?? activeConnection?.model),
+  )
+  const effortLevels: ReadonlyArray<(typeof EFFORTS)[number]> =
+    !currentModelInfo || currentModelInfo.supportsEffort === false
+      ? []
+      : currentModelInfo.supportedEffortLevels?.length
+        ? EFFORTS.filter((level) => currentModelInfo.supportedEffortLevels?.includes(level))
+        : currentModelInfo.supportsEffort
+          ? EFFORTS
+          : []
   const models = [
-    ...(settings?.model ? [{ value: settings.model, displayName: settings.model, description: '默认模型' }] : []),
+    ...(sessionOverride && !availableModels.some((item) => item.value === sessionOverride)
+      ? [{ value: sessionOverride, displayName: sessionOverride, description: '当前会话覆盖' }]
+      : []),
+    ...(settings?.model ? [{ value: settings.model, displayName: settings.model, description: '新会话默认' }] : []),
     ...availableModels,
   ].filter((item, index, list) => list.findIndex((other) => other.value === item.value) === index)
+  const normalizedQuery = query.trim().toLowerCase()
+  const visibleEndpoints = normalizedQuery
+    ? endpoints.filter((endpoint) =>
+        [endpoint.name, endpoint.baseUrl ?? '', endpoint.model ?? ''].some((value) =>
+          value.toLowerCase().includes(normalizedQuery),
+        ),
+      )
+    : endpoints
   const visibleModels = models.filter(
-    (item) => !query || item.value.toLowerCase().includes(query.toLowerCase()) || item.displayName.toLowerCase().includes(query.toLowerCase()),
+    (item) =>
+      !normalizedQuery ||
+      item.value.toLowerCase().includes(normalizedQuery) ||
+      item.displayName.toLowerCase().includes(normalizedQuery),
   )
   const disabled = conn !== 'open' || !settings
 
@@ -226,11 +253,11 @@ export function ModelMenu({
             />
           </div>
 
-          {query === '' && (
+          {(normalizedQuery === '' || visibleEndpoints.length > 0) && (
             <>
               <div className="menu-label">已配置连接</div>
-              {endpoints.length === 0 && <p className="menu-empty">尚无已配置连接</p>}
-              {endpoints.map((endpoint) => (
+              {endpoints.length === 0 && normalizedQuery === '' && <p className="menu-empty">尚无已配置连接</p>}
+              {visibleEndpoints.map((endpoint) => (
                 <MenuItem
                   key={endpoint.key}
                   selected={templates === endpoint.key}
@@ -247,23 +274,25 @@ export function ModelMenu({
                   {endpoint.name}
                 </MenuItem>
               ))}
-              <MenuItem
-                icon={<IconPlus width={14} height={14} style={{ marginTop: 2, color: 'var(--color-accent)' }} />}
-                onClick={() => {
-                  close()
-                  onAddConnection()
-                }}
-                description="填写接口地址与 API Key"
-              >
-                添加模型连接
-              </MenuItem>
+              {normalizedQuery === '' && (
+                <MenuItem
+                  icon={<IconPlus width={14} height={14} style={{ marginTop: 2, color: 'var(--color-accent)' }} />}
+                  onClick={() => {
+                    close()
+                    onAddConnection()
+                  }}
+                  description="填写接口地址与 API Key"
+                >
+                  添加模型连接
+                </MenuItem>
+              )}
               <div className="menu-sep" />
             </>
           )}
 
           <div className="menu-label">{sessionId ? '当前会话的模型' : '新会话默认模型'}</div>
           <MenuItem
-            selected={!settings?.model}
+            selected={currentSelection === null}
             description={
               activeConnection?.model ? `由连接决定：${activeConnection.model}` : '由连接决定，切换连接时恢复'
             }
@@ -276,13 +305,17 @@ export function ModelMenu({
           </MenuItem>
           {visibleModels.length === 0 && (
             <p className="menu-empty">
-              {query ? '没有匹配的模型' : '使用连接默认模型即可；运行一次任务后也会自动发现可用模型。'}
+              {normalizedQuery
+                ? visibleEndpoints.length > 0
+                  ? '没有匹配的模型，上方连接仍可选'
+                  : '没有匹配的模型或连接'
+                : '使用连接默认模型即可；运行一次任务后也会自动发现可用模型。'}
             </p>
           )}
           {visibleModels.map((item) => (
             <MenuItem
               key={item.value}
-              selected={model === item.value}
+              selected={currentSelection === item.value}
               description={item.description || item.displayName}
               onClick={() => {
                 close()
@@ -300,11 +333,11 @@ export function ModelMenu({
 
           <div className="menu-sep" />
           <MenuItem
-            disabled={defaultModel === (settings?.active?.model ?? settings?.model ?? null)}
-            description={`新会话使用：${settings?.active?.model ?? defaultModel ?? activeConnection?.model ?? '连接默认模型'}`}
+            disabled={defaultModel === (sessionOverride ?? settings?.model ?? null)}
+            description={`新会话使用：${sessionOverride ?? settings?.model ?? activeConnection?.model ?? '连接默认模型'}`}
             onClick={() => {
               close()
-              patch({ model: settings?.active?.model ?? defaultModel ?? null }, 'default')
+              patch({ model: sessionOverride ?? settings?.model ?? null }, 'default')
             }}
           >
             保存为默认模型
@@ -323,7 +356,7 @@ export function ModelMenu({
             >
               默认
             </button>
-            {EFFORTS.map((effort) => (
+            {effortLevels.map((effort) => (
               <button
                 key={effort}
                 className={`effort-pill ${currentEffort === effort ? 'is-active' : ''}`}
@@ -335,9 +368,15 @@ export function ModelMenu({
             ))}
           </div>
           <p className="menu-foot-note">
-            {currentEffort === defaultEffort
-              ? '思考力度属于新会话设置；模型/服务商不支持时可能被拒绝，运行时确认后保持原值。'
-              : `当前会话尚未切换；新会话将使用「${currentEffort ? EFFORT_LABEL[currentEffort] ?? currentEffort : '默认'}」。`}
+            {effortLevels.length === 0
+              ? currentModelInfo?.supportsEffort === false
+                ? '当前模型声明不支持思考档位，保持「默认」。'
+                : '运行时没有报告当前模型的思考档位，保持「默认」；发现模型可用后再查看支持范围。'
+              : currentEffort && !effortLevels.includes(currentEffort as (typeof EFFORTS)[number])
+                ? `当前设置「${EFFORT_LABEL[currentEffort] ?? currentEffort}」不在该模型声明的支持范围内，运行时可能拒绝；选择下方档位会覆盖。`
+                : currentEffort === defaultEffort
+                  ? '思考力度只影响新会话；模型/服务商不支持时会被拒绝，运行时确认后保持原值。'
+                  : `当前会话尚未切换；新会话将使用「${currentEffort ? EFFORT_LABEL[currentEffort] ?? currentEffort : '默认'}」。`}
           </p>
 
           <div className="menu-sep" />

@@ -39,6 +39,7 @@ interface Connection {
   baseUrl: string
   model: string | null
   hasKey: boolean
+  inheritAuth: boolean
   createdAt: number
   updatedAt: number
 }
@@ -113,6 +114,8 @@ function frontmatter(content: string) {
   return { match, document, body: match ? content.slice(match[0].length) : content }
 }
 
+type AuthMode = 'key' | 'inherit' | 'none'
+
 interface FormState {
   key: string | null
   name: string
@@ -120,6 +123,7 @@ interface FormState {
   model: string
   apiKey: string
   keepKey: boolean
+  authMode: AuthMode
 }
 
 /** 连接表单的字段级校验:与服务端 normalizeBaseUrl 的边界保持一致 */
@@ -135,6 +139,9 @@ function validateConnection(form: FormState): Partial<Record<'name' | 'baseUrl' 
       if (!['http:', 'https:'].includes(url.protocol)) errors.baseUrl = '只支持 http:// 或 https://'
       else if (url.username || url.password) errors.baseUrl = '不要把凭证写在地址里'
       else if (url.search) errors.baseUrl = '地址不要包含查询参数'
+      else if (/\/messages$/i.test(url.pathname) && !/\/v1\/messages$/i.test(url.pathname)) {
+        errors.baseUrl = '请填写根地址，不要包含 /messages；运行时会在根地址后追加 /v1/messages'
+      }
     } catch {
       errors.baseUrl = '请输入完整地址，例如 https://api.example.com/anthropic'
     }
@@ -190,18 +197,23 @@ export default function SettingsCenter({
   const [testing, setTesting] = useState(false)
   const [probe, setProbe] = useState<{ signature: string; result: ProbeResult } | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
+  /** 草稿编辑序号:任何字段修改都会让旧测试结果永久失效(即使改回原值) */
+  const [draftVersion, setDraftVersion] = useState(0)
+  const [formTouched, setFormTouched] = useState(false)
+  const [formAttempted, setFormAttempted] = useState(false)
   const [showKey, setShowKey] = useState(false)
   const [needsNewSession, setNeedsNewSession] = useState(false)
   const [deletedSessions, setDeletedSessions] = useState<DeletedSession[]>([])
   const [restoringId, setRestoringId] = useState<string | null>(null)
   const probeController = useRef<AbortController | null>(null)
+  const probeSeq = useRef(0)
   const box = useRef<HTMLDivElement>(null)
   const request = useRef(0)
   const workspace = settings?.workspace ?? ''
   const formErrors = form ? validateConnection(form) : {}
   const formValid = Object.keys(formErrors).length === 0
   const dirty = selected !== null && draft !== selected.content
-  const formDirty = form !== null && (form.name.trim() !== '' || form.baseUrl.trim() !== '' || form.apiKey.trim() !== '' || form.model.trim() !== '')
+  const formDirty = form !== null && formTouched
   const hasUnsaved = dirty || formDirty || newName !== null
   const dismissDraft = useCallback(() => !hasUnsaved || window.confirm('放弃尚未保存的更改？'), [hasUnsaved])
   const close = useCallback(() => {
@@ -442,7 +454,33 @@ export default function SettingsCenter({
   // ---------- 连接流程 ----------
 
   const currentTemplate = settings?.endpointTemplate ?? null
+  const endpointList = settings?.endpoints ?? []
+  const currentTemplateConnection = currentTemplate ? endpointList.find((item) => item.key === currentTemplate) : undefined
   const currentModel = settings?.active?.model ?? activeModel ?? settings?.model ?? settings?.currentModel ?? null
+  const describeSource = (key: string | null) => {
+    if (!key) return settings?.authentication === 'native' ? 'Claude 原生登录' : '本机环境'
+    const endpoint = endpointList.find((item) => item.key === key)
+    return endpoint ? `连接「${endpoint.name}」` : '本机/旧模板（只读）'
+  }
+  const describeAuth = (auth: string | undefined, key: string | null) => {
+    if (auth === 'native') return '原生登录'
+    const connection = key?.startsWith('ccweb-') ? connections.find((item) => `ccweb-${item.key}` === key) : undefined
+    if (connection?.inheritAuth) return '继承本机凭证'
+    if (connection?.hasKey) return '连接 API Key'
+    if (connection) return '无认证'
+    return '本机环境'
+  }
+  const effortModel = settings?.model ?? currentModel ?? (settings?.endpointTemplate ? settings.endpoints.find((item) => item.key === settings.endpointTemplate)?.model ?? null : null)
+  const effortInfo = availableModels.find((item) => item.value === effortModel || item.resolvedModel === effortModel)
+  const effortLevels: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'> =
+    !effortInfo || effortInfo.supportsEffort === false
+      ? []
+      : effortInfo.supportedEffortLevels?.length
+        ? effortInfo.supportedEffortLevels
+        : effortInfo.supportsEffort
+          ? ['low', 'medium', 'high', 'xhigh', 'max']
+          : []
+  const EFFORT_LABELS: Record<string, string> = { low: '低', medium: '中', high: '高', xhigh: '很高', max: '最大' }
 
   function startCreate() {
     setShowKey(false)
@@ -450,7 +488,10 @@ export default function SettingsCenter({
     setConnectionError('')
     setConnectionNotice('')
     setNeedsNewSession(false)
-    setForm({ key: null, name: '', baseUrl: '', model: '', apiKey: '', keepKey: false })
+    setDraftVersion((v) => v + 1)
+    setFormTouched(false)
+    setFormAttempted(false)
+    setForm({ key: null, name: '', baseUrl: '', model: '', apiKey: '', keepKey: false, authMode: 'key' })
   }
 
   function startEdit(connection: Connection) {
@@ -459,6 +500,9 @@ export default function SettingsCenter({
     setConnectionError('')
     setConnectionNotice('')
     setNeedsNewSession(false)
+    setDraftVersion((v) => v + 1)
+    setFormTouched(false)
+    setFormAttempted(false)
     setForm({
       key: connection.key,
       name: connection.name,
@@ -466,23 +510,35 @@ export default function SettingsCenter({
       model: connection.model ?? '',
       apiKey: '',
       keepKey: connection.hasKey,
+      authMode: connection.inheritAuth ? 'inherit' : connection.hasKey ? 'key' : 'none',
     })
   }
 
+  function updateForm(patch: Partial<FormState>) {
+    setFormTouched(true)
+    setDraftVersion((v) => v + 1)
+    setForm((current) => (current ? { ...current, ...patch } : current))
+  }
+
   function signatureOf(state: FormState): string {
-    return `${state.baseUrl.trim()}|${state.model.trim()}|${state.apiKey.trim() ? 'new' : state.keepKey ? 'stored' : 'none'}`
+    // 不泄漏到日志;只用于比较草稿身份。draftVersion 确保改回原值也不会复活旧结果。
+    return `${draftVersion}|${state.key ?? ''}|${state.baseUrl.trim()}|${state.model.trim()}|${state.authMode}|${state.apiKey.trim()}|${state.keepKey ? 'keep' : 'new'}`
   }
 
   async function runProbe() {
     if (!form) return
+    setFormAttempted(true)
     if (formErrors.baseUrl) {
       setConnectionError(formErrors.baseUrl)
       return
     }
-    if (!form.apiKey.trim() && !form.keepKey) {
+    if (form.authMode === 'key' && !form.apiKey.trim() && !form.keepKey) {
       setConnectionError('测试连接需要 API Key；也可以先保存，稍后再测。')
       return
     }
+    // 新测试取代旧测试:中止旧请求,并让迟到的旧响应无法写回
+    probeController.current?.abort()
+    const seq = ++probeSeq.current
     const signature = signatureOf(form)
     const controller = new AbortController()
     probeController.current = controller
@@ -494,22 +550,24 @@ export default function SettingsCenter({
         'connections/test',
         {
           baseUrl: form.baseUrl.trim(),
-          apiKey: form.apiKey.trim() || null,
+          apiKey: form.authMode === 'key' ? form.apiKey.trim() || null : form.authMode === 'none' ? '' : null,
           model: form.model.trim() || null,
-          connectionKey: form.keepKey ? form.key : null,
+          connectionKey: form.authMode === 'key' && form.keepKey ? form.key : null,
+          inheritAuth: form.authMode === 'inherit',
         },
         controller.signal,
       )
-      if (controller.signal.aborted) return
+      if (seq !== probeSeq.current || controller.signal.aborted) return
       setProbe({ signature, result })
     } catch (e) {
+      if (seq !== probeSeq.current) return
       if (controller.signal.aborted) {
         setConnectionNotice('已取消测试，没有保存任何更改。')
         return
       }
       setConnectionError(String(e instanceof Error ? e.message : e))
     } finally {
-      if (probeController.current === controller) {
+      if (seq === probeSeq.current && probeController.current === controller) {
         probeController.current = null
         setTesting(false)
       }
@@ -524,6 +582,7 @@ export default function SettingsCenter({
 
   async function saveAndUse() {
     if (!form) return
+    setFormAttempted(true)
     if (!formValid) {
       setConnectionError('请先修正表单中的错误：' + Object.values(formErrors).join('；'))
       return
@@ -547,13 +606,20 @@ export default function SettingsCenter({
         name: form.name.trim() || null,
         baseUrl: form.baseUrl.trim(),
         model: form.model.trim() || null,
-        apiKey: form.keepKey && !form.apiKey ? undefined : form.apiKey,
+        apiKey:
+          form.authMode === 'key'
+            ? form.apiKey.trim() || (form.keepKey ? undefined : '')
+            : form.authMode === 'none'
+              ? ''
+              : undefined,
+        inheritAuth: form.authMode === 'inherit',
       })
       await refreshConnections()
       send({ t: 'settings.patch', scope: 'default', patch: { endpointTemplate: result.templateKey, model: null } })
       send({ t: 'settings.get' })
       // 保存成功后收起表单,避免把已保存内容误判为"未保存草稿"
       setForm(null)
+      setFormTouched(false)
       setProbe(null)
       setNeedsNewSession(Boolean(sessionId))
       setConnectionNotice(
@@ -752,14 +818,27 @@ export default function SettingsCenter({
               <div className="settings-section">
                 <div className="note">
                   <div>
-                    <strong>当前生效</strong>
+                    <strong>当前会话</strong>
                     <div style={{ marginTop: 3 }}>
-                      {currentModel ? `模型 ${currentModel}` : '尚未确定模型'}
-                      {settings?.currentEndpoint ? ` · ${hostOf(settings.currentEndpoint)}` : ''}
-                      {settings?.authentication === 'native' ? ' · Claude 原生登录' : ''}
+                      {settings?.active
+                        ? [
+                            settings.active.model ?? currentModel ? `模型 ${settings.active.model ?? currentModel}` : '使用连接默认模型',
+                            describeSource(settings.active.endpointTemplate),
+                            describeAuth(settings.active.authentication ?? settings.authentication, settings.active.endpointTemplate),
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')
+                        : '尚未开始会话；下一次发送会使用下面的新会话默认。'}
                     </div>
-                    <div style={{ marginTop: 2, fontSize: 11.5 }}>
-                      连接与模型改动会应用到新会话；正在运行的任务不受影响。
+                    <div style={{ marginTop: 6 }}>
+                      <strong>新会话默认</strong>
+                      <div style={{ marginTop: 3 }}>
+                        {settings?.model ?? currentTemplateConnection?.model ?? '连接默认模型'} ·{' '}
+                        {currentTemplateConnection?.name ?? (settings?.authentication === 'native' ? 'Claude 原生登录' : '本机环境')}
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 4, fontSize: 11.5 }}>
+                      这里保存的是新会话默认；当前会话的模型/工作方式请在输入区菜单切换。正在运行的任务不受影响。
                     </div>
                   </div>
                 </div>
@@ -810,8 +889,11 @@ export default function SettingsCenter({
                       <div className="conn-main">
                         <strong>
                           {connection.name}
-                          {isCurrent && <span className="badge accent">当前</span>}
-                          <span className={`dot ${connection.hasKey ? 'ok' : 'warn'}`} title={connection.hasKey ? '已保存 Key' : '未保存 Key'} />
+                          {isCurrent && <span className="badge accent">新会话默认</span>}
+                          <span
+                            className={`dot ${connection.hasKey || connection.inheritAuth ? 'ok' : 'warn'}`}
+                            title={connection.inheritAuth ? '继承本机凭证' : connection.hasKey ? '已保存 Key' : '无认证'}
+                          />
                         </strong>
                         <div className="conn-url" title={connection.baseUrl}>
                           {connection.baseUrl}
@@ -819,7 +901,13 @@ export default function SettingsCenter({
                         <div className="conn-meta">
                           <span>{connection.model ? `默认模型 ${connection.model}` : '未指定默认模型'}</span>
                           <span>·</span>
-                          <span>{connection.hasKey ? '已保存 API Key' : '无 API Key（可能使用原生登录）'}</span>
+                          <span>
+                            {connection.inheritAuth
+                              ? '继承本机环境凭证'
+                              : connection.hasKey
+                                ? '已保存 API Key'
+                                : '无认证（仅适合本机网关）'}
+                          </span>
                         </div>
                       </div>
                       <div className="conn-side">
@@ -866,21 +954,21 @@ export default function SettingsCenter({
                         <input
                           value={form.name}
                           aria-label="连接名称"
-                          aria-invalid={Boolean(formErrors.name)}
-                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          aria-invalid={formAttempted && Boolean(formErrors.name)}
+                          onChange={(e) => updateForm({ name: e.target.value })}
                           placeholder={form.baseUrl ? hostOf(form.baseUrl) : '例如：我的 GLM'}
                           autoComplete="off"
                         />
                         <span className="hint">仅用于界面显示，可留空。</span>
-                        {formErrors.name && <span className="field-error">{formErrors.name}</span>}
+                        {formAttempted && formErrors.name && <span className="field-error">{formErrors.name}</span>}
                       </label>
                       <label className="field">
                         <span className="label">模型 ID</span>
                         <input
                           value={form.model}
                           aria-label="模型 ID"
-                          aria-invalid={Boolean(formErrors.model)}
-                          onChange={(e) => setForm({ ...form, model: e.target.value })}
+                          aria-invalid={formAttempted && Boolean(formErrors.model)}
+                          onChange={(e) => updateForm({ model: e.target.value })}
                           placeholder="例如：glm-4.7"
                           autoComplete="off"
                           list="probe-models"
@@ -893,46 +981,81 @@ export default function SettingsCenter({
                           ))}
                         </datalist>
                         <span className="hint">使用服务商提供的模型 ID；留空则用连接默认模型。</span>
-                        {formErrors.model && <span className="field-error">{formErrors.model}</span>}
+                        {formAttempted && formErrors.model && <span className="field-error">{formErrors.model}</span>}
                       </label>
                       <label className="field full">
                         <span className="label">接口地址（Base URL）</span>
                         <input
                           value={form.baseUrl}
                           aria-label="接口地址（Base URL）"
-                          aria-invalid={Boolean(formErrors.baseUrl)}
-                          onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
+                          aria-invalid={formAttempted && Boolean(formErrors.baseUrl)}
+                          onChange={(e) => updateForm({ baseUrl: e.target.value })}
                           placeholder="https://api.example.com/anthropic"
                           autoComplete="off"
                           spellCheck={false}
                         />
                         <span className="hint">
-                          需要 Anthropic Messages 兼容接口。只填到接口根路径，不要写完整的 /messages；测试时会显示实际请求地址。
+                          需要 Anthropic Messages 兼容接口。末尾的 /v1 或 /v1/messages 会自动去掉，真实请求和测试统一使用“根地址 + /v1/messages”；不要包含其他 /messages 路径。
                           只提供 OpenAI Chat Completions 的服务暂不兼容。
                         </span>
-                        {formErrors.baseUrl && <span className="field-error">{formErrors.baseUrl}</span>}
+                        {formAttempted && formErrors.baseUrl && <span className="field-error">{formErrors.baseUrl}</span>}
                       </label>
-                      <label className="field full">
-                        <span className="label">
-                          API Key
-                          {form.keepKey && <span className="badge">已保存</span>}
-                        </span>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <input
-                            type={showKey ? 'text' : 'password'}
-                            value={form.apiKey}
-                            aria-label="API Key"
-                            onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
-                            placeholder={form.keepKey ? '留空则保留已保存的 Key' : '粘贴服务商提供的 API Key'}
-                            autoComplete="off"
-                            spellCheck={false}
-                          />
-                          <button type="button" className="btn" onClick={() => setShowKey((v) => !v)} aria-label={showKey ? '隐藏 Key' : '显示 Key'}>
-                            {showKey ? '隐藏' : '显示'}
-                          </button>
+                      <div className="field full">
+                        <span className="label">认证方式</span>
+                        <div className="segmented" role="radiogroup" aria-label="认证方式">
+                          {(
+                            [
+                              ['key', '连接 Key'],
+                              ['inherit', '继承本机凭证'],
+                              ['none', '无认证'],
+                            ] as const
+                          ).map(([mode, label]) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              role="radio"
+                              aria-checked={form.authMode === mode}
+                              aria-pressed={form.authMode === mode}
+                              onClick={() => updateForm({ authMode: mode })}
+                            >
+                              {label}
+                            </button>
+                          ))}
                         </div>
-                        <span className="hint">只保存在本机服务端；不会进入对话、日志或截图。</span>
-                      </label>
+                        <span className="hint">
+                          {form.authMode === 'key'
+                            ? '使用并保存这个连接自己的 Key；留空时按无认证处理，不会继承其他来源的令牌。'
+                            : form.authMode === 'inherit'
+                              ? '明确继承本机 ~/.claude 或进程环境里的认证。只有选择这一项才会继承，避免串用其他连接的令牌。'
+                              : '不使用你的真实 Key；本机/内网网关会收到非机密占位认证头（锁定运行时的要求），不会继承其他连接的令牌。保存会清除已保存的 Key。公网地址请改用 Key 或继承本机凭证。'}
+                        </span>
+                        {form.authMode === 'none' && form.keepKey && (
+                          <span className="field-error">保存后会删除这个连接已保存的 API Key。</span>
+                        )}
+                      </div>
+                      {form.authMode === 'key' && (
+                        <label className="field full">
+                          <span className="label">
+                            API Key
+                            {form.keepKey && <span className="badge">已保存</span>}
+                          </span>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <input
+                              type={showKey ? 'text' : 'password'}
+                              value={form.apiKey}
+                              aria-label="API Key"
+                              onChange={(e) => updateForm({ apiKey: e.target.value })}
+                              placeholder={form.keepKey ? '留空则保留已保存的 Key' : '粘贴服务商提供的 API Key'}
+                              autoComplete="off"
+                              spellCheck={false}
+                            />
+                            <button type="button" className="btn" onClick={() => setShowKey((v) => !v)} aria-label={showKey ? '隐藏 Key' : '显示 Key'}>
+                              {showKey ? '隐藏' : '显示'}
+                            </button>
+                          </div>
+                          <span className="hint">只保存在本机服务端；不会进入对话、日志或截图。</span>
+                        </label>
+                      )}
                     </div>
 
                     {(openAiLike || (probeFresh && probe?.result.category === 'protocol')) && (
@@ -949,13 +1072,15 @@ export default function SettingsCenter({
                     )}
 
                     {probe && (
-                      <div className={`note ${probe.result.ok ? 'ok' : 'danger'}`} role="status">
+                      <div className={`note ${probeFresh ? (probe.result.ok ? 'ok' : 'danger') : 'warn'}`} role="status">
                         <div style={{ minWidth: 0 }}>
                           <strong>
-                            {probe.result.ok ? '连通成功' : '连通失败'}
+                            {probeFresh ? (probe.result.ok ? '连通成功' : '连通失败') : '旧测试结果已失效'}
                             {probe.result.status ? ` · HTTP ${probe.result.status}` : ''} · {probe.result.elapsedMs}ms
                           </strong>
-                          <div style={{ marginTop: 3 }}>{probe.result.message}</div>
+                          <div style={{ marginTop: 3 }}>
+                            {probeFresh ? probe.result.message : '草稿已修改（包括认证方式或 Key）。请重新测试；以下仅保留上次请求记录。'}
+                          </div>
                           <div style={{ marginTop: 3, fontSize: 11, opacity: 0.85 }}>
                             请求地址：{probe.result.requestUrl}
                             {probe.result.model ? ` · 模型 ${probe.result.model}` : ''}
@@ -966,7 +1091,6 @@ export default function SettingsCenter({
                               <pre style={{ marginTop: 4, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 11 }}>{probe.result.detail}</pre>
                             </details>
                           )}
-                          {!probeFresh && <div style={{ marginTop: 3, fontSize: 11 }}>表单已修改，以上结果不再代表当前草稿。</div>}
                         </div>
                       </div>
                     )}
@@ -1134,12 +1258,19 @@ export default function SettingsCenter({
                   <button aria-pressed={!settings?.effort} onClick={() => patch({ effort: null })}>
                     默认
                   </button>
-                  {['low', 'medium', 'high', 'xhigh', 'max'].map((effort) => (
+                  {effortLevels.map((effort) => (
                     <button key={effort} aria-pressed={settings?.effort === effort} onClick={() => patch({ effort })}>
-                      {effort}
+                      {EFFORT_LABELS[effort]}
                     </button>
                   ))}
                 </div>
+                <span className="hint" style={{ fontSize: 11.5 }}>
+                  {effortLevels.length === 0
+                    ? effortInfo?.supportsEffort === false
+                      ? '当前模型声明不支持思考档位，只保留“默认”。'
+                      : '运行时尚未报告这个模型的思考档位，暂时只保留“默认”；发现模型后再选择。'
+                    : `只显示运行时为该模型声明的档位${settings?.effort && !effortLevels.includes(settings.effort as (typeof effortLevels)[number]) ? `；当前保存的 ${settings.effort} 不在支持范围，新会话可能被拒绝` : ''}。`}
+                </span>
 
                 <div className="row-actions" style={{ marginTop: 12 }}>
                   <button className="btn" onClick={() => changeTab('permissions')}>
