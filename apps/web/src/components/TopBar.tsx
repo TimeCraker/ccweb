@@ -139,16 +139,18 @@ export default function TopBar({
               )}
               <MenuItem onClick={() => { close(); onExport() }}>{t('hd.export')}</MenuItem>
               <div className="menu-sep" />
-              <MenuItem
-                onClick={() => {
-                  close()
-                  onOpenChanges()
-                }}
-                description={changeCount > 0 ? tf('dw.fileCount', changeCount) : t('dw.noFiles')}
-                aside={<IconChevron width={13} height={13} style={{ transform: 'rotate(-90deg)' }} />}
-              >
-                {t('hd.changes')}
-              </MenuItem>
+              {changeCount > 0 && (
+                <MenuItem
+                  onClick={() => {
+                    close()
+                    onOpenChanges()
+                  }}
+                  description={tf('dw.fileCount', changeCount)}
+                  aside={<IconChevron width={13} height={13} style={{ transform: 'rotate(-90deg)' }} />}
+                >
+                  {t('hd.changes')}
+                </MenuItem>
+              )}
               <MenuItem
                 onClick={() => {
                   close()
