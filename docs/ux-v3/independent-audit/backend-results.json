@@ -1,0 +1,30 @@
+[
+  {
+    "case": "explicit-connection-without-key",
+    "publicHasKey": false,
+    "inheritsSyntheticToken": true,
+    "endpoint": "https://api.anthropic.com"
+  },
+  {
+    "case": "real-runtime-local-path",
+    "baseSuffix": "/v1",
+    "probePath": "/v1/messages",
+    "runtimePaths": [
+      "/v1/v1/messages?beta=true",
+      "/v1/v1/messages?beta=true",
+      "/v1/v1/messages?beta=true"
+    ],
+    "status": "Error"
+  },
+  {
+    "case": "real-runtime-local-path",
+    "baseSuffix": "/v1/messages",
+    "probePath": "/v1/messages",
+    "runtimePaths": [
+      "/v1/messages/v1/messages?beta=true",
+      "/v1/messages/v1/messages?beta=true",
+      "/v1/messages/v1/messages?beta=true"
+    ],
+    "status": "Error"
+  }
+]

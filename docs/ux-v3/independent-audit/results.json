@@ -1,0 +1,85 @@
+{
+  "source": "current built worktree snapshot, mocked SDK and probe, isolated data",
+  "results": [
+    {
+      "case": "model-form-tab",
+      "menuStillVisible": 0,
+      "focused": "<button class=\"btn btn-sm\" style=\"margin-left: auto;\">添加模型连接</button>"
+    },
+    {
+      "case": "changed-key-invalidates-probe",
+      "staleNotice": 0,
+      "successStillVisible": true
+    },
+    {
+      "case": "connection-search",
+      "matchingConnectionCount": 0
+    },
+    {
+      "case": "session-model-default-checkmark",
+      "defaultChecked": "true",
+      "chip": "【E2E】AuditConnection · audit-session-model"
+    },
+    {
+      "case": "usage-outside",
+      "closed": true
+    },
+    {
+      "case": "collapsed-rail",
+      "boxes": [
+        {
+          "label": "展开侧栏 (Ctrl+B)",
+          "x": 9.5,
+          "y": 10,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "label": "新建会话",
+          "x": 9.5,
+          "y": 52,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "label": "会话",
+          "x": 9.5,
+          "y": 94,
+          "w": 36,
+          "h": 36
+        },
+        {
+          "label": "设置",
+          "x": 9.5,
+          "y": 914,
+          "w": 36,
+          "h": 36
+        }
+      ]
+    },
+    {
+      "case": "viewport",
+      "width": 1280,
+      "overflow": false
+    },
+    {
+      "case": "viewport",
+      "width": 1920,
+      "overflow": false
+    },
+    {
+      "case": "viewport",
+      "width": 2560,
+      "overflow": false
+    },
+    {
+      "case": "viewport",
+      "width": 760,
+      "overflow": false
+    },
+    {
+      "case": "pageerrors",
+      "errors": []
+    }
+  ]
+}
