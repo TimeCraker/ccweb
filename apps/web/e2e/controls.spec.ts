@@ -58,6 +58,7 @@ test('image drafts require navigation consent and accepted attachments survive r
 })
 
 test('permission rules and additional directories have a shared GUI/source draft', async ({ page }) => {
+  const sharedDirectory = `../e2e-shared-${Date.now().toString(36)}`
   await page.addInitScript(() => localStorage.setItem('ccweb.locale', 'zh'))
   await page.goto('/')
   await page.getByRole('button', { name: 'settings', exact: true }).click()
@@ -66,12 +67,33 @@ test('permission rules and additional directories have a shared GUI/source draft
   await page.getByRole('button', { name: '当前项目', exact: true }).click()
   await page.locator('.resource-list button').filter({ hasText: '权限 · 项目本地' }).click()
   await page.getByRole('textbox', { name: '允许规则', exact: true }).fill('Read\nBash(node --test *)')
-  await page.getByRole('textbox', { name: '附加目录', exact: true }).fill('../e2e-shared')
+  await page.getByRole('textbox', { name: '附加目录', exact: true }).fill(sharedDirectory)
   await page.getByRole('button', { name: '源码', exact: true }).click()
   await expect(page.getByRole('textbox', { name: '配置源码', exact: true })).toHaveValue(/additionalDirectories/)
   await page.getByRole('button', { name: '保存更改', exact: true }).click()
   await page.getByRole('button', { name: '确认保存', exact: true }).click()
   await expect(page.getByRole('status').filter({ hasText: '已保存' })).toBeVisible()
   await page.getByRole('button', { name: '编辑', exact: true }).click()
-  await expect(page.getByRole('textbox', { name: '附加目录', exact: true })).toHaveValue('../e2e-shared')
+  await expect(page.getByRole('textbox', { name: '附加目录', exact: true })).toHaveValue(sharedDirectory)
+})
+
+test('native handoff preserves completed task status and GUI resumes explicitly', async ({ page }) => {
+  const states: string[] = []
+  page.on('websocket', ws => ws.on('framereceived', ({ payload }) => { try { const message = JSON.parse(String(payload)); if (message.t === 'state') states.push(message.state) } catch { /* Non-JSON is not a protocol state. */ } }))
+  await page.addInitScript(() => localStorage.setItem('ccweb.locale', 'zh'))
+  await page.goto('/')
+  await expect(page.getByLabel('运行模式', { exact: true })).toBeEnabled()
+  const input = page.getByRole('textbox', { name: '任务输入', exact: true })
+  await input.fill('【E2E】 before native handoff'); await input.press('Control+Enter')
+  await expect(page.getByText('【E2E】模拟完成：【E2E】 before native handoff', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '原生终端', exact: true }).click()
+  await page.getByLabel('原生操作').selectOption('help')
+  await page.getByRole('button', { name: '启动原生操作' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '进程已退出' })).toBeVisible({ timeout: 20000 })
+  expect(states).toContain('native_handoff')
+  expect(states).not.toContain('cancelled')
+  await page.getByRole('button', { name: '结束进程' }).click()
+  await page.getByRole('button', { name: '返回对话', exact: true }).click()
+  await input.fill('【E2E】 after native handoff'); await input.press('Control+Enter')
+  await expect(page.getByText('【E2E】模拟完成：【E2E】 after native handoff', { exact: true })).toBeVisible()
 })

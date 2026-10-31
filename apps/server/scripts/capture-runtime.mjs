@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 const require = createRequire(import.meta.resolve('@anthropic-ai/claude-agent-sdk'))
 const binary = join(dirname(require.resolve(`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/package.json`)), process.platform === 'win32' ? 'claude.exe' : 'claude')
-const commands = [['--version'], ['--help'], ['auth', '--help'], ['auth', 'login', '--help'], ['mcp', '--help'], ['mcp', 'login', '--help'], ['plugin', '--help'], ['agents', '--help'], ['attach', '--help'], ['doctor', '--help'], ['install', '--help'], ['update', '--help']]
+const commands = [['--version'], ['--help'], ['auth', '--help'], ['auth', 'login', '--help'], ['mcp', '--help'], ['mcp', 'add', '--help'], ['mcp', 'login', '--help'], ['plugin', '--help'], ['plugin', 'install', '--help'], ['agents', '--help'], ['attach', '--help'], ['doctor', '--help'], ['install', '--help'], ['update', '--help']]
 const evidence = { capturedAt: new Date().toISOString(), platform: process.platform, arch: process.arch, sdk: JSON.parse(readFileSync(new URL('../runtime-baseline.json', import.meta.url), 'utf8')).sdk, samples: commands.map(args => {
   const result = spawnSync(binary, args, { encoding: 'utf8', windowsHide: true, timeout: 15000 })
   return { args, status: result.status, stdout: result.stdout, stderr: result.stderr, error: result.error?.message }

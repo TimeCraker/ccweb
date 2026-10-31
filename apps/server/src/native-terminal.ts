@@ -1,5 +1,8 @@
 import { assertVerifiedRuntime, bundledBinary } from './runtime.js'
 export { bundledBinary } from './runtime.js'
+import { copyFileSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { APP_DIR } from './settings.js'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { spawn as spawnPty, type IPty } from 'node-pty'
 import { spawn as spawnChild, spawnSync } from 'node:child_process'
@@ -7,7 +10,7 @@ import type { WebSocket } from 'ws'
 import { buildAgentEnv } from './agent.js'
 
 export const terminalActions = {
-  custom: [], interactive: [], help: ['--help'], doctor: ['doctor'], auth: ['auth', 'status', '--text'],
+  maintenanceHelp: ['install', '--help'], maintenance: [], custom: [], interactive: [], help: ['--help'], doctor: ['doctor'], auth: ['auth', 'status', '--text'],
   login: ['auth', 'login'], mcp: ['mcp', 'list'], plugins: ['plugin', 'list'], agents: ['agents', '--json'],
 } satisfies Record<string, string[]>
 type Action = keyof typeof terminalActions
@@ -27,6 +30,7 @@ export function startNative(workspace: string, action: string, extraArgs: string
   if (!Object.hasOwn(terminalActions, action)) throw new Error('未知原生操作')
   if (!Array.isArray(extraArgs) || extraArgs.length > 128 || extraArgs.some(arg => typeof arg !== 'string' || arg.length > 8192 || arg.includes('\0')) || typeof stdin !== 'string' || Buffer.byteLength(stdin) > 1024 * 1024) throw new Error('无效 CLI 参数或输入（最大 1 MiB）')
   if (action === 'custom' && ['install', 'update', 'upgrade'].includes(extraArgs[0] ?? '')) throw new Error('此操作会更换安装版本；随包运行时通过精确 SDK 依赖升级与重启维护')
+  if (action === 'maintenance' && (extraArgs.length !== 2 || extraArgs[0] !== 'install' || !/^(?:stable|latest|\d+\.\d+\.\d+)$/.test(extraArgs[1] ?? ''))) throw new Error('独立 CLI 安装需要明确选择版本')
   if (nativeWorkspaceBusy(workspace)) throw new Error('此工作区已有原生进程，请重新连接或先结束它')
   for (const [key, value] of sessions) if (value.exit !== null && !value.socket) { clearTimeout(value.timer); sessions.delete(key) }
   if (sessions.size >= 16) throw new Error('原生终端数量已达上限，请结束不再使用的进程')
@@ -35,15 +39,22 @@ export function startNative(workspace: string, action: string, extraArgs: string
   // Do not let native maintenance replace the SDK's locked binary.
   env.DISABLE_AUTOUPDATER = '1'
   const args: string[] = [...terminalActions[action as Action]]
-  if (action === 'custom') args.push(...extraArgs)
+  if (action === 'custom' || action === 'maintenance') args.push(...extraArgs)
   if (action === 'interactive') args.push('--session-id', id)
-  const child = stdin ? spawnChild(bundledBinary(), args, { cwd: workspace, env, stdio: 'pipe', windowsHide: true }) : null
+  let executable = bundledBinary()
+  if (action === 'maintenance' || action === 'maintenanceHelp') {
+    // Never let the installer self-modify the SDK package binary. The user explicitly starts installation from this copy.
+    const directory = join(APP_DIR, 'tools', 'native-maintenance'); mkdirSync(directory, { recursive: true })
+    executable = join(directory, process.platform === 'win32' ? 'claude.exe' : 'claude')
+    copyFileSync(bundledBinary(), executable)
+  }
+  const child = stdin ? spawnChild(executable, args, { cwd: workspace, env, stdio: 'pipe', windowsHide: true }) : null
   const terminal: NativeSession['process'] = child ? {
     write: data => { child.stdin.write(data) }, resize: () => undefined,
     kill: () => { if (child.pid && process.platform === 'win32') spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }); else child.kill() },
     onData: listener => { const receive = (chunk: string) => listener(chunk); child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8'); child.stdout.on('data', receive); child.stderr.on('data', receive); return { dispose: () => { child.stdout.off('data', receive); child.stderr.off('data', receive) } } },
     onExit: listener => { const exit = (code: number | null) => listener({ exitCode: code ?? -1 }); child.once('close', exit); return { dispose: () => { child.off('close', exit) } } },
-  } : spawnPty(bundledBinary(), args, { name: 'xterm-256color', cols: 100, rows: 30, cwd: workspace, env })
+  } : spawnPty(executable, args, { name: 'xterm-256color', cols: 100, rows: 30, cwd: workspace, env })
   const session: NativeSession = { id, token, workspace, process: terminal, action: action as Action, output: [], bytes: 0, seq: 0, exit: null, socket: null }
   sessions.set(id, session)
   const send = (frame: unknown) => { if (session.socket?.readyState === 1) session.socket.send(JSON.stringify(frame)) }

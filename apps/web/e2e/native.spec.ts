@@ -41,6 +41,19 @@ test('advanced arguments and real stdin pipes stay inside the locked runtime', a
   await expect(page.getByRole('status').filter({ hasText: '精确 SDK 依赖升级' })).toBeVisible()
 })
 
+test('independent CLI maintenance uses a private copy and installation requires confirmation', async ({ page, request }) => {
+  const rejected = await request.post('/api/native/start', { headers: { Origin: new URL(test.info().project.use.baseURL!).origin }, data: { action: 'maintenance', args: ['install', '2.1.314'] } })
+  expect(rejected.status()).toBe(400)
+  await page.goto('/')
+  await expect(page.getByLabel('运行模式', { exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: '原生终端', exact: true }).click()
+  await page.getByLabel('原生操作').selectOption('maintenanceHelp')
+  await page.getByRole('button', { name: '启动原生操作' }).click()
+  await expect(page.locator('.xterm-screen')).toContainText('Usage: claude install', { timeout: 20000 })
+  await expect(page.getByRole('status').filter({ hasText: '退出码 0' })).toBeVisible()
+  await page.getByRole('button', { name: '结束进程' }).click()
+})
+
 
 test('real native TUI accepts keys, resize and cancellation without model calls', async ({ page }) => {
   await page.goto('/')

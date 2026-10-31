@@ -4,12 +4,13 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useStore } from '../store'
 
-const actions = [['interactive', '原生交互会话'], ['help', 'CLI 帮助'], ['auth', '认证状态'], ['login', '原生登录'], ['doctor', '安装与配置诊断'], ['mcp', 'MCP 清单'], ['plugins', '插件清单'], ['agents', '后台任务清单'], ['custom', '高级 CLI 参数 / 脚本输入']]
+const actions = [['interactive', '原生交互会话'], ['help', 'CLI 帮助'], ['auth', '认证状态'], ['login', '原生登录'], ['doctor', '安装与配置诊断'], ['mcp', 'MCP 清单'], ['plugins', '插件清单'], ['agents', '后台任务清单'], ['maintenanceHelp', '独立 CLI 安装帮助'], ['maintenance', '安装/升级独立 CLI'], ['custom', '高级 CLI 参数 / 脚本输入']]
 export default function NativeTerminal({ onClose }: { onClose: () => void }) {
   const workspace = useStore(s => s.settings?.workspace ?? '')
   const host = useRef<HTMLDivElement>(null)
   const terminal = useRef<Terminal>()
   const socket = useRef<WebSocket>()
+  const [installVersion, setInstallVersion] = useState('2.1.314')
   const [args, setArgs] = useState('["--help"]')
   const [stdin, setStdin] = useState('')
   const [action, setAction] = useState('interactive')
@@ -50,9 +51,10 @@ export default function NativeTerminal({ onClose }: { onClose: () => void }) {
     return () => { disposed = true; clearTimeout(reconnect); resize.disconnect(); input.dispose(); ws?.close(); term.dispose(); terminal.current = undefined }
   }, [storageKey, retry])
   async function start() {
+    if (action === 'maintenance' && !window.confirm(`安装独立 Claude Code CLI ${installVersion}？原生安装器会显示目标位置，可能修改独立 CLI 安装与 PATH；ccweb 从私有维护副本执行，不替换当前 SDK 二进制。当前运行不会切换到新版本。`)) return
     setStarting(true)
     try {
-      const response = await fetch('/api/native/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspace, action, ...(action === 'custom' ? { args: JSON.parse(args), stdin } : {}) }) })
+      const response = await fetch('/api/native/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspace, action, ...(action === 'custom' ? { args: JSON.parse(args), stdin } : action === 'maintenance' ? { args: ['install', installVersion], confirmed: true } : {}) }) })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error)
       sessionStorage.setItem(storageKey, JSON.stringify(result)); setRetry(value => value + 1)
@@ -62,6 +64,7 @@ export default function NativeTerminal({ onClose }: { onClose: () => void }) {
   return <section className="native-panel" aria-label="原生终端">
     <header><div><h2>Claude Code 原生终端</h2><p>SDK 随包运行时 · 独立会话 · 与本服务 GUI 运行互斥</p></div><button onClick={onClose}>返回对话</button></header>
     <div className="native-toolbar"><select aria-label="原生操作" disabled={active || starting} value={action} onChange={e => setAction(e.target.value)}>{actions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button disabled={active || starting} onClick={() => void start()}>{starting ? '启动中…' : '启动原生操作'}</button><button disabled={!active} onClick={() => socket.current?.send(JSON.stringify({ t: 'input', data: '\u0003' }))}>Ctrl+C</button><button onClick={stop}>结束进程</button></div>
+    {action === 'maintenance' && <label>独立 CLI 目标版本<input aria-label="独立 CLI 版本" value={installVersion} disabled={active || starting} onChange={e => setInstallVersion(e.target.value)} placeholder="2.1.314 / stable / latest" /><p>这与升级 ccweb 的精确 SDK 是两个对象。此入口仅在你明确确认后调用原生安装器；修改 ccweb SDK 仍需通过依赖升级、能力矩阵与质量门。</p></label>}
     {action === 'custom' && <details className="native-advanced" open><summary>高级原生调用</summary><label>参数数组（JSON，无 shell 插值）<input aria-label="CLI 参数数组" disabled={active} value={args} onChange={e => setArgs(e.target.value)} /></label><label>可选 stdin 文本<textarea aria-label="CLI stdin" rows={3} disabled={active} value={stdin} onChange={e => setStdin(e.target.value)} /></label><p>参数直接传给固定随包二进制。可使用 --print、--resume 等已核对参数。填写文本时使用真实 stdin 管道并关闭输入；留空时使用 ConPTY 交互。SDK 与原生服务整体互斥，结束后再恢复 GUI。</p></details>}
     <p role="status">{status}</p><div className="native-screen" ref={host} />
     <p className="native-help">支持原生 / 命令、中文输入、粘贴及快捷键。返回对话保留进程；刷新后用本标签页令牌恢复，断开 30 分钟后回收。服务重启后的进程不冒充 SDK 快照。登录与 OAuth 由你亲自授权；不要在原生维护命令中升级随包二进制。</p>

@@ -73,11 +73,12 @@ app.post('/api/native/start', async c => {
   const origin = c.req.header('origin')
   if (origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin ?? '')) return c.json({ error: 'Origin rejected' }, 403)
   try {
-    const body = await c.req.json<{ workspace?: string; action: string; args?: string[]; stdin?: string }>()
+    const body = await c.req.json<{ workspace?: string; action: string; args?: string[]; stdin?: string; confirmed?: boolean }>()
+    if (body.action === 'maintenance' && body.confirmed !== true) return c.json({ error: '安装独立 CLI 前需要明确确认；不会更换 ccweb 随包 SDK' }, 400)
     const workspace = workspacePath(body.workspace)
     const agents = [...new Set(registry.values())]
     if (agents.some(agent => agent.isRunning)) return c.json({ error: '先停止或完成此工作区的 GUI 任务，再启动原生进程' }, 409)
-    for (const agent of agents) { agent.abort(); for (const [key, value] of registry) if (value === agent) registry.delete(key); for (const [socket, value] of observers) if (value === agent) { observers.set(socket, null); socket.send(JSON.stringify({ t: 'state', state: 'cancelled', sessionId: agent.sessionId, seq: ++seq })) } }
+    for (const agent of agents) { agent.abort(); for (const [key, value] of registry) if (value === agent) registry.delete(key); for (const [socket, value] of observers) if (value === agent) { observers.set(socket, null); socket.send(JSON.stringify({ t: 'state', state: 'native_handoff', sessionId: agent.sessionId, seq: ++seq })) } }
     return c.json(startNative(workspace, body.action, body.args, body.stdin))
   } catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 400) }
 })
