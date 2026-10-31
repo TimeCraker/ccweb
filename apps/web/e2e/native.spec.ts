@@ -77,7 +77,10 @@ test('real native TUI accepts keys, resize and cancellation without model calls'
   await dialog.getByRole('button', { name: '关闭设置' }).click()
   await openNativeTerminal(page)
   await page.getByRole('button', { name: '启动原生操作' }).click()
-  await expect(page.locator('.xterm-screen')).toContainText(/Choose|Select|theme|Theme|trust|log in|login|Login|暗色|选择/, { timeout: 20000 })
+  // 真实 TUI 是否首屏弹出主题选择取决于本机网络与首次运行状态;这里只要求 TUI 真正启动,
+  // 不把能否访问外部服务当成本次 UI 回归的前置条件。
+  await expect(page.locator('.xterm-screen')).toContainText(/Welcome to Claude Code|Claude Code/, { timeout: 20000 })
+  await expect(page.locator('.xterm-helper-textarea')).toBeAttached()
   await page.locator('.xterm-helper-textarea').focus()
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowUp')
