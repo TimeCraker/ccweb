@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
-import { IconChevron, IconGear, IconPencil, IconPlus, IconSun, IconMoon } from './Icon'
+import { IconChevron, IconGear, IconPencil, IconPlus, IconSun, IconMoon, SectionIcon } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 import { cycleTheme, useThemeMode } from '../theme'
 import { baseName } from '../lib/path'
@@ -15,6 +15,8 @@ interface Props {
   onOpenDetails: () => void
   onOpenNav?: () => void
   changeCount: number
+  sidebarCollapsed?: boolean
+  onExpandSidebar?: () => void
 }
 
 export default function TopBar({
@@ -26,6 +28,8 @@ export default function TopBar({
   onOpenDetails,
   onOpenNav,
   changeCount,
+  sidebarCollapsed,
+  onExpandSidebar,
 }: Props) {
   const sessionId = useStore((s) => s.sessionId)
   const session = useStore((s) => s.sessions.find((item) => item.id === s.sessionId))
@@ -53,6 +57,16 @@ export default function TopBar({
 
   return (
     <header className="header">
+      {sidebarCollapsed && onExpandSidebar && (
+        <button
+          className="icon-btn sidebar-expand"
+          onClick={onExpandSidebar}
+          aria-label={t('sb.expand')}
+          title={t('sb.expand')}
+        >
+          <SectionIcon name="panel" width={17} height={17} />
+        </button>
+      )}
       {onOpenNav && (
         <button className="icon-btn nav-toggle" onClick={onOpenNav} aria-label={t('sb.expand')} title={t('sb.expand')}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">

@@ -42,6 +42,13 @@ interface Connection {
   createdAt: number
   updatedAt: number
 }
+interface DeletedSession {
+  id: string
+  title: string
+  deletedAt: number
+  projectDir: string
+  bytes: number
+}
 interface ProbeResult {
   ok: boolean
   category: 'ok' | 'auth' | 'path' | 'rate' | 'server' | 'network' | 'timeout' | 'protocol' | 'model' | 'invalid'
@@ -106,6 +113,36 @@ function frontmatter(content: string) {
   return { match, document, body: match ? content.slice(match[0].length) : content }
 }
 
+interface FormState {
+  key: string | null
+  name: string
+  baseUrl: string
+  model: string
+  apiKey: string
+  keepKey: boolean
+}
+
+/** 连接表单的字段级校验:与服务端 normalizeBaseUrl 的边界保持一致 */
+function validateConnection(form: FormState): Partial<Record<'name' | 'baseUrl' | 'model', string>> {
+  const errors: Partial<Record<'name' | 'baseUrl' | 'model', string>> = {}
+  if (form.name.trim().length > 60) errors.name = '连接名称不超过 60 个字符'
+  const raw = form.baseUrl.trim()
+  if (!raw) {
+    errors.baseUrl = '请填写接口地址'
+  } else {
+    try {
+      const url = new URL(raw)
+      if (!['http:', 'https:'].includes(url.protocol)) errors.baseUrl = '只支持 http:// 或 https://'
+      else if (url.username || url.password) errors.baseUrl = '不要把凭证写在地址里'
+      else if (url.search) errors.baseUrl = '地址不要包含查询参数'
+    } catch {
+      errors.baseUrl = '请输入完整地址，例如 https://api.example.com/anthropic'
+    }
+  }
+  if (/\s/.test(form.model.trim())) errors.model = '模型 ID 不能包含空格'
+  return errors
+}
+
 export default function SettingsCenter({
   open,
   onClose,
@@ -155,10 +192,14 @@ export default function SettingsCenter({
   const [form, setForm] = useState<FormState | null>(null)
   const [showKey, setShowKey] = useState(false)
   const [needsNewSession, setNeedsNewSession] = useState(false)
+  const [deletedSessions, setDeletedSessions] = useState<DeletedSession[]>([])
+  const [restoringId, setRestoringId] = useState<string | null>(null)
   const probeController = useRef<AbortController | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const request = useRef(0)
   const workspace = settings?.workspace ?? ''
+  const formErrors = form ? validateConnection(form) : {}
+  const formValid = Object.keys(formErrors).length === 0
   const dirty = selected !== null && draft !== selected.content
   const formDirty = form !== null && (form.name.trim() !== '' || form.baseUrl.trim() !== '' || form.apiKey.trim() !== '' || form.model.trim() !== '')
   const hasUnsaved = dirty || formDirty || newName !== null
@@ -233,6 +274,37 @@ export default function SettingsCenter({
     if (!open) return
     setTab(initialTab)
   }, [open, initialTab])
+
+  useEffect(() => {
+    if (!open || tab !== 'general') return
+    let alive = true
+    void api<DeletedSession[]>('sessions/deleted')
+      .then((list) => {
+        if (alive) setDeletedSessions(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (alive) setDeletedSessions([])
+      })
+    return () => {
+      alive = false
+    }
+  }, [open, tab])
+
+  async function restoreDeleted(session: DeletedSession) {
+    setRestoringId(session.id)
+    setError('')
+    setNotice('')
+    try {
+      await api('sessions/restore', { id: session.id })
+      send({ t: 'session.list' })
+      setDeletedSessions(await api<DeletedSession[]>('sessions/deleted'))
+      setNotice(`已恢复「${session.title}」，可在侧栏重新打开。`)
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e))
+    } finally {
+      setRestoringId(null)
+    }
+  }
 
   useEffect(() => {
     setNotice((current) => (current.startsWith('正在提交') ? '设置已提交；由运行时确认后生效。' : current))
@@ -403,8 +475,8 @@ export default function SettingsCenter({
 
   async function runProbe() {
     if (!form) return
-    if (!form.baseUrl.trim()) {
-      setConnectionError('请先填写接口地址。')
+    if (formErrors.baseUrl) {
+      setConnectionError(formErrors.baseUrl)
       return
     }
     if (!form.apiKey.trim() && !form.keepKey) {
@@ -452,8 +524,8 @@ export default function SettingsCenter({
 
   async function saveAndUse() {
     if (!form) return
-    if (!form.baseUrl.trim()) {
-      setConnectionError('请填写接口地址。')
+    if (!formValid) {
+      setConnectionError('请先修正表单中的错误：' + Object.values(formErrors).join('；'))
       return
     }
     const url = form.baseUrl.trim()
@@ -633,6 +705,46 @@ export default function SettingsCenter({
                     <dd>Ctrl B</dd>
                   </dl>
                 </div>
+                <div className="field">
+                  <span className="label">最近删除的会话</span>
+                  <span className="hint">
+                    删除会话前会保留原生 transcript 备份；恢复只写回原来的项目目录，不会重跑任务。
+                  </span>
+                  {deletedSessions.length === 0 && (
+                    <p className="hint" style={{ fontSize: 12 }}>
+                      没有可恢复的会话。
+                    </p>
+                  )}
+                  {deletedSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        padding: '8px 10px',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 9,
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <strong style={{ display: 'block', fontSize: 12.5, fontWeight: 550, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {session.title}
+                        </strong>
+                        <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>
+                          {new Date(session.deletedAt).toLocaleString()} · {Math.max(1, Math.round(session.bytes / 1024))} KB
+                        </span>
+                      </div>
+                      <button
+                        className="btn btn-sm"
+                        disabled={restoringId !== null}
+                        onClick={() => void restoreDeleted(session)}
+                      >
+                        {restoringId === session.id ? '恢复中…' : '恢复'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -754,17 +866,20 @@ export default function SettingsCenter({
                         <input
                           value={form.name}
                           aria-label="连接名称"
+                          aria-invalid={Boolean(formErrors.name)}
                           onChange={(e) => setForm({ ...form, name: e.target.value })}
                           placeholder={form.baseUrl ? hostOf(form.baseUrl) : '例如：我的 GLM'}
                           autoComplete="off"
                         />
                         <span className="hint">仅用于界面显示，可留空。</span>
+                        {formErrors.name && <span className="field-error">{formErrors.name}</span>}
                       </label>
                       <label className="field">
                         <span className="label">模型 ID</span>
                         <input
                           value={form.model}
                           aria-label="模型 ID"
+                          aria-invalid={Boolean(formErrors.model)}
                           onChange={(e) => setForm({ ...form, model: e.target.value })}
                           placeholder="例如：glm-4.7"
                           autoComplete="off"
@@ -778,12 +893,14 @@ export default function SettingsCenter({
                           ))}
                         </datalist>
                         <span className="hint">使用服务商提供的模型 ID；留空则用连接默认模型。</span>
+                        {formErrors.model && <span className="field-error">{formErrors.model}</span>}
                       </label>
                       <label className="field full">
                         <span className="label">接口地址（Base URL）</span>
                         <input
                           value={form.baseUrl}
                           aria-label="接口地址（Base URL）"
+                          aria-invalid={Boolean(formErrors.baseUrl)}
                           onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
                           placeholder="https://api.example.com/anthropic"
                           autoComplete="off"
@@ -793,6 +910,7 @@ export default function SettingsCenter({
                           需要 Anthropic Messages 兼容接口。只填到接口根路径，不要写完整的 /messages；测试时会显示实际请求地址。
                           只提供 OpenAI Chat Completions 的服务暂不兼容。
                         </span>
+                        {formErrors.baseUrl && <span className="field-error">{formErrors.baseUrl}</span>}
                       </label>
                       <label className="field full">
                         <span className="label">
@@ -885,7 +1003,7 @@ export default function SettingsCenter({
                         <button
                           type="submit"
                           className="btn btn-primary"
-                          disabled={saving || !form.baseUrl.trim() || protocolBlocked}
+                          disabled={saving || !formValid || protocolBlocked}
                           title={protocolBlocked ? '此接口格式当前不兼容，无法保存' : undefined}
                         >
                           {saving ? '保存中…' : '保存并使用'}
@@ -1471,15 +1589,6 @@ export default function SettingsCenter({
       </div>
     </Modal>
   )
-}
-
-interface FormState {
-  key: string | null
-  name: string
-  baseUrl: string
-  model: string
-  apiKey: string
-  keepKey: boolean
 }
 
 function hostOf(url: string): string {

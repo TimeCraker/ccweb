@@ -72,6 +72,8 @@ export default function App() {
   useLocale()
 
   const entries = useStore((s) => s.entries)
+  const tasks = useStore((s) => s.nativeTasks)
+  const activeTasks = tasks.filter((task) => task.status !== 'completed' && task.status !== 'failed')
   const empty = entries.length === 0
   const busy = useStore((s) => s.busy)
   const conn = useStore((s) => s.conn)
@@ -457,7 +459,10 @@ export default function App() {
   }
   newSessionRef.current = newSession
   const renameSession = (id: string, title: string) => sendControl({ t: 'session.rename', sessionId: id, title })
-  const deleteSession = (id: string) => sendControl({ t: 'session.delete', sessionId: id })
+  const deleteSession = (id: string) => {
+    const title = useStore.getState().sessions.find((item) => item.id === id)?.title
+    sendControl({ t: 'session.delete', sessionId: id, title })
+  }
 
   const exportMarkdown = () => {
     const { entries: current } = useStore.getState()
@@ -554,6 +559,8 @@ export default function App() {
             }}
             onOpenNav={() => setNavOpen(true)}
             changeCount={changeInfo.files.length}
+            sidebarCollapsed={sidebarCollapsed}
+            onExpandSidebar={() => setSidebarCollapsed(false)}
           />
 
           {nativeOpen ? (
@@ -598,6 +605,30 @@ export default function App() {
                       <QueueDock onResume={() => sendControl({ t: 'queue.resume' })} onDelete={(uuid) => sendControl({ t: 'queue.delete', uuid })} />
                       <PermissionCard onResolve={resolvePermission} />
                       <QuestionCard onResolve={resolveQuestion} />
+                      {tasks.length > 0 && (
+                        <div className="change-strip">
+                          <span className={`dot ${activeTasks.length > 0 ? 'accent live' : 'ok'}`} style={{ marginLeft: 2 }} />
+                          <strong>
+                            后台任务 · {tasks.length} 个
+                            {activeTasks.length > 0 ? `（${activeTasks.length} 个进行中）` : '（已结束）'}
+                          </strong>
+                          <span className="files">
+                            {tasks
+                              .slice(-2)
+                              .map((task) => task.description)
+                              .join(' · ')}
+                          </span>
+                          <button
+                            className="btn btn-sm"
+                            onClick={() => {
+                              setDetailsTab('controls')
+                              setDrawer('details')
+                            }}
+                          >
+                            查看
+                          </button>
+                        </div>
+                      )}
                       {changeInfo.count > 0 && (
                         <div className="change-strip">
                           <IconEdit width={14} height={14} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />

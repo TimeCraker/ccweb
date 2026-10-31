@@ -162,7 +162,7 @@ textarea:focus-visible,
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 34px;
+  height: 36px;
   padding: 0 12px;
   border: 1px solid var(--color-border);
   border-radius: 9px;
@@ -256,6 +256,15 @@ textarea:focus-visible,
   color: var(--color-text-faint);
   font-weight: 400;
   line-height: 1.55;
+}
+.field .field-error {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--color-danger);
+  line-height: 1.5;
+}
+.field input[aria-invalid='true'] {
+  border-color: color-mix(in srgb, var(--color-danger) 60%, transparent);
 }
 .input,
 .field input,
@@ -855,8 +864,8 @@ html.dark .session-row[aria-current='true'] {
   display: flex;
 }
 .session-row .row-actions .icon-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 6px;
 }
 .session-running {
@@ -942,7 +951,7 @@ html.dark .session-row[aria-current='true'] {
   gap: 8px;
   width: 100%;
   min-width: 0;
-  padding: 7px 30px 7px 10px;
+  padding: 7px 56px 7px 10px;
   border-radius: 8px;
   text-align: left;
   color: var(--color-text);
@@ -961,9 +970,9 @@ html.dark .session-row[aria-current='true'] {
   white-space: nowrap;
   max-width: 252px;
 }
-.ws-item .ws-remove {
+.ws-item .ws-remove,
+.ws-item .ws-pin {
   position: absolute;
-  right: 5px;
   top: 7px;
   display: grid;
   place-items: center;
@@ -974,8 +983,20 @@ html.dark .session-row[aria-current='true'] {
   opacity: 0;
   transition: opacity var(--dur-fast);
 }
+.ws-item .ws-remove {
+  right: 5px;
+}
+.ws-item .ws-pin {
+  right: 28px;
+}
+.ws-item .ws-pin.is-pinned {
+  opacity: 1;
+  color: var(--color-accent);
+}
 .ws-item:hover .ws-remove,
-.ws-item:focus-within .ws-remove {
+.ws-item:hover .ws-pin,
+.ws-item:focus-within .ws-remove,
+.ws-item:focus-within .ws-pin {
   opacity: 1;
 }
 .ws-item .ws-remove:hover {
@@ -1236,8 +1257,8 @@ html.dark .ws-item:hover {
 .send-btn {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   flex: 0 0 auto;
   border-radius: 10px;
   background: var(--color-accent);
@@ -1570,15 +1591,15 @@ html.dark .ws-item:hover {
   opacity: 1;
 }
 .msg-actions .icon-btn {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
 }
 .msg-copy-float {
   position: absolute;
-  right: -36px;
+  right: -38px;
   top: 0;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   opacity: 0;
   transition: opacity var(--dur-fast);
 }

@@ -44,6 +44,8 @@ const ZH = {
   'sb.project.open': '打开',
   'sb.project.back': '返回项目列表',
   'sb.project.temp': '临时',
+  'sb.project.pin': '固定到列表',
+  'sb.project.unpin': '取消固定',
   'sb.project.none': '还没有项目。添加一个目录后即可开始。',
   'sb.version': '版本',
   // 顶栏(V3)
@@ -344,6 +346,8 @@ const EN: Dict = {
   'sb.project.open': 'Open',
   'sb.project.back': 'Back to projects',
   'sb.project.temp': 'temp',
+  'sb.project.pin': 'Pin to list',
+  'sb.project.unpin': 'Unpin',
   'sb.project.none': 'No projects yet. Add a folder to get started.',
   'sb.version': 'version',
   'hd.more': 'More',

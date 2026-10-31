@@ -5,6 +5,15 @@ import { IconArrowUp, IconStop, IconFile, IconWarn } from './Icon'
 import { AttachMenu, ModelMenu, ModeMenu } from './RunMenus'
 import Lightbox from './Lightbox'
 
+interface LastSendState {
+  signature: string
+  at: number
+  acknowledged: boolean
+}
+
+/** 最近一次成功发送:放在模块级,避免空态→对话态切换导致 Composer 重挂载后丢失 */
+let lastSend: LastSendState | null = null
+
 interface Props {
   onSend: (text: string, images?: string[]) => string | false
   onInterrupt: () => void
@@ -71,9 +80,15 @@ export default function Composer({
   useEffect(() => {
     if (!lastAck || !pending || lastAck.id !== pending) return
     setText(localStorage.getItem(draftKey.current) ?? '')
-    if (lastAck.ok) setImages([])
+    if (lastAck.ok) {
+      setImages([])
+    }
     setPending(null)
   }, [lastAck, pending])
+  // 空态→对话态切换会重挂载 Composer,pending 丢失;回执成功仍要记到模块级去重状态
+  useEffect(() => {
+    if (lastAck?.ok && lastSend && !lastSend.acknowledged) lastSend.acknowledged = true
+  }, [lastAck])
   useEffect(() => {
     const protect = (event: BeforeUnloadEvent) => {
       if (images.length) {
@@ -166,11 +181,25 @@ export default function Composer({
   const submit = () => {
     const trimmed = text.trim()
     if (!settingsReady || pending || conn !== 'open' || waiting || (!trimmed && images.length === 0)) return
+    const signature = `${trimmed}|${images.length}:${images.reduce((sum, src) => sum + src.length, 0)}`
+    const previous = lastSend
+    if (
+      previous &&
+      previous.acknowledged &&
+      previous.signature === signature &&
+      Date.now() - previous.at < 20_000 &&
+      !window.confirm('这次的内容和附件与刚发送的相同，仍要再发送一次吗？')
+    ) {
+      return
+    }
     const request = onSend(trimmed || t('cp.imageOnly'), images.length ? images : undefined)
     if (request === 'local') {
       updateText('')
       setImages([])
-    } else if (request) setPending(request)
+    } else if (request) {
+      lastSend = { signature, at: Date.now(), acknowledged: false }
+      setPending(request)
+    }
   }
 
   const pickSlash = (name: string) => {

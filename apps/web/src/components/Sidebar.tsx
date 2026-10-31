@@ -33,6 +33,7 @@ interface Props {
 
 const ORDER_KEY = 'ccweb.sessionOrder'
 const HIDDEN_KEY = 'ccweb.hiddenWorkspaces'
+const PINNED_KEY = 'ccweb.pinnedWorkspaces'
 
 function readList(key: string): string[] {
   try {
@@ -404,8 +405,21 @@ function WorkspaceMenu({
   const [adding, setAdding] = useState(false)
   const [path, setPath] = useState('')
   const [hidden, setHidden] = useState<string[]>(() => readList(HIDDEN_KEY))
+  const [pinned, setPinned] = useState<string[]>(() => readList(PINNED_KEY))
   const inputRef = useRef<HTMLInputElement>(null)
   useLocale()
+
+  const persistPinned = (next: string[]) => {
+    setPinned(next)
+    try {
+      localStorage.setItem(PINNED_KEY, JSON.stringify(next))
+    } catch {
+      // 忽略写入失败
+    }
+  }
+  const togglePin = (dir: string) => {
+    persistPinned(pinned.includes(dir) ? pinned.filter((item) => item !== dir) : [...pinned, dir])
+  }
 
   const hide = (dir: string) => {
     const next = [...hidden, dir]
@@ -429,7 +443,11 @@ function WorkspaceMenu({
     .filter((w) => !hidden.includes(w.dir))
     .filter((w) => !query || w.dir.toLowerCase().includes(query.toLowerCase()))
   // 临时目录降权排后,但不隐藏
-  const sorted = [...visible].sort((a, b) => Number(isTempPath(a.dir)) - Number(isTempPath(b.dir)))
+  const sorted = [...visible].sort(
+    (a, b) =>
+      Number(pinned.includes(b.dir)) - Number(pinned.includes(a.dir)) ||
+      Number(isTempPath(a.dir)) - Number(isTempPath(b.dir)),
+  )
 
   if (adding) {
     const absolute = /^[a-zA-Z]:[\\/]/.test(path.trim()) || path.trim().startsWith('\\\\') || path.trim().startsWith('/')
@@ -520,6 +538,7 @@ function WorkspaceMenu({
       )}
       {sorted.map((w) => {
         const active = w.dir === current
+        const isPinned = pinned.includes(w.dir)
         return (
           <div key={w.dir} className={`ws-item ${active ? 'is-active' : ''}`}>
             <button
@@ -547,6 +566,28 @@ function WorkspaceMenu({
                   <path d="M20 6 9 17l-5-5" />
                 </svg>
               )}
+            </button>
+            <button
+              type="button"
+              className={`ws-pin ${isPinned ? 'is-pinned' : ''}`}
+              title={isPinned ? t('sb.project.unpin') : t('sb.project.pin')}
+              aria-label={`${isPinned ? t('sb.project.unpin') : t('sb.project.pin')}: ${baseName(w.dir)}`}
+              aria-pressed={isPinned}
+              onClick={() => togglePin(w.dir)}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill={isPinned ? 'currentColor' : 'none'}
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9Z" />
+              </svg>
             </button>
             <button
               type="button"
