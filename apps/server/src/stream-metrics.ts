@@ -1,6 +1,6 @@
 /** Main-agent stream samples only. Wall clocks for tools/approvals never enter decode time. */
 export class StreamMetrics {
-  private requests = new Map<string, { start: number | null; end: number | null; tokens: number | null }>()
+  private requests = new Map<string, { openedAt: number; start: number | null; end: number | null; tokens: number | null }>()
   private active: string | null = null
   private began = 0
   firstContentMs: number | null = null
@@ -14,7 +14,7 @@ export class StreamMetrics {
       const message = event.message as { id?: string } | undefined
       if (message?.id) {
         this.active = message.id
-        if (!this.requests.has(message.id)) this.requests.set(message.id, { start: null, end: null, tokens: null })
+        if (!this.requests.has(message.id)) this.requests.set(message.id, { openedAt: now, start: null, end: null, tokens: null })
       }
       return
     }
@@ -35,9 +35,12 @@ export class StreamMetrics {
   }
   summary(): { speed: number | null; complete: boolean; sampled: number; requests: number } {
     const samples = [...this.requests.values()]
-    const paired = samples.filter((s): s is { start: number; end: number; tokens: number } => s.start !== null && s.end !== null && s.tokens !== null && s.end > s.start)
+    const paired = samples.filter((s): s is typeof s & { start: number; end: number; tokens: number } => s.start !== null && s.end !== null && s.tokens !== null && s.end > s.start)
     const complete = samples.length > 0 && samples.length === paired.length
     const elapsed = paired.reduce((sum, s) => sum + s.end - s.start, 0)
     return { speed: complete && elapsed > 0 ? paired.reduce((sum, s) => sum + s.tokens, 0) * 1000 / elapsed : null, complete, sampled: paired.length, requests: samples.length }
+  }
+  samples(): Array<{ requestId: string; role: 'main'; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }> {
+    return [...this.requests].map(([requestId, s]) => ({ requestId, role: 'main', streamOpenedAt: s.openedAt, firstContentAt: s.start, endedAt: s.end, outputTokens: s.tokens, outputDurationMs: s.start !== null && s.end !== null ? Math.max(0, s.end - s.start) : null }))
   }
 }

@@ -1,6 +1,8 @@
 /** 与 server/src/protocol.ts 对应的前端侧类型(P0 子集) */
 
 export interface SessionMetrics {
+  requests?: Array<{ requestId: string; role: 'main'; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  nativeTiming?: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown }
   terminalStatus?: 'running' | 'completed' | 'failed' | 'cancelled'
   runId?: string | null
   firstContentMs?: number | null

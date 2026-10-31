@@ -181,6 +181,8 @@ export class AgentSession {
   private completedAt: number | null = null
   private terminalStatus: 'running' | 'completed' | 'failed' | 'cancelled' = 'running'
   private modelError: string | null = null
+  private nativeTiming: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown } = { durationMs: null, apiDurationMs: null, modelUsage: null }
+  get isRunning(): boolean { return this.turnActive || this.pendingQueue.length > 0 }
   readonly settings = { ...runtimeSettings }
   get workspace(): string { return this.opts.cwd ?? process.cwd() }
 
@@ -251,6 +253,8 @@ export class AgentSession {
     this.streamMetrics.begin(this.runStartedAt)
     this.firstContentMs = null
     this.modelError = null
+    this.acc.ttftMs = null
+    this.nativeTiming = { durationMs: null, apiDurationMs: null, modelUsage: null }
     this.speedScope = "last_request"
     const msg: SDKUserMessage = {
       type: 'user',
@@ -504,6 +508,7 @@ export class AgentSession {
       this.turnActive = false
       this.completedAt = Date.now()
       applyResult(this.acc, msg)
+      this.nativeTiming = { durationMs: typeof msg.duration_ms === 'number' ? msg.duration_ms : null, apiDurationMs: typeof msg.duration_api_ms === 'number' ? msg.duration_api_ms : null, modelUsage: msg.modelUsage ?? null }
       if (msg.subtype !== 'success') this.paused = true
       this.emitMetrics()
       this.emitContext()
@@ -599,7 +604,7 @@ export class AgentSession {
 
   private emitMetrics(): void {
     if (!this.sessionId) return
-    const metrics = { ...computeMetrics(this.acc), terminalStatus: this.terminalStatus, runId: this.runId, firstContentMs: this.firstContentMs, speedScope: this.speedScope, runStartedAt: this.runStartedAt || null, completedAt: this.completedAt, sampledRequests: this.streamMetrics.summary().sampled, metricsComplete: this.streamMetrics.summary().complete }
+    const metrics = { ...computeMetrics(this.acc), terminalStatus: this.terminalStatus, runId: this.runId, firstContentMs: this.firstContentMs, speedScope: this.speedScope, runStartedAt: this.runStartedAt || null, completedAt: this.completedAt, sampledRequests: this.streamMetrics.summary().sampled, metricsComplete: this.streamMetrics.summary().complete, requests: this.streamMetrics.samples(), nativeTiming: this.nativeTiming }
     this.emit({ t: 'metrics', seq: 0, sessionId: this.sessionId, metrics })
     if (this.runId) {
       try { atomicWrite(join(APP_DIR, 'metrics', this.sessionId, `${this.runId}.json`), JSON.stringify(metrics)) } catch { /* Metrics persistence must not break execution. */ }

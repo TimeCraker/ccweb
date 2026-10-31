@@ -148,6 +148,8 @@ export interface SettingsSnapshot {
 
 /** 底栏指标条(SPEC §5 口径) */
 export interface SessionMetrics {
+  requests?: Array<{ requestId: string; role: 'main'; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  nativeTiming?: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown }
   terminalStatus?: 'running' | 'completed' | 'failed' | 'cancelled'
   runId?: string | null
   firstContentMs?: number | null

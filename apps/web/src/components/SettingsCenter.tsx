@@ -57,7 +57,7 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
   const parsed = useMemo(() => frontmatter(draft), [draft])
   const query = useMemo(() => `workspace=${encodeURIComponent(workspace)}`, [workspace])
   const connectionDirty = Object.values(connection).some(value => value.trim() !== '')
-  const hasUnsaved = dirty || connectionDirty
+  const hasUnsaved = dirty || connectionDirty || newName !== null || model.length > 0
   const dismissDraft = useCallback(() => !hasUnsaved || window.confirm('放弃尚未保存的更改？'), [hasUnsaved])
   const close = useCallback(() => { if (dismissDraft()) onClose() }, [dismissDraft, onClose])
   const refresh = useCallback(async () => {
@@ -103,7 +103,7 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
   function changeTab(next: Tab) {
     if (!dismissDraft()) return
     request.current += 1
-    setTab(next); setSelected(null); setDraft(''); setError(''); setNotice(''); setNewName(null); setSaving(false)
+    setConnection({ name: '', url: '', token: '', model: '' }); setModel(''); setTab(next); setSelected(null); setDraft(''); setError(''); setNotice(''); setNewName(null); setSaving(false)
     if (next === 'mcp') send({ t: 'mcp.status' })
   }
   async function save() {
@@ -160,7 +160,7 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
       {(error || operationError) && <div role="alert" className="settings-error">{error || operationError}</div>}
       {notice && <div role="status" className="settings-notice">{notice}</div>}
       {isResource ? <>
-        <div className="resource-filters"><span>来源</span><div className="source-segments" role="group" aria-label="配置来源">{[["all","全部"],["user","用户"],["project","当前项目"],["plugin","插件"]].map(([id,label]) => <button key={id} aria-pressed={source === id} onClick={() => setSource(id!)}>{label}</button>)}</div><div className="resource-search"><IconSearch width={19} height={19} /><input placeholder="搜索技能或命令…" aria-label="搜索配置条目" value={search} onChange={e => setSearch(e.target.value)} /></div>{['skill', 'command', 'rule'].includes(tab) && <button onClick={() => { if (dismissDraft()) { setSelected(null); setDraft(''); setCopyContent(null); setNewName('') } }} className="resource-new"><IconPlus width={19} height={19} />新建{currentLabel}</button>}</div>
+        <div className="resource-filters"><span>来源</span><div className="source-segments" role="group" aria-label="配置来源">{[["all","全部"],["user","用户"],["project","当前项目"],["plugin","插件"]].map(([id,label]) => <button key={id} aria-pressed={source === id} onClick={() => { if (dismissDraft()) setSource(id!) }}>{label}</button>)}</div><div className="resource-search"><IconSearch width={19} height={19} /><input placeholder="搜索技能或命令…" aria-label="搜索配置条目" value={search} onChange={e => setSearch(e.target.value)} /></div>{['skill', 'command', 'rule'].includes(tab) && <button onClick={() => { if (dismissDraft()) { setSelected(null); setDraft(''); setCopyContent(null); setNewName('') } }} className="resource-new"><IconPlus width={19} height={19} />新建{currentLabel}</button>}</div>
         {tab === 'command' && <div className="settings-notice"><p>图形操作（只读）：/plan、/model、/clear、/new、/settings、/mcp、/help。登录、终端设置、升级等 TUI 操作请在终端执行。</p><p>发现的命令：{slashCommands.map(item => `/${item.name}`).join(' · ') || '暂无'}。文件扫描只表示发现；原生运行时会在新会话加载并验证可调用能力。</p></div>}
         {tab === 'mcp' && <div className="settings-notice"><button onClick={() => send({ t: 'mcp.status' })}>刷新运行时状态</button>{mcp.length ? mcp.map(server => <span key={server.name}> {server.name}: {server.status} </span>) : ' 尚无已启动会话的 MCP 状态；配置文件存在不代表已连接。'}</div>}
         {(tab === 'mcp' || tab === 'hooks') && <p className="settings-help">按原生 JSON 配置编辑；保存时只更新当前分区，保留文件中的其他设置。凭证使用遮罩，保持占位符即可保留原值。新会话生效。</p>}

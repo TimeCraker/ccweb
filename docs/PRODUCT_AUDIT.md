@@ -187,3 +187,8 @@ TC 品牌、深浅/系统主题、对话两栏、折叠详情、统一输入与�
 已修复设置 dirty 更新抢焦点、连接草稿关闭前保护、ContextPanel 原生 totalTokens/rawMaxTokens、失败结果用量更新和零值失败不清空累计数据；项目共享 Hooks、.claude/CLAUDE.md、CLAUDE.local.md 可发现和编辑；MultiEdit 展开 edits 数组。pnpm check 45 项、Edge 19/19 通过，逐字输入及拒绝放弃连接草稿已回归。
 
 完整终端替代仍未完成。官方 CLI 的交互会话、登录授权、后台会话附着、插件/工作流和维护操作不能从当前 SDK GUI 自动推导等价；后续需要原生终端承载与逐项实际验收，不能将本修复单元冒充全部完成。参考：https://code.claude.com/docs/en/cli-reference 、https://code.claude.com/docs/en/commands 。
+
+
+## Stage 6.7 接手复核（2026-10-31，进行中）
+
+启动 HEAD 3df8311，工作树干净，SDK 仍精确 0.3.314。基线 pnpm check 45 项通过（server 23 / web 22），不等于本轮完成。复核发现上下文 0 值被详情当作未知、底栏只读 percentage；已统一解析原生 totalTokens/rawMaxTokens。新增配置草稿保护与请求样本持久化属于增量实现；A–G 未关闭，后续终端、安装和真实任务证据须重新生成。
