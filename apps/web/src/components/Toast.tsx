@@ -1,47 +1,57 @@
 import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
-import { IconWarn } from './Icon'
+import { IconWarn, IconCheck, IconX } from './Icon'
 
 /**
- * 全局错误 Toast:server error 消息此前静默(审查发现的缺口 #1)。
- * 4 秒自动消失,可手动关。
+ * 全局反馈:错误走红色 toast,普通提示走中性 toast。
+ * 4 秒自动消失,可手动关;两者互斥显示(先到的先显示)。
  */
 export default function Toast() {
   const error = useStore((s) => s.error)
+  const notice = useStore((s) => s.notice)
   const [visible, setVisible] = useState(false)
   useLocale()
 
-  useEffect(() => {
-    if (!error) return
-    setVisible(true)
-    const t = setTimeout(() => {
-      setVisible(false)
-      useStore.getState().setError(null)
-    }, 4000)
-    return () => clearTimeout(t)
-  }, [error])
+  const message = error ?? notice
+  const isError = Boolean(error)
 
-  if (!error || !visible) return null
+  useEffect(() => {
+    if (!message) return
+    setVisible(true)
+    const timer = setTimeout(() => {
+      setVisible(false)
+      const state = useStore.getState()
+      if (state.error === message) state.setError(null)
+      if (state.notice === message) state.setNotice(null)
+    }, isError ? 6000 : 3600)
+    return () => clearTimeout(timer)
+  }, [message, isError])
+
+  if (!message || !visible) return null
 
   return (
-    <div className="animate-pop-in fixed bottom-6 left-1/2 z-[60] -translate-x-1/2" role="alert">
-      <div className="flex max-w-md items-center gap-2.5 rounded-xl border border-danger/40 bg-panel px-4 py-2.5 shadow-2xl">
-        <IconWarn width={15} height={15} className="shrink-0 text-danger" />
-        <p className="min-w-0 flex-1 truncate text-xs text-text-dim" title={error}>
-          {error}
-        </p>
-        <button
-          onClick={() => {
-            setVisible(false)
-            useStore.getState().setError(null)
-          }}
-          aria-label={t('err.dismiss')}
-          className="shrink-0 text-text-faint hover:text-text"
-        >
-          ✕
-        </button>
-      </div>
+    <div className={`toast ${isError ? 'error' : ''}`} role={isError ? 'alert' : 'status'}>
+      {isError ? (
+        <IconWarn width={15} height={15} style={{ flex: '0 0 auto' }} />
+      ) : (
+        <IconCheck width={15} height={15} style={{ flex: '0 0 auto', color: 'var(--color-ok)' }} />
+      )}
+      <p style={{ minWidth: 0, flex: 1, margin: 0 }} title={message}>
+        {message}
+      </p>
+      <button
+        className="toast-close"
+        onClick={() => {
+          setVisible(false)
+          const state = useStore.getState()
+          if (state.error) state.setError(null)
+          if (state.notice) state.setNotice(null)
+        }}
+        aria-label={t('err.dismiss')}
+      >
+        <IconX width={12} height={12} />
+      </button>
     </div>
   )
 }

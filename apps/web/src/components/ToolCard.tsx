@@ -12,15 +12,15 @@ import {
   IconSparkle,
 } from './Icon'
 
-/** 执行中耗时(dsh 对齐:长命令不像卡死) */
+/** 执行中耗时:长命令不像卡死 */
 function useElapsed(active: boolean): string {
   const [sec, setSec] = useState(0)
   useEffect(() => {
     if (!active) return
     const start = Date.now()
     setSec(0)
-    const t = setInterval(() => setSec(Math.floor((Date.now() - start) / 1000)), 1000)
-    return () => clearInterval(t)
+    const timer = setInterval(() => setSec(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => clearInterval(timer)
   }, [active])
   if (!active) return ''
   return sec >= 60 ? `${Math.floor(sec / 60)}m${sec % 60}s` : `${sec}s`
@@ -28,27 +28,27 @@ function useElapsed(active: boolean): string {
 
 const RESULT_LIMIT = 2000
 
-const TOOL_META: Record<string, { icon: ReactNode; label: (i: Record<string, unknown>) => string }> = {
-  Bash: { icon: <IconTerminal width={12} height={12} />, label: (i) => String(i.command ?? '').slice(0, 120) },
-  Read: { icon: <IconFile width={12} height={12} />, label: (i) => String(i.file_path ?? i.path ?? '') },
-  Write: { icon: <IconFile width={12} height={12} />, label: (i) => String(i.file_path ?? i.path ?? '') },
-  Edit: { icon: <IconEdit width={12} height={12} />, label: (i) => String(i.file_path ?? i.path ?? '') },
-  Glob: { icon: <IconSearch width={12} height={12} />, label: (i) => String(i.pattern ?? '') },
-  Grep: { icon: <IconSearch width={12} height={12} />, label: (i) => String(i.pattern ?? '') },
-  WebSearch: { icon: <IconGlobe width={12} height={12} />, label: (i) => String(i.query ?? '') },
-  WebFetch: { icon: <IconGlobe width={12} height={12} />, label: (i) => String(i.url ?? '') },
-  Task: { icon: <IconSparkle width={12} height={12} />, label: (i) => String(i.description ?? i.prompt ?? '') },
+const TOOL_META: Record<string, { icon: ReactNode; label: (input: Record<string, unknown>) => string }> = {
+  Bash: { icon: <IconTerminal width={12} height={12} />, label: (input) => String(input.command ?? '').slice(0, 120) },
+  Read: { icon: <IconFile width={12} height={12} />, label: (input) => String(input.file_path ?? input.path ?? '') },
+  Write: { icon: <IconFile width={12} height={12} />, label: (input) => String(input.file_path ?? input.path ?? '') },
+  Edit: { icon: <IconEdit width={12} height={12} />, label: (input) => String(input.file_path ?? input.path ?? '') },
+  Glob: { icon: <IconSearch width={12} height={12} />, label: (input) => String(input.pattern ?? '') },
+  Grep: { icon: <IconSearch width={12} height={12} />, label: (input) => String(input.pattern ?? '') },
+  WebSearch: { icon: <IconGlobe width={12} height={12} />, label: (input) => String(input.query ?? '') },
+  WebFetch: { icon: <IconGlobe width={12} height={12} />, label: (input) => String(input.url ?? '') },
+  Task: { icon: <IconSparkle width={12} height={12} />, label: (input) => String(input.description ?? input.prompt ?? '') },
 }
 
-const STATUS_BADGE = {
-  streaming: { text: 'tl.streaming', cls: 'text-text-faint' },
-  running: { text: 'tl.running', cls: 'text-accent' },
-  done: { text: 'tl.done', cls: 'text-ok' },
-  error: { text: 'tl.error', cls: 'text-danger' },
+const STATUS = {
+  streaming: { text: 'tl.streaming', color: 'var(--color-text-faint)' },
+  running: { text: 'tl.running', color: 'var(--color-accent)' },
+  done: { text: 'tl.done', color: 'var(--color-ok)' },
+  error: { text: 'tl.error', color: 'var(--color-danger)' },
 } as const
 
 export default function ToolCard({ block }: { block: ToolBlock }) {
-  // dsh 对齐:Bash 完成后自动展开一次;用户手动操作后完全交还控制权
+  // Bash 完成后自动展开一次;用户手动操作后完全交还控制权
   const [userTouched, setUserTouched] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
   const [open, setOpen] = useState(false)
@@ -58,7 +58,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
   const effectiveOpen = userTouched ? open : open || autoOpen
   const elapsed = useElapsed(block.status === 'running' || block.status === 'streaming')
   const meta = TOOL_META[block.toolName]
-  const badge = STATUS_BADGE[block.status]
+  const status = STATUS[block.status]
   const summary = useMemo(() => {
     const input = block.input ?? tryParse(block.inputRaw)
     if (input && meta) return meta.label(input)
@@ -71,17 +71,10 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
 
   const result = block.resultText
   const truncated = result != null && result.length > RESULT_LIMIT
-  // ANSI 着色(Bash 输出):含转义时切带色 span 渲染,否则原样
   const display =
-    result != null
-      ? truncated
-        ? `${result.slice(0, RESULT_LIMIT)}\n…${t('tl.truncated')}`
-        : result
-      : ''
+    result != null ? (truncated ? `${result.slice(0, RESULT_LIMIT)}\n…${t('tl.truncated')}` : result) : ''
   const hasAnsi = result != null && result.includes('\x1b')
-  // Read/Grep 结果逐行行号(文件阅读感);ANSI 路径保持原样
   const numbered = (block.toolName === 'Read' || block.toolName === 'Grep') && !hasAnsi
-  // Edit 变更预览:input.old_string → new_string 行级 diff
   const editPreview = useMemo(() => {
     if (block.toolName !== 'Edit') return null
     const input = block.input ?? tryParse(block.inputRaw)
@@ -92,30 +85,41 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
   }, [block.toolName, block.input, block.inputRaw])
 
   return (
-    <div className="tool-card my-1.5 overflow-hidden rounded-lg border border-border bg-panel">
+    <div className="tool-card">
       <button
+        className="tool-card-head"
+        aria-expanded={effectiveOpen}
         onClick={() => {
           setUserTouched(true)
-          setOpen((v) => !v)
+          setOpen((value) => !value)
         }}
-        aria-expanded={effectiveOpen}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-panel-2"
       >
-        <span className="grid size-5 shrink-0 place-items-center rounded border border-border bg-panel-2 text-text-dim">
-          {meta?.icon ?? <IconSparkle width={12} height={12} />}
-        </span>
-        <span className="font-mono text-xs font-medium text-text-dim">{block.toolName}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-text-faint">
+        <span className="tool-icon">{meta?.icon ?? <IconSparkle width={12} height={12} />}</span>
+        <span className="tool-name">{block.toolName}</span>
+        <span className="tool-summary" title={summary}>
           {summary}
         </span>
         {block.status === 'running' && (
-          <span className="size-3 shrink-0 animate-spin rounded-full border border-accent border-t-transparent" />
+          <span
+            aria-hidden="true"
+            style={{
+              width: 11,
+              height: 11,
+              borderRadius: '50%',
+              border: '1.5px solid var(--color-accent)',
+              borderTopColor: 'transparent',
+              animation: 'spin 0.8s linear infinite',
+              flex: '0 0 auto',
+            }}
+          />
         )}
-        <span className={`shrink-0 font-mono text-[10px] ${badge.cls}`}>
-          {t(badge.text)}
+        <span className="tool-status" style={{ color: status.color }}>
+          {t(status.text)}
           {elapsed ? ` ${elapsed}` : ''}
         </span>
-        <span className={`shrink-0 text-text-faint transition-transform ${effectiveOpen ? 'rotate-90' : ''}`}>▸</span>
+        <svg className="tool-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="m9 6 6 6-6 6" />
+        </svg>
       </button>
 
       <div className={`tool-expand ${effectiveOpen ? 'open' : ''}`}>
@@ -125,36 +129,26 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
             <pre>{block.input ? JSON.stringify(block.input, null, 2) : block.inputRaw || t('tl.receiving')}</pre>
           </details>
           {editPreview && (
-            <div className="border-t border-border px-3 py-2">
-              <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.diffPreview')}</p>
+            <div className="tool-block">
+              <p className="label">{t('tl.diffPreview')}</p>
               <DiffView oldStr={editPreview.oldStr} newStr={editPreview.newStr} />
             </div>
           )}
           {result != null && (
-            <div className="border-t border-border px-3 py-2">
-              <p className="mb-1 text-[10px] uppercase tracking-wider text-text-faint">{t('tl.result')}</p>
-              <pre
-                className={`max-h-72 overflow-auto whitespace-pre-wrap rounded border px-3 py-2 font-mono text-[11px] ${
-                  block.status === 'error'
-                    ? 'border-danger/30 bg-danger/5 text-danger'
-                    : 'border-border bg-bg text-text-dim'
-                }`}
-              >
+            <div className="tool-block">
+              <p className="label">{t('tl.result')}</p>
+              <pre className={`tool-pre ${block.status === 'error' ? 'error' : ''}`}>
                 {hasAnsi
-                  ? ansiToSegments(display).map((seg, i) => (
-                      <span
-                        key={i}
-                        style={seg.fg ? { color: seg.fg } : undefined}
-                        className={seg.bold ? 'font-bold' : undefined}
-                      >
-                        {seg.text}
+                  ? ansiToSegments(display).map((segment, index) => (
+                      <span key={index} style={segment.fg ? { color: segment.fg } : undefined} className={segment.bold ? 'font-bold' : undefined}>
+                        {segment.text}
                       </span>
                     ))
                   : numbered
-                    ? display.split('\n').map((line, i) => (
-                        <span key={i} className="block">
-                          <span className="mr-3 inline-block w-8 shrink-0 select-none text-right text-text-faint">
-                            {i + 1}
+                    ? display.split('\n').map((line, index) => (
+                        <span key={index} style={{ display: 'block' }}>
+                          <span style={{ display: 'inline-block', width: 30, marginRight: 10, textAlign: 'right', color: 'var(--color-text-faint)', userSelect: 'none' }}>
+                            {index + 1}
                           </span>
                           {line}
                         </span>
@@ -171,13 +165,13 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
 
 function tryParse(raw: string): Record<string, unknown> | null {
   try {
-    const v = JSON.parse(raw)
-    return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : null
+    const value = JSON.parse(raw)
+    return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
   } catch {
     return null
   }
 }
 
-function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n)}…` : s
+function truncate(value: string, max: number): string {
+  return value.length > max ? `${value.slice(0, max)}…` : value
 }

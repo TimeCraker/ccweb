@@ -9,18 +9,16 @@ interface Props {
 }
 
 /**
- * 问题接管(AskUserQuestion 类):渲染在 PermissionCard 同位置。
- * 每题单选一个选项(或展开填写其他答案),提交组装 answers 数组。
+ * 问题接管(AskUserQuestion 类):渲染在审批卡同位置。
+ * 每题可单选或多选,也支持填写其他答案;提交时组装 answers。
  */
 export default function QuestionCard({ onResolve }: Props) {
   const question = useStore((s) => s.question)
   useLocale()
-  // 每题作答状态(选项 label / 其他答案开关 / 其他答案文本)
   const [sel, setSel] = useState<Record<number, string[]>>({})
   const [otherOpen, setOtherOpen] = useState<Record<number, boolean>>({})
   const [otherText, setOtherText] = useState<Record<number, string>>({})
 
-  // 新问题到达时清空作答
   useEffect(() => {
     setSel({})
     setOtherOpen({})
@@ -29,87 +27,122 @@ export default function QuestionCard({ onResolve }: Props) {
 
   if (!question) return null
 
-  const answered = (i: number) =>
-    (sel[i]?.length ?? 0) > 0 || (otherText[i] ?? '').trim() !== ''
-  const allAnswered = question.questions.every((_, i) => answered(i))
+  const answered = (index: number) => (sel[index]?.length ?? 0) > 0 || (otherText[index] ?? '').trim() !== ''
+  const allAnswered = question.questions.every((_, index) => answered(index))
 
   const submit = () => {
-    const answers = Object.fromEntries(question.questions.map((item, i) => {
-      const other = (otherText[i] ?? '').trim()
-      return [item.question, other !== '' ? other : (sel[i] ?? []).join(', ')]
-    }))
+    const answers = Object.fromEntries(
+      question.questions.map((item, index) => {
+        const other = (otherText[index] ?? '').trim()
+        return [item.question, other !== '' ? other : (sel[index] ?? []).join(', ')]
+      }),
+    )
     onResolve(question.requestId, true, { answers })
   }
 
-  return (
-    <div className="mx-auto mb-2 max-w-3xl px-6">
-      <div className="animate-pop-in rounded-xl border border-accent/40 bg-panel-2/95 p-4 shadow-lg backdrop-blur">
-        <div className="flex items-center gap-2">
-          <span className="grid size-6 place-items-center rounded-md bg-accent/15 text-accent">
-            <IconSparkle width={14} height={14} />
-          </span>
-          <span className="text-sm font-medium">{t('q.title')}</span>
-        </div>
+  const toggle = (index: number, label: string, multi: boolean) => {
+    setSel((state) => {
+      const current = state[index] ?? []
+      if (!multi) return { ...state, [index]: [label] }
+      return {
+        ...state,
+        [index]: current.includes(label) ? current.filter((value) => value !== label) : [...current, label],
+      }
+    })
+    setOtherText((state) => ({ ...state, [index]: '' }))
+  }
 
-        {question.questions.map((q, qi) => (
-          <div key={qi} className="mt-3">
-            <p className="text-xs font-medium text-text">
-              {q.header && <span className="text-text-faint">{q.header}: </span>}
-              {q.question}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {q.options.map((o) => (
+  return (
+    <div className="question-card" role="group" aria-label={t('q.title')}>
+      <div className="question-head">
+        <span
+          style={{
+            display: 'grid',
+            placeItems: 'center',
+            width: 22,
+            height: 22,
+            borderRadius: 6,
+            background: 'color-mix(in srgb, var(--color-accent) 16%, transparent)',
+            color: 'var(--color-accent)',
+          }}
+        >
+          <IconSparkle width={13} height={13} />
+        </span>
+        {t('q.title')}
+        <span className="badge" style={{ marginLeft: 'auto' }}>
+          {question.questions.length} 个问题
+        </span>
+      </div>
+
+      {question.questions.map((item, index) => (
+        <div className="question-item" key={index}>
+          <strong>
+            {item.header && <span style={{ color: 'var(--color-text-faint)', fontWeight: 400 }}>{item.header} · </span>}
+            {item.question}
+          </strong>
+          {item.multiSelect && <p>可选择多个</p>}
+          <div className="option-list">
+            {item.options.map((option) => {
+              const selected = sel[index]?.includes(option.label) ?? false
+              return (
                 <button
-                  key={o.label}
-                  onClick={() => setSel((s) => ({ ...s, [qi]: q.multiSelect ? (s[qi]?.includes(o.label) ? s[qi].filter(v => v !== o.label) : [...(s[qi] ?? []), o.label]) : [o.label] }))}
-                  aria-pressed={sel[qi]?.includes(o.label) ?? false}
-                  title={o.description}
-                  className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
-                    sel[qi]?.includes(o.label)
-                      ? 'border-accent bg-accent/10 text-accent'
-                      : 'border-border-strong text-text-dim hover:border-accent/50 hover:text-text'
-                  }`}
+                  key={option.label}
+                  className="option"
+                  aria-pressed={selected}
+                  title={option.description}
+                  onClick={() => toggle(index, option.label, Boolean(item.multiSelect))}
                 >
-                  {o.label}
+                  <span className="tick" aria-hidden="true">
+                    ✓
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block' }}>{option.label}</span>
+                    {option.description && (
+                      <span style={{ display: 'block', marginTop: 1, fontSize: 11.5, color: 'var(--color-text-faint)' }}>
+                        {option.description}
+                      </span>
+                    )}
+                  </span>
                 </button>
-              ))}
-              <button
-                onClick={() => setOtherOpen((s) => ({ ...s, [qi]: !s[qi] }))}
-                className={`rounded-lg border px-2.5 py-1.5 text-xs transition-colors ${
-                  otherOpen[qi]
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-border-strong text-text-dim hover:border-accent/50 hover:text-text'
-                }`}
-              >
-                {t('q.other')} {otherOpen[qi] ? '▴' : '▾'}
-              </button>
-            </div>
-            {otherOpen[qi] && (
+              )
+            })}
+            <button
+              className="option"
+              aria-pressed={Boolean(otherOpen[index])}
+              onClick={() => setOtherOpen((state) => ({ ...state, [index]: !state[index] }))}
+            >
+              <span className="tick" aria-hidden="true">
+                ✓
+              </span>
+              {t('q.other')}
+            </button>
+            {otherOpen[index] && (
               <input
-                value={otherText[qi] ?? ''}
-                onChange={(e) => setOtherText((s) => ({ ...s, [qi]: e.target.value }))}
-                placeholder={t('q.other')}
-                className="mt-2 w-full rounded-lg border border-border bg-bg px-3 py-1.5 text-xs outline-none transition-colors focus:border-accent/60"
+                className="input"
+                value={otherText[index] ?? ''}
+                onChange={(e) => {
+                  setOtherText((state) => ({ ...state, [index]: e.target.value }))
+                  setSel((state) => ({ ...state, [index]: [] }))
+                }}
+                placeholder="输入你的答案"
+                aria-label={t('q.other')}
+                autoFocus
               />
             )}
           </div>
-        ))}
-
-        <div className="mt-4 flex items-center justify-end gap-2">
-          <button
-            onClick={() => onResolve(question.requestId, false)}
-            className="rounded-lg border border-border-strong px-3 py-1.5 text-xs font-medium text-text-dim transition-colors hover:border-danger hover:text-danger"
-          >
-            {t('q.skip')}
-          </button>
-          <button
-            onClick={submit}
-            disabled={!allAnswered}
-            className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            {t('q.submit')}
-          </button>
         </div>
+      ))}
+
+      <div className="question-actions">
+        <span className="hint" style={{ flex: 1, fontSize: 11.5, color: 'var(--color-text-faint)' }}>
+          回答会作为本轮输入提交，不会被当作新的任务。
+        </span>
+        <button className="btn btn-sm" onClick={() => onResolve(question.requestId, false)}>
+          {t('q.skip')}
+        </button>
+        <button className="btn btn-sm btn-primary" onClick={submit} disabled={!allAnswered}>
+          {t('q.submit')}
+        </button>
       </div>
     </div>
   )

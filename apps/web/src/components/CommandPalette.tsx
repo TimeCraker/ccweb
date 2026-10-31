@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
-import { t, tf, useLocale, toggleLocale } from '../i18n'
-import { cycleTheme } from '../theme'
+import { t, useLocale, toggleLocale } from '../i18n'
+import { cycleTheme, useThemeMode } from '../theme'
+import { baseName } from '../lib/path'
 
 interface Cmd {
   id: string
   label: string
   hint?: string
+  group: 'commands' | 'workspaces' | 'sessions'
   run: () => void
 }
 
@@ -21,7 +23,7 @@ interface Props {
 
 const EMPTY_WORKSPACES: Array<{ dir: string; sessions: number; lastModified: string | null }> = []
 
-/** 命令面板(Ctrl+K):动作 + 工作区 + 会话跳转,全键盘操作 */
+/** 命令面板(Ctrl+K):动作 + 项目 + 会话跳转,全键盘操作 */
 export default function CommandPalette({
   open,
   onClose,
@@ -31,128 +33,153 @@ export default function CommandPalette({
   onSetWorkspace,
 }: Props) {
   const sessions = useStore((s) => s.sessions)
-  // 注意:zustand selector 必须返回稳定引用;派生默认值放 selector 外(否则 React #185)
   const settings = useStore((s) => s.settings)
   const workspaces = settings?.workspaces ?? EMPTY_WORKSPACES
-  const [q, setQ] = useState('')
-  const [sel, setSel] = useState(0)
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const locale = useLocale()
-
-  // 高亮项滚入可视区(dsh MenuView 对齐)
-  useEffect(() => {
-    const el = listRef.current?.querySelector<HTMLElement>(`button:nth-of-type(${sel + 1})`) ?? null
-    el?.scrollIntoView({ block: 'nearest' })
-  }, [sel])
+  const { mode } = useThemeMode()
 
   useEffect(() => {
-    if (open) {
-      setQ('')
-      setSel(0)
-      setTimeout(() => inputRef.current?.focus(), 0)
-    }
+    const element = listRef.current?.querySelectorAll<HTMLElement>('.palette-item')[selected] ?? null
+    element?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
+
+  useEffect(() => {
+    if (!open) return
+    setQuery('')
+    setSelected(0)
+    const frame = requestAnimationFrame(() => inputRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
   }, [open])
 
   const items = useMemo<Cmd[]>(() => {
     const tr = (key: Parameters<typeof t>[0]): string => t(key, locale) as string
-    const cmds: Cmd[] = [
-      { id: 'new', label: tr('palette.cmd.newSession'), hint: 'Ctrl N', run: onNewSession },
-      { id: 'settings', label: tr('palette.cmd.settings'), hint: 'Ctrl ,', run: onOpenSettings },
-      { id: 'theme', label: tr('palette.cmd.theme'), run: cycleTheme },
-      { id: 'lang', label: tr('palette.cmd.lang'), run: toggleLocale },
+    const commands: Cmd[] = [
+      { id: 'new', label: tr('palette.cmd.newSession'), hint: 'Ctrl N', group: 'commands', run: onNewSession },
+      { id: 'settings', label: tr('palette.cmd.settings'), hint: 'Ctrl ,', group: 'commands', run: onOpenSettings },
+      {
+        id: 'theme',
+        label: `${tr('hd.theme')} · ${mode === 'dark' ? tr('hd.themeDark') : mode === 'light' ? tr('hd.themeLight') : tr('hd.themeSystem')}`,
+        group: 'commands',
+        run: cycleTheme,
+      },
+      { id: 'lang', label: tr('palette.cmd.lang'), group: 'commands', run: toggleLocale },
     ]
-    const wsList: Cmd[] = workspaces.slice(0, 10).map((w) => {
-      const parts = w.dir.split(/[\\/]/).filter(Boolean)
-      return {
-        id: `w:${w.dir}`,
-        label: tf('palette.switchWs', parts[parts.length - 1] ?? w.dir),
-        hint: 'workspace',
-        run: () => onSetWorkspace(w.dir),
-      }
-    })
-    const sess: Cmd[] = sessions.slice(0, 20).map((s) => ({
-      id: `s:${s.id}`,
-      label: s.title || '(no title)',
-      hint: 'session',
-      run: () => onOpenSession(s.id),
+    const projectItems: Cmd[] = workspaces.slice(0, 12).map((workspace) => ({
+      id: `w:${workspace.dir}`,
+      label: baseName(workspace.dir),
+      hint: workspace.dir,
+      group: 'workspaces',
+      run: () => onSetWorkspace(workspace.dir),
     }))
-    const all = [...cmds, ...wsList, ...sess]
-    if (!q) return all
-    const needle = q.toLowerCase()
-    return all.filter((c) => c.label.toLowerCase().includes(needle))
-  }, [q, locale, sessions, workspaces, onNewSession, onOpenSettings, onOpenSession, onSetWorkspace])
+    const sessionItems: Cmd[] = sessions.slice(0, 20).map((session) => ({
+      id: `s:${session.id}`,
+      label: session.title || '(无标题)',
+      hint: session.gitBranch ?? undefined,
+      group: 'sessions',
+      run: () => onOpenSession(session.id),
+    }))
+    const all = [...commands, ...projectItems, ...sessionItems]
+    if (!query) return all
+    const needle = query.toLowerCase()
+    return all.filter((item) => item.label.toLowerCase().includes(needle) || (item.hint ?? '').toLowerCase().includes(needle))
+  }, [query, locale, sessions, workspaces, onNewSession, onOpenSettings, onOpenSession, onSetWorkspace, mode])
 
   if (!open) return null
 
-  const exec = (c: Cmd | undefined) => {
-    if (!c) return
-    c.run()
+  const exec = (command: Cmd | undefined) => {
+    if (!command) return
+    command.run()
     onClose()
   }
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-start justify-center bg-black/50 pt-[15vh] backdrop-blur-sm"
-      onClick={onClose}
+      className="palette-overlay"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+      onKeyDown={(event) => {
+        const native = event.nativeEvent as KeyboardEvent & { isComposing?: boolean }
+        if (native.isComposing || native.keyCode === 229) return
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onClose()
+        }
+      }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="command palette"
-        className="animate-pop-in w-[560px] max-w-[92vw] overflow-hidden rounded-xl border border-border-strong bg-panel shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div role="dialog" aria-modal="true" aria-label="命令面板" className="palette">
         <input
           ref={inputRef}
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value)
-            setSel(0)
+          autoFocus
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setSelected(0)
           }}
-          onKeyDown={(e) => {
-            if (e.key === 'ArrowDown') {
-              e.preventDefault()
-              setSel((s) => Math.min(s + 1, items.length - 1))
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault()
-              setSel((s) => Math.max(s - 1, 0))
-            } else if (e.key === 'Enter') {
-              e.preventDefault()
-              exec(items[sel])
-            } else if (e.key === 'Escape') {
+          onKeyDown={(event) => {
+            const native = event.nativeEvent as KeyboardEvent & { isComposing?: boolean }
+            if (native.isComposing || native.keyCode === 229) return
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              setSelected((value) => Math.min(value + 1, items.length - 1))
+            } else if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              setSelected((value) => Math.max(value - 1, 0))
+            } else if (event.key === 'Enter') {
+              event.preventDefault()
+              exec(items[selected])
+            } else if (event.key === 'Escape') {
+              event.preventDefault()
               onClose()
             }
           }}
           placeholder={t('palette.placeholder')}
-          className="w-full border-b border-border bg-transparent px-4 py-3 text-sm outline-none placeholder:text-text-faint"
+          aria-label={t('palette.placeholder')}
         />
-        <div className="max-h-72 overflow-y-auto p-1.5" ref={listRef}>
-          {items.length === 0 && (
-            <p className="px-3 py-6 text-center text-xs text-text-faint">{t('palette.empty')}</p>
-          )}
-          {items.map((c, i) => {
-            const prev = items[i - 1]
-            const kind = c.id.startsWith('s:') ? 's' : c.id.startsWith('w:') ? 'w' : 'c'
-            const prevKind = prev ? (prev.id.startsWith('s:') ? 's' : prev.id.startsWith('w:') ? 'w' : 'c') : ''
-            const showGroup = kind !== prevKind
-            const groupLabel = kind === 's' ? t('palette.sessions') : kind === 'w' ? t('palette.workspaces') : t('palette.commands')
+        <div className="palette-list" ref={listRef}>
+          {items.length === 0 && <p className="palette-empty">{t('palette.empty')}</p>}
+          {items.map((command, index) => {
+            const previous = items[index - 1]
+            const showGroup = !previous || previous.group !== command.group
+            const groupLabel =
+              command.group === 'sessions'
+                ? t('palette.sessions')
+                : command.group === 'workspaces'
+                  ? t('palette.workspaces')
+                  : t('palette.commands')
             return (
-              <div key={c.id}>
-                {showGroup && (
-                  <p className="px-3 pb-1 pt-2 text-[10px] font-medium uppercase tracking-wider text-text-faint">
-                    {groupLabel}
-                  </p>
-                )}
+              <div key={command.id}>
+                {showGroup && <p className="palette-group">{groupLabel}</p>}
                 <button
-                  onClick={() => exec(c)}
-                  onMouseEnter={() => setSel(i)}
-                  className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm ${
-                    i === sel ? 'bg-panel-2 text-text' : 'text-text-dim'
-                  }`}
+                  className="palette-item"
+                  data-active={index === selected}
+                  onMouseEnter={() => setSelected(index)}
+                  onClick={() => exec(command)}
                 >
-                  <span className="truncate">{c.label}</span>
-                  {c.hint && <span className="ml-2 shrink-0 font-mono text-[10px] text-text-faint">{c.hint}</span>}
+                  <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {command.label}
+                  </span>
+                  {command.hint && (
+                    <span
+                      style={{
+                        marginLeft: 10,
+                        flex: '0 0 auto',
+                        maxWidth: 220,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontFamily: command.group === 'workspaces' ? 'var(--font-mono)' : undefined,
+                        fontSize: command.group === 'workspaces' ? 10.5 : 11,
+                        color: 'var(--color-text-faint)',
+                      }}
+                    >
+                      {command.hint}
+                    </span>
+                  )}
                 </button>
               </div>
             )

@@ -8,7 +8,7 @@ import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
 import { copyText } from '../clipboard'
-import { IconFork, IconWarn, BrandMark } from './Icon'
+import { IconFork, IconWarn, IconCopy, IconCheck } from './Icon'
 
 interface StreamProps {
   onRegenerate?: () => void
@@ -136,44 +136,42 @@ function RunningTimer({ startedAt }: { startedAt: number }) {
   )
 }
 
-/** 用户消息:`/命令` `@提及` chip 化装饰(dsh projectUserText 对齐);hover 可复制/分叉 */
+/** 用户消息:`/命令` `@提及` chip 化装饰;hover 可复制/分叉 */
 function UserRow({ text, onFork, images }: { text: string; onFork?: () => void; images?: string[] }) {
   const [image, setImage] = useState<string | null>(null)
   useLocale()
   return (
-    <div className="user-message animate-msg-in group flex justify-end"><span className="message-avatar user-avatar" aria-hidden="true">U</span>
-      <div className="max-w-[80%] rounded-xl rounded-br-sm border border-border-strong bg-panel-2 px-4 py-2.5">
-        {text.split(/(\s+)/).map((tok, i) => {
-          const m = /^(\/[a-zA-Z][\w-]*|@[a-zA-Z][\w.-]*)$/.exec(tok)
-          if (m) {
-            const isCmd = tok.startsWith('/')
-            return (
-              <span
-                key={i}
-                className={`mx-0.5 rounded px-1.5 py-0.5 font-mono text-[11px] ${
-                  isCmd ? 'bg-accent/15 text-accent' : 'bg-ok/15 text-ok'
-                }`}
-              >
-                {tok}
-              </span>
-            )
-          }
-          return <span key={i}>{tok}</span>
-        })}
+    <div className="msg-user animate-msg-in group">
+      <div className="bubble-wrap">
+        <div className="msg-actions">
+          {onFork && (
+            <button onClick={onFork} aria-label={t('ms.fork')} title={t('ms.fork')} className="icon-btn">
+              <IconFork width={12} height={12} />
+            </button>
+          )}
+          <CopyBtn text={text} />
+        </div>
+        <div className="bubble">
+          {text.split(/(\s+)/).map((token, index) => {
+            const match = /^(\/[a-zA-Z][\w-]*|@[a-zA-Z][\w.-]*)$/.exec(token)
+            if (match) {
+              const isCommand = token.startsWith('/')
+              return (
+                <span key={index} className={`inline-chip ${isCommand ? 'cmd' : 'at'}`}>
+                  {token}
+                </span>
+              )
+            }
+            return <span key={index}>{token}</span>
+          })}
+          {images?.map((src, index) => (
+            <button key={index} onClick={() => setImage(src)} aria-label={`查看消息附件 ${index + 1}`}>
+              <img src={src} alt={`消息附件 ${index + 1}`} style={{ maxWidth: 220, borderRadius: 8, marginTop: 8 }} />
+            </button>
+          ))}
+        </div>
       </div>
-      {images?.map((src, index) => <button key={index} onClick={() => setImage(src)} aria-label={`查看消息附件 ${index + 1}`}><img src={src} alt={`消息附件 ${index + 1}`} className="size-16 rounded-md object-cover" /></button>)}
       {image && <Lightbox src={image} onClose={() => setImage(null)} />}
-      {onFork && (
-        <button
-          onClick={onFork}
-          aria-label={t('ms.fork')}
-          title={t('ms.fork')}
-          className="ml-1.5 grid size-6 shrink-0 place-items-center self-center rounded-md border border-border bg-panel text-text-faint opacity-0 transition-opacity focus-visible:opacity-100 hover:text-text group-hover:opacity-100"
-        >
-          <IconFork width={12} height={12} />
-        </button>
-      )}
-      <CopyBtn text={text} className="ml-1.5 self-center opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100" />
     </div>
   )
 }
@@ -198,23 +196,20 @@ function TurnView({
   })()
 
   return (
-    <div className="assistant-message group/turn space-y-1"><span className="message-avatar assistant-avatar"><BrandMark size={34} /></span>
+    <div className="msg-assistant group/turn">
       {turn.blocks.map((b, i) => (
         <BlockView key={i} block={b} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
       ))}
-      <div className="flex items-center gap-2">
+      <div className="turn-tail">
         {turn.tail && (
-          <p className="font-mono text-[10px] tabular text-text-faint">
-            ⏱ {turn.tail.totalS.toFixed(1)}s
-            {turn.tail.ttftMs != null && ` · TTFT ${(turn.tail.ttftMs / 1000).toFixed(2)}s`}
+          <span className="tabular">
+            {turn.tail.totalS.toFixed(1)}s
+            {turn.tail.ttftMs != null && ` · 首字 ${(turn.tail.ttftMs / 1000).toFixed(2)}s`}
             {turn.tail.tps != null && ` · ${turn.tail.tps.toFixed(0)} tok/s`}
-          </p>
+          </span>
         )}
         {canRegenerate && onRegenerate && (
-          <button
-            onClick={onRegenerate}
-            className="flex items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] text-text-faint opacity-0 transition-opacity focus-visible:opacity-100 hover:text-text-dim group-hover/turn:opacity-100"
-          >
+          <button onClick={onRegenerate}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
             </svg>
@@ -242,16 +237,18 @@ function BlockView({ block, isLastText }: { block: Block; isLastText: boolean })
               setTimeout(() => setCopied(false), 1200)
             })
           }}
-          className="absolute -right-14 top-0 rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint opacity-0 transition-opacity focus-visible:opacity-100 hover:text-text group-hover:opacity-100"
+          className="icon-btn msg-copy-float"
+          title={copied ? t('ms.copied') : t('ms.copy')}
+          aria-label={copied ? t('ms.copied') : t('ms.copy')}
         >
-          {copied ? t('ms.copied') : t('ms.copy')}
+          {copied ? <IconCheck width={12} height={12} style={{ color: 'var(--color-ok)' }} /> : <IconCopy width={12} height={12} />}
         </button>
       )}
     </div>
   )
 }
 
-function CopyBtn({ text, className }: { text: string; className?: string }) {
+function CopyBtn({ text }: { text: string }) {
   const [copied, setCopied] = useState(false)
   useLocale()
   return (
@@ -262,9 +259,11 @@ function CopyBtn({ text, className }: { text: string; className?: string }) {
           setTimeout(() => setCopied(false), 1200)
         })
       }}
-      className={`rounded-md border border-border bg-panel px-2 py-1 text-[10px] text-text-faint transition-colors hover:text-text ${className ?? ''}`}
+      className="icon-btn"
+      title={copied ? t('ms.copied') : t('ms.copy')}
+      aria-label={copied ? t('ms.copied') : t('ms.copy')}
     >
-      {copied ? t('ms.copied') : t('ms.copy')}
+      {copied ? <IconCheck width={12} height={12} style={{ color: 'var(--color-ok)' }} /> : <IconCopy width={12} height={12} />}
     </button>
   )
 }

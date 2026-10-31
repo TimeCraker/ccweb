@@ -5,7 +5,7 @@ interface State {
   error: Error | null
 }
 
-/** 顶层错误边界:崩溃时给出可读界面而非白屏(企业级兜底) */
+/** 顶层错误边界:崩溃时给出可读界面而非白屏 */
 export default class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   override state: State = { error: null }
 
@@ -20,18 +20,32 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, St
   override render(): ReactNode {
     if (!this.state.error) return this.props.children
     return (
-      <div className="grid h-full place-items-center bg-bg p-8">
-        <div className="max-w-md rounded-xl border border-danger/40 bg-panel p-6 text-center">
-          <p className="text-sm font-medium text-danger">{t('err.crashTitle')}</p>
-          <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-bg px-3 py-2 text-left font-mono text-[11px] text-text-dim">
+      <div style={{ display: 'grid', placeItems: 'center', height: '100%', padding: 32, background: 'var(--color-bg)' }}>
+        <div className="note danger" style={{ maxWidth: 460, flexDirection: 'column', gap: 12 }}>
+          <strong style={{ fontSize: 14 }}>{t('err.crashTitle')}</strong>
+          <pre
+            style={{
+              margin: 0,
+              maxHeight: 180,
+              overflow: 'auto',
+              padding: '8px 10px',
+              borderRadius: 8,
+              background: 'var(--color-panel)',
+              border: '1px solid var(--color-border)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+            }}
+          >
             {this.state.error.message}
           </pre>
           <button
+            className="btn btn-primary"
             onClick={() => {
               this.setState({ error: null })
               location.reload()
             }}
-            className="mt-4 rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
           >
             {t('err.reload')}
           </button>

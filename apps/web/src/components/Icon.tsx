@@ -65,6 +65,12 @@ export const IconSend = (p: P) => (
   </svg>
 )
 
+export const IconArrowUp = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 19V5M12 5 6 11M12 5l6 6" />
+  </svg>
+)
+
 export const IconStop = (p: P) => (
   <svg {...base(p)}>
     <rect x="6" y="6" width="12" height="12" rx="2" />
@@ -81,6 +87,12 @@ export const IconCopy = (p: P) => (
 export const IconCheck = (p: P) => (
   <svg {...base(p)}>
     <path d="M20 6 9 17l-5-5" />
+  </svg>
+)
+
+export const IconShield = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3 4 6.5v5.2c0 4.7 7.8 8.1 8 8.2.2-.1 8-3.5 8-8.2V6.5L12 3Z" />
   </svg>
 )
 
@@ -101,6 +113,14 @@ export const IconFile = (p: P) => (
   <svg {...base(p)}>
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
     <path d="M14 2v6h6" />
+  </svg>
+)
+
+export const IconImage = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="3" width="18" height="18" rx="4" />
+    <circle cx="9" cy="9" r="2" />
+    <path d="m21 15-3.6-3.6a2 2 0 0 0-2.8 0L6 20" />
   </svg>
 )
 
@@ -159,6 +179,12 @@ export const IconGauge = (p: P) => (
 export const IconChevron = (p: P) => (
   <svg {...base(p)}>
     <path d="m6 9 6 6 6-6" />
+  </svg>
+)
+
+export const IconX = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M6 6l12 12M18 6 6 18" />
   </svg>
 )
 

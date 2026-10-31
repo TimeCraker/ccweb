@@ -93,6 +93,8 @@ interface AppState {
   /** AskUserQuestion 类挂起请求(一次一条,与审批同闸) */
   question: QuestionRequest | null
   error: string | null
+  /** 非错误提示(信息类 toast):与 error 分开,避免把所有反馈都标成红色 */
+  notice: string | null
   busy: boolean
   /** 本轮开始时间戳(运行计时行 + turn 尾统计) */
   turnStartedAt: number | null
@@ -141,6 +143,7 @@ interface AppState {
   /** 标记本 turn 已被用户主动中断:随后到来的非 success result 走中性提示而非红色错误 */
   setInterrupted: (v: boolean) => void
   setError: (e: string | null) => void
+  setNotice: (n: string | null) => void
   setBusy: (b: boolean) => void
 }
 
@@ -158,6 +161,7 @@ export const useStore = create<AppState>((set) => ({
   permissions: [],
   question: null,
   error: null,
+  notice: null,
   busy: false,
   turnStartedAt: null,
   lastTurnStats: null,
@@ -288,7 +292,8 @@ export const useStore = create<AppState>((set) => ({
       entries: [...s.entries, { type: 'turnError' as const, id: nextEntryId(), text, muted }],
     })),
   setInterrupted: (interrupted) => set({ interrupted }),
-  setError: (error) => set({ error }),
+  setError: (error) => set({ error, ...(error ? { notice: null } : {}) }),
+  setNotice: (notice) => set({ notice, ...(notice ? { error: null } : {}) }),
   setBusy: (busy) => set({ busy }),
 }))
 
