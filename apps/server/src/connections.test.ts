@@ -22,23 +22,27 @@ afterAll(() => {
 })
 
 describe('connection URL normalization', () => {
-  it('only trims whitespace and trailing slashes, never guesses provider paths', () => {
+  it('canonicalizes /v1 and /v1/messages to the runtime base root', () => {
     expect(module.normalizeBaseUrl(' https://api.example.com/anthropic/ ')).toBe('https://api.example.com/anthropic')
     expect(module.normalizeBaseUrl('https://api.example.com')).toBe('https://api.example.com')
-    expect(module.normalizeBaseUrl('http://localhost:8080/v1/')).toBe('http://localhost:8080/v1')
+    expect(module.normalizeBaseUrl('http://localhost:8080/v1/')).toBe('http://localhost:8080')
+    expect(module.normalizeBaseUrl('http://localhost:8080/anthropic/v1')).toBe('http://localhost:8080/anthropic')
+    expect(module.normalizeBaseUrl('http://localhost:8080/anthropic/v1/messages')).toBe('http://localhost:8080/anthropic')
   })
 
-  it('rejects credentials, query strings and non-http protocols', () => {
+  it('rejects credentials, query strings, non-http protocols and unsupported /messages paths', () => {
     expect(() => module.normalizeBaseUrl('https://user:pass@api.example.com')).toThrow('凭证')
     expect(() => module.normalizeBaseUrl('https://api.example.com?token=1')).toThrow('查询参数')
     expect(() => module.normalizeBaseUrl('ftp://api.example.com')).toThrow('http')
     expect(() => module.normalizeBaseUrl('')).toThrow('接口地址')
+    expect(() => module.normalizeBaseUrl('https://api.example.com/custom/messages')).toThrow('/messages')
   })
 
-  it('derives the messages URL conservatively and reports it', () => {
+  it('uses exactly one /v1/messages suffix for probe and runtime', () => {
     expect(module.resolveMessagesUrl('https://api.example.com')).toBe('https://api.example.com/v1/messages')
     expect(module.resolveMessagesUrl('https://api.example.com/v1')).toBe('https://api.example.com/v1/messages')
-    expect(module.resolveMessagesUrl('https://api.example.com/custom/messages')).toBe('https://api.example.com/custom/messages')
+    expect(module.resolveMessagesUrl('https://api.example.com/v1/messages')).toBe('https://api.example.com/v1/messages')
+    expect(module.resolveMessagesUrl('https://api.example.com/anthropic/v1')).toBe('https://api.example.com/anthropic/v1/messages')
   })
 })
 
@@ -64,6 +68,7 @@ describe('connection storage', () => {
     expect(updated.key).toBe(first!.key)
     expect(updated.hasKey).toBe(true)
     expect(updated.model).toBe(null)
+    expect(updated.baseUrl).toBe('https://api.example.com')
     const cleared = module.saveConnection({ key: first!.key, baseUrl: 'https://api.example.com/v1', apiKey: '' })
     expect(cleared.hasKey).toBe(false)
   })
@@ -74,10 +79,10 @@ describe('connection storage', () => {
     const templates = settings.listEndpointTemplates()
     const match = templates.find((item) => item.key === templateKey)
     expect(match?.name).toBe('改名')
-    expect(match?.baseUrl).toBe('https://api.example.com/v1')
+    expect(match?.baseUrl).toBe('https://api.example.com')
     expect(JSON.stringify(templates)).not.toContain('sk-secret-value')
     const env = settings.endpointEnv(templateKey)
-    expect(env.ANTHROPIC_BASE_URL).toBe('https://api.example.com/v1')
+    expect(env.ANTHROPIC_BASE_URL).toBe('https://api.example.com')
     expect(settings.endpointEnv('ccweb-missing')).toEqual({})
   })
 
@@ -87,6 +92,85 @@ describe('connection storage', () => {
     expect(module.removeConnection(connection!.key)).toBe(false)
     expect(module.listConnections()).toHaveLength(0)
     expect(settings.listEndpointTemplates()).toEqual([])
+  })
+})
+
+describe('explicit connection auth isolation', () => {
+  it('does not inherit old tokens unless explicitly requested', () => {
+    const previousToken = process.env.ANTHROPIC_AUTH_TOKEN
+    const previousTemplate = settings.runtimeSettings.endpointTemplate
+    const previousAuth = settings.runtimeSettings.authentication
+    process.env.ANTHROPIC_AUTH_TOKEN = 'sk-synthetic-inherited'
+    try {
+      const gateway = module.saveConnection({ name: '远程网关', baseUrl: 'https://gateway.example.com' })
+      expect(gateway.hasKey).toBe(false)
+      expect(gateway.inheritAuth).toBe(false)
+      settings.runtimeSettings.endpointTemplate = module.templateKeyOf(gateway.key)
+      settings.runtimeSettings.authentication = 'inherit'
+      let env = settings.effectiveEnv()
+      expect(env.ANTHROPIC_BASE_URL).toBe('https://gateway.example.com')
+      expect(env.ANTHROPIC_AUTH_TOKEN).toBe('')
+      expect(env.ANTHROPIC_API_KEY).toBe('')
+      expect(env.CLAUDE_CODE_OAUTH_TOKEN).toBe('')
+
+      // 显式继承:保留环境令牌,但仍使用该连接的地址
+      module.saveConnection({ key: gateway.key, baseUrl: 'https://gateway.example.com', inheritAuth: true })
+      env = settings.effectiveEnv()
+      expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-synthetic-inherited')
+      expect(env.ANTHROPIC_BASE_URL).toBe('https://gateway.example.com')
+
+      // 切到另一个有 Key 的连接:使用自己的 Key,不沿用上一个
+      const own = module.saveConnection({ name: '自有 Key', baseUrl: 'https://second.example.com/anthropic', apiKey: 'sk-synthetic-own' })
+      settings.runtimeSettings.endpointTemplate = module.templateKeyOf(own.key)
+      env = settings.effectiveEnv()
+      expect(env.ANTHROPIC_AUTH_TOKEN).toBe('sk-synthetic-own')
+      expect(env.ANTHROPIC_BASE_URL).toBe('https://second.example.com/anthropic')
+
+      // 删除 Key 后回到无认证,不会再套用 env
+      module.saveConnection({ key: own.key, baseUrl: 'https://second.example.com/anthropic', apiKey: '' })
+      env = settings.effectiveEnv()
+      expect(env.ANTHROPIC_AUTH_TOKEN).toBe('')
+
+      // native 模式忽略第三方连接
+      settings.runtimeSettings.authentication = 'native'
+      env = settings.effectiveEnv()
+      expect(env.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com')
+      expect(env.ANTHROPIC_AUTH_TOKEN).toBe('')
+
+      module.removeConnection(gateway.key)
+      module.removeConnection(own.key)
+    } finally {
+      if (previousToken === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN
+      else process.env.ANTHROPIC_AUTH_TOKEN = previousToken
+      settings.runtimeSettings.endpointTemplate = previousTemplate
+      settings.runtimeSettings.authentication = previousAuth
+    }
+  })
+
+  it('probe uses inherited auth only for an explicit inherit connection', async () => {
+    const previousToken = process.env.ANTHROPIC_AUTH_TOKEN
+    process.env.ANTHROPIC_AUTH_TOKEN = 'sk-synthetic-inherited'
+    try {
+      const inherited = module.saveConnection({ name: '继承认证', baseUrl: 'http://127.0.0.1:9/anthropic', inheritAuth: true })
+      const calls: Array<{ url: string; headers: Record<string, string> }> = []
+      vi.stubGlobal('fetch', vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url, headers: init.headers as Record<string, string> })
+        return new Response(JSON.stringify({ content: [{ type: 'text', text: 'pong' }] }), { status: 200 })
+      }))
+      await module.testConnection({ baseUrl: inherited.baseUrl, connectionKey: inherited.key })
+      expect(calls[0]?.url).toBe('http://127.0.0.1:9/anthropic/v1/messages')
+      expect(calls[0]?.headers.authorization).toBe('Bearer sk-synthetic-inherited')
+
+      const isolated = module.saveConnection({ name: '无认证', baseUrl: 'http://127.0.0.1:9/none' })
+      calls.length = 0
+      await module.testConnection({ baseUrl: isolated.baseUrl, connectionKey: isolated.key })
+      expect(calls[0]?.headers.authorization).toBeUndefined()
+      module.removeConnection(inherited.key)
+      module.removeConnection(isolated.key)
+    } finally {
+      if (previousToken === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN
+      else process.env.ANTHROPIC_AUTH_TOKEN = previousToken
+    }
   })
 })
 

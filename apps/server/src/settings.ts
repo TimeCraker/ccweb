@@ -285,5 +285,11 @@ export function nativeAuthenticationEnv(): Record<string, string> {
   return { ANTHROPIC_BASE_URL: 'https://api.anthropic.com', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_MODEL: '', ANTHROPIC_DEFAULT_SONNET_MODEL: '', ANTHROPIC_DEFAULT_OPUS_MODEL: '', ANTHROPIC_DEFAULT_HAIKU_MODEL: '', ANTHROPIC_SMALL_FAST_MODEL: '', CLAUDE_CODE_SUBAGENT_MODEL: '', ANTHROPIC_CUSTOM_HEADERS: '', CLAUDE_CODE_USE_BEDROCK: '0', CLAUDE_CODE_USE_VERTEX: '0', CLAUDE_CODE_USE_FOUNDRY: '0' }
 }
 export function effectiveEnv(config = runtimeSettings): Record<string, string | undefined> {
-  return { ...process.env, ...readActiveEnv(), ...endpointEnv(config.endpointTemplate), ...(config.authentication === 'native' ? nativeAuthenticationEnv() : {}) }
+  const base = { ...process.env, ...readActiveEnv() }
+  if (config.authentication === 'native') return { ...base, ...nativeAuthenticationEnv() }
+  // 显式连接:默认隔离旧环境令牌;connectionEnv 未继承时会写入空认证键
+  if (config.endpointTemplate?.startsWith('ccweb-')) {
+    return { ...base, ...connectionEnv(config.endpointTemplate) }
+  }
+  return { ...base, ...endpointEnv(config.endpointTemplate) }
 }

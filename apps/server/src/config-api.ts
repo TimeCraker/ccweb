@@ -308,13 +308,14 @@ configApi.post('/connection', async c => {
 // ccweb 自有模型连接:默认存储(不含 cc-toolkit 兼容负担),凭证只留在本机文件
 configApi.get('/connections', c => c.json(listConnections()))
 configApi.post('/connections', async c => {
-  const body = await c.req.json<{ key?: string | null; name?: string; baseUrl: string; model?: string | null; apiKey?: string | null }>()
+  const body = await c.req.json<{ key?: string | null; name?: string; baseUrl: string; model?: string | null; apiKey?: string | null; inheritAuth?: boolean }>()
   const connection = saveConnection({
     key: body.key ?? null,
     name: body.name ?? null,
     baseUrl: body.baseUrl,
     model: body.model ?? null,
     apiKey: body.apiKey === undefined ? undefined : body.apiKey,
+    inheritAuth: body.inheritAuth,
   })
   return c.json({ connection, templateKey: templateKeyOf(connection.key), path: join(APP_DIR, 'connections.json') })
 })
@@ -324,12 +325,13 @@ configApi.post('/connections/delete', async c => {
   return c.json({ ok: removed })
 })
 configApi.post('/connections/test', async c => {
-  const body = await c.req.json<{ baseUrl: string; apiKey?: string | null; model?: string | null; connectionKey?: string | null }>()
+  const body = await c.req.json<{ baseUrl: string; apiKey?: string | null; model?: string | null; connectionKey?: string | null; inheritAuth?: boolean }>()
   const result = await testConnection({
     baseUrl: body.baseUrl,
     apiKey: body.apiKey ?? null,
     model: body.model ?? null,
     connectionKey: body.connectionKey ?? null,
+    inheritAuth: body.inheritAuth,
   })
   return c.json(result)
 })

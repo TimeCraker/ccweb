@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { APP_DIR } from './dirs.js'
+import { APP_DIR, CC_DIR } from './dirs.js'
 
 /**
  * ccweb 自有模型连接存储。
@@ -20,6 +20,8 @@ export interface StoredConnection {
   baseUrl: string
   model: string | null
   apiKey?: string
+  /** true = 明确选择继承本机环境凭证;默认 false,缺失 Key 时按无认证据处理 */
+  inheritAuth?: boolean
   createdAt: number
   updatedAt: number
 }
@@ -30,6 +32,7 @@ export interface PublicConnection {
   baseUrl: string
   model: string | null
   hasKey: boolean
+  inheritAuth: boolean
   createdAt: number
   updatedAt: number
 }
@@ -73,7 +76,11 @@ function writeStore(store: StoreShape): void {
   }
 }
 
-/** 只做保守规范化:去首尾空格与末尾斜杠;其余路径保持用户输入,不做 /v1 猜测 */
+/**
+ * 规范化 Base URL。锁定运行时会在 Base URL 后追加 `/v1/messages`，
+ * 因此这里统一去掉末尾的 `/v1` 或 `/v1/messages`，保证探测与真实请求使用同一契约。
+ * 其他 `/messages` 路径不接受:运行时无法在不拼接 /v1 的情况下访问它。
+ */
 export function normalizeBaseUrl(input: string): string {
   const trimmed = input.trim()
   if (!trimmed) throw new Error('请填写接口地址')
@@ -86,23 +93,35 @@ export function normalizeBaseUrl(input: string): string {
   if (!['http:', 'https:'].includes(url.protocol)) throw new Error('接口地址只支持 http 或 https')
   if (url.username || url.password) throw new Error('请不要把凭证写在接口地址里')
   if (url.search) throw new Error('接口地址不要包含查询参数')
-  const pathname = url.pathname.replace(/\/+$/, '')
-  return `${url.origin}${pathname === '/' ? '' : pathname}`
+  let pathname = url.pathname.replace(/\/+$/, '')
+  if (/\/v1\/messages$/i.test(pathname)) pathname = pathname.slice(0, -'/v1/messages'.length)
+  else if (/\/v1$/i.test(pathname)) pathname = pathname.slice(0, -'/v1'.length)
+  else if (/\/messages$/i.test(pathname)) {
+    throw new Error('请填写接口根地址，不要包含 /messages；运行时会自动追加 /v1/messages')
+  }
+  return `${url.origin}${pathname === '' || pathname === '/' ? '' : pathname}`
 }
 
-/** 由 Base URL 推导 Messages 请求地址:
- *  已以 /messages 结尾 → 原样;以 /v1 结尾 → 追加 /messages;其他 → 追加 /v1/messages。
- *  实际请求地址会回传 UI 展示,避免用户猜路径。
- */
+/** 运行时和探测共用的 Messages 请求地址:根地址 + /v1/messages。 */
 export function resolveMessagesUrl(baseUrl: string): string {
-  const base = normalizeBaseUrl(baseUrl)
-  if (/\/messages$/.test(base)) return base
-  if (/\/v1$/.test(base)) return `${base}/messages`
-  return `${base}/v1/messages`
+  return `${normalizeBaseUrl(baseUrl)}/v1/messages`
+}
+
+function canonicalBaseUrl(input: string): string {
+  try {
+    return normalizeBaseUrl(input)
+  } catch {
+    return input.trim()
+  }
 }
 
 export function listConnections(): PublicConnection[] {
-  return readStore().connections.map(({ apiKey, ...rest }) => ({ ...rest, hasKey: Boolean(apiKey) }))
+  return readStore().connections.map(({ apiKey, baseUrl, ...rest }) => ({
+    ...rest,
+    baseUrl: canonicalBaseUrl(baseUrl),
+    hasKey: Boolean(apiKey),
+    inheritAuth: Boolean(rest.inheritAuth),
+  }))
 }
 
 export function templateKeyOf(connectionKey: string): string {
@@ -114,7 +133,8 @@ export function connectionKeyOfTemplate(templateKey: string): string | null {
 }
 
 export function getConnection(key: string): StoredConnection | null {
-  return readStore().connections.find((item) => item.key === key) ?? null
+  const found = readStore().connections.find((item) => item.key === key)
+  return found ? { ...found, baseUrl: canonicalBaseUrl(found.baseUrl) } : null
 }
 
 export function saveConnection(input: {
@@ -124,6 +144,8 @@ export function saveConnection(input: {
   model?: string | null
   /** undefined = 保留原 key;'' = 明确清除 */
   apiKey?: string | null
+  /** true = 明确继承本机环境凭证;false = 使用本连接 Key 或无认证 */
+  inheritAuth?: boolean
 }): PublicConnection {
   const store = readStore()
   const baseUrl = normalizeBaseUrl(input.baseUrl)
@@ -137,6 +159,7 @@ export function saveConnection(input: {
     name,
     baseUrl,
     model: input.model === undefined ? existing?.model ?? null : input.model || null,
+    inheritAuth: input.inheritAuth ?? existing?.inheritAuth ?? false,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   }
@@ -150,7 +173,7 @@ export function saveConnection(input: {
     : [...store.connections, next]
   writeStore({ version: 1, connections })
   const { apiKey, ...rest } = next
-  return { ...rest, hasKey: Boolean(apiKey) }
+  return { ...rest, hasKey: Boolean(apiKey), inheritAuth: Boolean(next.inheritAuth) }
 }
 
 export function removeConnection(key: string): boolean {
@@ -161,16 +184,52 @@ export function removeConnection(key: string): boolean {
   return true
 }
 
-/** 运行时注入 env:仅返回需要的键,apiKey 不进入日志/快照 */
+/** 无认证本机网关需要给锁定运行时一个非机密占位头,否则 CLI 不会发起请求。 */
+export const LOCAL_NO_AUTH_TOKEN = 'ccweb-local-no-auth'
+
+function isLocalGateway(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname
+    if (host === 'localhost' || host === '::1' || host.endsWith('.local')) return true
+    if (/^127\./.test(host)) return true
+    if (/^10\./.test(host) || /^192\.168\./.test(host)) return true
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true
+    return false
+  } catch {
+    return false
+  }
+}
+
+/** 运行时注入 env:仅返回需要的键,apiKey 不进入日志/快照。
+ *  显式连接默认隔离环境凭证;只有 inheritAuth=true 才允许沿用环境认证。
+ */
 export function connectionEnv(templateKey: string): Record<string, string> {
   const key = connectionKeyOfTemplate(templateKey)
   if (!key) return {}
   const connection = getConnection(key)
   if (!connection) return {}
   const env: Record<string, string> = { ANTHROPIC_BASE_URL: connection.baseUrl }
-  if (connection.apiKey) env.ANTHROPIC_AUTH_TOKEN = connection.apiKey
   if (connection.model) env.ANTHROPIC_MODEL = connection.model
+  if (connection.inheritAuth) return env
+  // 没有新 Key 也不能回落到 process.env / ~/.claude 里的旧令牌
+  env.ANTHROPIC_AUTH_TOKEN =
+    connection.apiKey ?? (isLocalGateway(connection.baseUrl) ? LOCAL_NO_AUTH_TOKEN : '')
+  env.ANTHROPIC_API_KEY = ''
+  env.CLAUDE_CODE_OAUTH_TOKEN = ''
+  env.ANTHROPIC_CUSTOM_HEADERS = ''
   return env
+}
+
+/** 测试连接时,只有显式 inheritAuth 才读取本机环境令牌;绝不回传给 UI。 */
+function inheritedAuthToken(): string {
+  const fromProcess = (process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN || '').trim()
+  if (fromProcess) return fromProcess
+  try {
+    const json = JSON.parse(readFileSync(join(CC_DIR, 'settings.json'), 'utf8')) as { env?: Record<string, string> }
+    return (json.env?.ANTHROPIC_AUTH_TOKEN || json.env?.ANTHROPIC_API_KEY || '').trim()
+  } catch {
+    return ''
+  }
 }
 
 export type ProbeCategory =
@@ -236,6 +295,7 @@ export async function testConnection(input: {
   apiKey?: string | null
   model?: string | null
   connectionKey?: string | null
+  inheritAuth?: boolean
 }): Promise<ProbeResult> {
   const started = Date.now()
   let requestUrl: string
@@ -251,7 +311,10 @@ export async function testConnection(input: {
     }
   }
   const stored = input.connectionKey ? getConnection(input.connectionKey) : null
-  const apiKey = (input.apiKey ?? '').trim() || stored?.apiKey || ''
+  const useInherited = Boolean(input.inheritAuth || stored?.inheritAuth)
+  const explicitKey = (input.apiKey ?? '').trim()
+  const keepStoredKey = input.apiKey === undefined || input.apiKey === null
+  const apiKey = explicitKey || (useInherited ? inheritedAuthToken() : keepStoredKey ? stored?.apiKey ?? '' : '')
   const model = (input.model ?? '').trim() || stored?.model || ''
 
   const headers: Record<string, string> = {

@@ -123,7 +123,19 @@ export type ServerMessage =
   | { t: 'settings'; seq: number; settings: SettingsSnapshot }
   | { t: 'file.baseline'; seq: number; sessionId: string; toolUseId: string; baseline: { content: string | null; existed: boolean | null; reason?: string } }
   | { t: 'rewind'; seq: number; preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } }
-  | { t: 'models'; seq: number; models: Array<{ value: string; displayName: string; description: string }> }
+  | {
+      t: 'models'
+      seq: number
+      models: Array<{
+        value: string
+        displayName: string
+        description: string
+        resolvedModel?: string
+        supportsEffort?: boolean
+        supportedEffortLevels?: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'>
+        supportsAdaptiveThinking?: boolean
+      }>
+    }
   | { t: 'mcpStatus'; seq: number; servers: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }> }
   | { t: 'cleared'; seq: number }
   | { t: 'error'; seq: number; code: string; message: string; retry?: boolean }
