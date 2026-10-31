@@ -132,8 +132,8 @@ test('connection form validates drafts and marks stale test results', async ({ p
   await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/v1/chat/completions')
   await expect(dialog.getByText('此接口格式当前不兼容。')).toBeVisible()
   await page.getByLabel('接口地址（Base URL）').fill('not-a-url')
-  await page.getByRole('button', { name: '保存并使用' }).click()
-  await expect(dialog.getByText(/接口地址不是合法 URL|请包含 http/)).toBeVisible()
+  await expect(dialog.getByText('请输入完整地址，例如 https://api.example.com/anthropic')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '保存并使用' })).toBeDisabled()
 })
 
 test('drawers keep the conversation mounted and composer reachable', async ({ page }) => {
@@ -167,7 +167,7 @@ test('composer draft survives settings, sidebar collapse and session list toggle
   await expect(box).toHaveValue('切换前草稿')
   await page.getByRole('button', { name: '会话', exact: true }).click()
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: /展开侧栏/ }).click()
+  await page.locator('.sidebar.is-rail').getByRole('button', { name: /展开侧栏/ }).click()
   await expect(box).toHaveValue('切换前草稿')
 })
 
@@ -234,4 +234,42 @@ test('connection test can be cancelled without saving', async ({ page }) => {
   await dialog.getByRole('button', { name: '取消测试' }).click()
   await expect(dialog.getByText('已取消测试，没有保存任何更改。')).toBeVisible()
   await expect(dialog.getByText('连通成功')).toHaveCount(0)
+})
+test('deleted sessions can be restored from settings without rerunning work', async ({ page }) => {
+  let deleted = [
+    { id: '11111111-1111-4111-8111-111111111111', title: '已删除的回归会话', deletedAt: Date.now() - 60_000, projectDir: '/tmp/project', bytes: 2048 },
+  ]
+  await page.route('**/api/sessions/deleted', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(deleted) })
+  })
+  await page.route('**/api/sessions/restore', async (route) => {
+    const id = JSON.parse(route.request().postData() ?? '{}').id as string
+    deleted = deleted.filter((item) => item.id !== id)
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, sessionId: id }) })
+  })
+  await ready(page)
+  await page.keyboard.press('Control+,')
+  const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+  await dialog.getByRole('tab', { name: '通用', exact: true }).click()
+  await expect(dialog.getByText('已删除的回归会话')).toBeVisible()
+  await dialog.getByRole('button', { name: '恢复', exact: true }).click()
+  await expect(dialog.getByText(/已恢复「已删除的回归会话」/)).toBeVisible()
+  await expect(dialog.getByText('没有可恢复的会话。')).toBeVisible()
+})
+
+test('sending the exact same content twice asks for confirmation', async ({ page }) => {
+  await ready(page)
+  const box = page.getByRole('textbox', { name: '任务输入' })
+  await box.fill('duplicate send check')
+  await box.press('Enter')
+  await expect(page.getByText('【E2E】模拟完成：duplicate send check', { exact: true })).toBeVisible()
+  await box.fill('duplicate send check')
+  page.once('dialog', (prompt) => void prompt.dismiss())
+  await box.press('Enter')
+  await page.waitForTimeout(400)
+  await expect(page.getByText('【E2E】模拟完成：duplicate send check', { exact: true })).toHaveCount(1)
+  await box.fill('duplicate send check')
+  page.once('dialog', (prompt) => void prompt.accept())
+  await box.press('Enter')
+  await expect(page.getByText('【E2E】模拟完成：duplicate send check', { exact: true })).toHaveCount(2)
 })
