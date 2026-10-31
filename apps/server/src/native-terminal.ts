@@ -41,7 +41,10 @@ export function startNative(workspace: string, action: string, extraArgs: string
   const args: string[] = [...terminalActions[action as Action]]
   if (action === 'custom' || action === 'maintenance') args.push(...extraArgs)
   if (runtimeSettings.authentication === 'native') args.unshift('--settings', JSON.stringify({ env: nativeAuthenticationEnv(), apiKeyHelper: '' }))
-  if (action === 'interactive') args.push('--session-id', id)
+  if (action === 'interactive') {
+    args.push('--session-id', id, '--setting-sources', runtimeSettings.contextScope === 'none' ? '' : runtimeSettings.contextScope === 'project' ? 'project,local' : 'user,project,local')
+    if (runtimeSettings.model) args.push('--model', runtimeSettings.model)
+  }
   let executable = bundledBinary()
   if (action === 'maintenance' || action === 'maintenanceHelp') {
     // Never let the installer self-modify the SDK package binary. The user explicitly starts installation from this copy.
