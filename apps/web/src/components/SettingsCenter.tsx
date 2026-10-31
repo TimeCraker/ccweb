@@ -870,11 +870,15 @@ export default function SettingsCenter({
                   </div>
                 )}
 
-                <h3>已保存的连接</h3>
-                <p className="hint" style={{ marginTop: -6, fontSize: 11.5 }}>
-                  这里只列出 ccweb 保存的连接。从本机环境或旧 cc-toolkit 模板读取的端点仍会出现在模型菜单里，保持只读。
-                </p>
-                {connections.length === 0 && (
+                {!(form && connections.length === 0) && (
+                  <>
+                    <h3>已保存的连接</h3>
+                    <p className="hint" style={{ marginTop: -6, fontSize: 11.5 }}>
+                      这里只列出 ccweb 保存的连接。从本机环境或旧 cc-toolkit 模板读取的端点仍会出现在模型菜单里，保持只读。
+                    </p>
+                  </>
+                )}
+                {connections.length === 0 && !form && (
                   <div className="note">
                     <div>
                       <strong>还没有连接</strong>
