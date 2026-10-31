@@ -15,6 +15,8 @@ interface Props {
   sendControl?: (message: Record<string, unknown>) => void
   /** 无可用连接时打开设置里的连接表单 */
   onAddConnection?: () => void
+  /** 连接切换后“新建并应用”(走 App 的导航保护) */
+  onNewSession?: () => void
 }
 
 export default function Composer({
@@ -24,6 +26,7 @@ export default function Composer({
   sendControl,
   hero = false,
   onAddConnection,
+  onNewSession,
 }: Props) {
   const sessionId = useStore((s) => s.sessionId)
   const settings = useStore((s) => s.settings)
@@ -365,6 +368,7 @@ export default function Composer({
             <ModelMenu
               send={sendControl ?? (() => undefined)}
               onAddConnection={() => onAddConnection?.()}
+              onNewSession={onNewSession}
             />
             <button
               className="send-btn"

@@ -562,22 +562,23 @@ function WorkspaceMenu({
           </div>
         )
       })}
-      <div className="menu-sep" />
-      <MenuItem
-        onClick={() => setAdding(true)}
-        icon={<IconPlus width={14} height={14} style={{ marginTop: 2, color: 'var(--color-accent)' }} />}
-        description={t('sb.project.pathHint')}
-      >
-        {t('sb.project.add')}
-      </MenuItem>
-      {hidden.length > 0 && (
-        <MenuItem onClick={restore} description={`${hidden.length}`}>
-          {t('sb.project.restore')}
+      <div className="menu-pin">
+        <MenuItem
+          onClick={() => setAdding(true)}
+          icon={<IconPlus width={14} height={14} style={{ marginTop: 2, color: 'var(--color-accent)' }} />}
+          description={t('sb.project.pathHint')}
+        >
+          {t('sb.project.add')}
         </MenuItem>
-      )}
-      <p className="menu-foot-note" style={{ padding: '6px 10px 2px' }}>
-        {t('sb.project.hidden')}
-      </p>
+        {hidden.length > 0 && (
+          <MenuItem onClick={restore} description={`${hidden.length}`}>
+            {t('sb.project.restore')}
+          </MenuItem>
+        )}
+        <p className="menu-foot-note" style={{ padding: '6px 10px 2px' }}>
+          {t('sb.project.hidden')}
+        </p>
+      </div>
     </>
   )
 }

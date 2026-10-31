@@ -22,6 +22,7 @@ export default function ChangesPanel({ onClose }: { onClose: () => void }) {
   const checks = tools.filter((block) => ['Bash', 'PowerShell'].includes(block.toolName))
   const changedFiles = new Set(changes.map((block) => String(block.input?.file_path ?? block.toolName)))
   const done = changes.filter((block) => block.status === 'done').length
+  const pendingChanges = changes.length - done
   const failedChecks = checks.filter((block) => block.status === 'error').length
 
   const status = busy
@@ -59,6 +60,16 @@ export default function ChangesPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         </div>
+
+        <p className="change-summary">
+          {changes.length > 0
+            ? `修改：${[...changedFiles].slice(0, 4).join('、')}${changedFiles.size > 4 ? ' 等' : ''}。`
+            : '本次没有文件改动。'}
+          {checks.length > 0
+            ? `检查：${checks.length} 条命令${failedChecks > 0 ? `，其中 ${failedChecks} 条失败` : '，未记录失败'}。`
+            : '没有命令记录。'}
+          {pendingChanges > 0 ? `还有 ${pendingChanges} 次改动未确认，未计入结果。` : ''}
+        </p>
 
         <section className="drawer-section">
           <h3>{t('dw.files')}</h3>

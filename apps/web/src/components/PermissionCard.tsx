@@ -50,6 +50,11 @@ export default function PermissionCard({ onResolve }: Props) {
           {dangerous ? <IconWarn width={13} height={13} /> : <IconShield width={13} height={13} />}
         </span>
         <strong>{permission.title ?? (dangerous ? t('pm.danger') : isPlan ? '计划等待采纳' : t('pm.title'))}</strong>
+        {permissions.length > 1 && (
+          <span className="badge" title="同一轮里有多个操作等待确认">
+            还有 {permissions.length - 1} 个待确认
+          </span>
+        )}
         <span className="badge" style={{ marginLeft: 'auto' }}>
           {label}
         </span>

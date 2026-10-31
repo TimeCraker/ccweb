@@ -112,15 +112,18 @@ export default function SettingsCenter({
   send,
   initialTab = 'connection',
   onOpenNative,
+  onNewSession,
 }: {
   open: boolean
   onClose: () => void
   send: (message: Record<string, unknown>) => void
   initialTab?: Tab
   onOpenNative?: () => void
+  onNewSession?: () => void
 }) {
   const activeModel = useStore((s) => s.model)
   const settings = useStore((s) => s.settings)
+  const sessionId = useStore((s) => s.sessionId)
   const operationError = useStore((s) => s.error)
   const diagnostics = useStore((s) => s.runtimeDiagnostics)
   const availableModels = useStore((s) => s.availableModels)
@@ -151,6 +154,8 @@ export default function SettingsCenter({
   const [probe, setProbe] = useState<{ signature: string; result: ProbeResult } | null>(null)
   const [form, setForm] = useState<FormState | null>(null)
   const [showKey, setShowKey] = useState(false)
+  const [needsNewSession, setNeedsNewSession] = useState(false)
+  const probeController = useRef<AbortController | null>(null)
   const box = useRef<HTMLDivElement>(null)
   const request = useRef(0)
   const workspace = settings?.workspace ?? ''
@@ -205,7 +210,11 @@ export default function SettingsCenter({
         if (!controller.signal.aborted) setError(String(e instanceof Error ? e.message : e))
       })
     void refreshConnections()
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      probeController.current?.abort()
+      probeController.current = null
+    }
   }, [open, query, send, refreshConnections])
 
   useEffect(() => {
@@ -368,6 +377,7 @@ export default function SettingsCenter({
     setProbe(null)
     setConnectionError('')
     setConnectionNotice('')
+    setNeedsNewSession(false)
     setForm({ key: null, name: '', baseUrl: '', model: '', apiKey: '', keepKey: false })
   }
 
@@ -376,6 +386,7 @@ export default function SettingsCenter({
     setProbe(null)
     setConnectionError('')
     setConnectionNotice('')
+    setNeedsNewSession(false)
     setForm({
       key: connection.key,
       name: connection.name,
@@ -401,28 +412,58 @@ export default function SettingsCenter({
       return
     }
     const signature = signatureOf(form)
+    const controller = new AbortController()
+    probeController.current = controller
     setTesting(true)
     setConnectionError('')
     setProbe(null)
     try {
-      const result = await api<ProbeResult>('connections/test', {
-        baseUrl: form.baseUrl.trim(),
-        apiKey: form.apiKey.trim() || null,
-        model: form.model.trim() || null,
-        connectionKey: form.keepKey ? form.key : null,
-      })
+      const result = await api<ProbeResult>(
+        'connections/test',
+        {
+          baseUrl: form.baseUrl.trim(),
+          apiKey: form.apiKey.trim() || null,
+          model: form.model.trim() || null,
+          connectionKey: form.keepKey ? form.key : null,
+        },
+        controller.signal,
+      )
+      if (controller.signal.aborted) return
       setProbe({ signature, result })
     } catch (e) {
+      if (controller.signal.aborted) {
+        setConnectionNotice('已取消测试，没有保存任何更改。')
+        return
+      }
       setConnectionError(String(e instanceof Error ? e.message : e))
     } finally {
-      setTesting(false)
+      if (probeController.current === controller) {
+        probeController.current = null
+        setTesting(false)
+      }
     }
+  }
+
+  function cancelProbe() {
+    probeController.current?.abort()
+    probeController.current = null
+    setTesting(false)
   }
 
   async function saveAndUse() {
     if (!form) return
     if (!form.baseUrl.trim()) {
       setConnectionError('请填写接口地址。')
+      return
+    }
+    const url = form.baseUrl.trim()
+    const openAiLike = /(?:chat\/completions|\/responses)(?:$|[/?])/i.test(url)
+    const protocolRejected =
+      probe !== null && probe.signature === signatureOf(form) && probe.result.category === 'protocol'
+    if (openAiLike || protocolRejected) {
+      setConnectionError(
+        '此接口格式当前不兼容：运行时需要 Anthropic Messages 兼容地址，OpenAI Chat Completions/Responses 不能直接使用。请换成服务商提供的兼容接口根地址。',
+      )
       return
     }
     setSaving(true)
@@ -437,11 +478,12 @@ export default function SettingsCenter({
         apiKey: form.keepKey && !form.apiKey ? undefined : form.apiKey,
       })
       await refreshConnections()
-      send({ t: 'settings.patch', patch: { endpointTemplate: result.templateKey, model: null } })
+      send({ t: 'settings.patch', scope: 'default', patch: { endpointTemplate: result.templateKey, model: null } })
       send({ t: 'settings.get' })
       // 保存成功后收起表单,避免把已保存内容误判为"未保存草稿"
       setForm(null)
       setProbe(null)
+      setNeedsNewSession(Boolean(sessionId))
       setConnectionNotice(
         `已保存「${result.connection.name}」。已请求设为默认连接：运行时确认后对新建会话生效，正在运行的任务不受影响。`,
       )
@@ -453,9 +495,10 @@ export default function SettingsCenter({
   }
 
   async function useConnection(connection: Connection) {
-    send({ t: 'settings.patch', patch: { endpointTemplate: `${TEMPLATE_PREFIX}${connection.key}`, model: null } })
+    send({ t: 'settings.patch', scope: 'default', patch: { endpointTemplate: `${TEMPLATE_PREFIX}${connection.key}`, model: null } })
     send({ t: 'settings.get' })
     setConnectionNotice(`已请求切换到「${connection.name}」：运行时确认后对新建会话生效。`)
+    setNeedsNewSession(Boolean(sessionId))
   }
 
   async function deleteConnection(connection: Connection) {
@@ -465,7 +508,7 @@ export default function SettingsCenter({
     try {
       await api('connections/delete', { key: connection.key })
       if (currentTemplate === `${TEMPLATE_PREFIX}${connection.key}`) {
-        send({ t: 'settings.patch', patch: { endpointTemplate: null, model: null } })
+        send({ t: 'settings.patch', scope: 'default', patch: { endpointTemplate: null, model: null } })
         send({ t: 'settings.get' })
       }
       await refreshConnections()
@@ -486,10 +529,13 @@ export default function SettingsCenter({
   const patch = (value: Record<string, unknown>) => {
     useStore.getState().setError(null)
     setNotice('正在提交，等待运行时确认…')
-    send({ t: 'settings.patch', patch: value })
+    // 设置页修改的是“新会话默认”;当前会话的临时覆盖在输入区菜单里单独管理
+    send({ t: 'settings.patch', scope: 'default', patch: value })
   }
   const head = TAB_TITLE[tab]
   const probeFresh = probe !== null && form !== null && probe.signature === signatureOf(form)
+  const openAiLike = /(?:chat\/completions|\/responses)(?:$|[/?])/i.test(form?.baseUrl.trim() ?? '')
+  const protocolBlocked = Boolean(form && (openAiLike || (probeFresh && probe?.result.category === 'protocol')))
 
   return (
     <Modal label="设置" onClose={forceClose} canDismiss={() => !saving && dismissDraft()}>
@@ -614,10 +660,29 @@ export default function SettingsCenter({
                 {connectionNotice && (
                   <div role="status" className="note ok">
                     <div>{connectionNotice}</div>
+                    {needsNewSession && sessionId && onNewSession && (
+                      <div style={{ marginTop: 7 }}>
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => {
+                            onClose()
+                            onNewSession()
+                          }}
+                        >
+                          新建会话并应用
+                        </button>
+                        <span style={{ marginLeft: 8, fontSize: 11, opacity: 0.8 }}>
+                          当前会话会保留在列表里，草稿不受影响。
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <h3>已保存的连接</h3>
+                <p className="hint" style={{ marginTop: -6, fontSize: 11.5 }}>
+                  这里只列出 ccweb 保存的连接。从本机环境或旧 cc-toolkit 模板读取的端点仍会出现在模型菜单里，保持只读。
+                </p>
                 {connections.length === 0 && (
                   <div className="note">
                     <div>
@@ -752,10 +817,16 @@ export default function SettingsCenter({
                       </label>
                     </div>
 
-                    {form.baseUrl.includes('chat/completions') && (
-                      <div className="note warn">
+                    {(openAiLike || (probeFresh && probe?.result.category === 'protocol')) && (
+                      <div className="note danger" role="alert">
                         <IconWarn width={14} height={14} style={{ flex: '0 0 auto', marginTop: 1 }} />
-                        <div>这个地址看起来是 OpenAI Chat Completions 接口。当前运行时只兼容 Anthropic Messages 格式，请改用兼容地址。</div>
+                        <div>
+                          <strong>此接口格式当前不兼容。</strong>
+                          <div style={{ marginTop: 2 }}>
+                            运行时需要 Anthropic Messages 兼容地址；OpenAI Chat Completions / Responses
+                            不能直接用于当前运行时。请换成服务商提供的兼容接口根地址，例如以 /anthropic 或 /v1 结尾的地址。
+                          </div>
+                        </div>
                       </div>
                     )}
 
@@ -783,9 +854,21 @@ export default function SettingsCenter({
                     )}
 
                     <div className="row-actions form-actions" style={{ justifyContent: 'space-between' }}>
-                      <button type="button" className="btn" onClick={() => void runProbe()} disabled={testing || saving}>
-                        {testing ? '测试中…' : '测试连接'}
-                      </button>
+                      <div className="row-actions">
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => void runProbe()}
+                          disabled={testing || saving}
+                        >
+                          {testing ? '测试中…' : probe ? '重试连接测试' : '测试连接'}
+                        </button>
+                        {testing && (
+                          <button type="button" className="btn btn-ghost" onClick={cancelProbe}>
+                            取消测试
+                          </button>
+                        )}
+                      </div>
                       <div className="row-actions">
                         <button
                           type="button"
@@ -799,13 +882,20 @@ export default function SettingsCenter({
                         >
                           取消
                         </button>
-                        <button type="submit" className="btn btn-primary" disabled={saving || !form.baseUrl.trim()}>
+                        <button
+                          type="submit"
+                          className="btn btn-primary"
+                          disabled={saving || !form.baseUrl.trim() || protocolBlocked}
+                          title={protocolBlocked ? '此接口格式当前不兼容，无法保存' : undefined}
+                        >
                           {saving ? '保存中…' : '保存并使用'}
                         </button>
                       </div>
                     </div>
                     <p className="hint" style={{ fontSize: 11 }}>
-                      测试会真实调用一次模型（禁用工具、不重试、20 秒超时，可能产生少量用量）；保存不要求先测试。测试成功只说明文本接口可达，工具与图片能力需在任务中验证。
+                      {protocolBlocked
+                        ? '检测到不兼容的接口格式：保存已禁用。请先改为 Anthropic Messages 兼容地址。'
+                        : '测试会真实调用一次模型（禁用工具、不重试、20 秒超时，可能产生少量用量）；保存不要求先测试。测试成功只说明文本接口可达，工具与图片能力需在任务中验证。'}
                     </p>
                   </form>
                 )}
@@ -872,6 +962,9 @@ export default function SettingsCenter({
             {tab === 'permission' && (
               <div className="settings-section">
                 <h3>默认工作方式</h3>
+                <p className="hint" style={{ marginTop: -6, fontSize: 11.5 }}>
+                  这里保存的是新会话默认。当前对话可在输入区「工作方式」菜单里临时切换，不会改动默认值。
+                </p>
                 <div className="mode-list">
                   {(
                     [
@@ -934,7 +1027,21 @@ export default function SettingsCenter({
                   <button className="btn" onClick={() => changeTab('permissions')}>
                     编辑权限规则与附加目录
                   </button>
+                  {sessionId && onNewSession && (
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        onClose()
+                        onNewSession()
+                      }}
+                    >
+                      新建会话并应用
+                    </button>
+                  )}
                 </div>
+                <p className="hint" style={{ fontSize: 11.5 }}>
+                  文件配置来源与思考力度只对新建会话生效。当前会话正在使用的内容不会被改写。
+                </p>
               </div>
             )}
 

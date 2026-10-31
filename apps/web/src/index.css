@@ -442,6 +442,17 @@ textarea:focus-visible,
   margin: 5px 4px;
   background: var(--color-border);
 }
+/* 菜单底部的固定操作区(新增项目等):列表再长也保持可见 */
+.menu-pin {
+  position: sticky;
+  bottom: -6px;
+  z-index: 1;
+  margin: 4px -6px -6px;
+  padding: 1px 6px 4px;
+  background: var(--color-panel);
+  border-top: 1px solid var(--color-border);
+  border-radius: 0 0 12px 12px;
+}
 .menu-item {
   display: flex;
   align-items: flex-start;
@@ -826,7 +837,7 @@ html.dark .session-row[aria-current='true'] {
 .session-row .meta {
   display: block;
   margin-top: 1px;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--color-text-faint);
 }
 .session-row .row-actions {
@@ -844,8 +855,8 @@ html.dark .session-row[aria-current='true'] {
   display: flex;
 }
 .session-row .row-actions .icon-btn {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
 }
 .session-running {
@@ -943,7 +954,7 @@ html.dark .session-row[aria-current='true'] {
   display: block;
   margin-top: 1px;
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--color-text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1377,6 +1388,12 @@ html.dark .ws-item:hover {
   font-weight: 550;
   color: var(--color-text);
 }
+.change-summary {
+  margin: 8px 0 2px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-text-dim);
+}
 
 /* ---------------- 用量行 ---------------- */
 
@@ -1553,15 +1570,15 @@ html.dark .ws-item:hover {
   opacity: 1;
 }
 .msg-actions .icon-btn {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
 }
 .msg-copy-float {
   position: absolute;
-  right: -34px;
+  right: -36px;
   top: 0;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   opacity: 0;
   transition: opacity var(--dur-fast);
 }

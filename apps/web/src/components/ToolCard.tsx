@@ -54,7 +54,8 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
   const [open, setOpen] = useState(false)
   useLocale()
   const isBashDone = block.toolName === 'Bash' && (block.status === 'done' || block.status === 'error')
-  if (isBashDone && !autoOpen) setAutoOpen(true)
+  // 失败的工具保持展开,避免异常被折叠成一行状态字
+  if ((isBashDone || block.status === 'error') && !autoOpen) setAutoOpen(true)
   const effectiveOpen = userTouched ? open : open || autoOpen
   const elapsed = useElapsed(block.status === 'running' || block.status === 'streaming')
   const meta = TOOL_META[block.toolName]

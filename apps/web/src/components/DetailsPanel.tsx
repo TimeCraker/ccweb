@@ -234,25 +234,30 @@ export default function DetailsPanel({
           <>
             <section className="drawer-section">
               <h3>{t('dw.tasks')}</h3>
-              {tasks.length === 0 && <p className="menu-empty">运行时未报告后台任务。</p>}
-              {tasks.map((task) => (
-                <div className="change-file" key={task.id} style={{ padding: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <strong style={{ fontSize: 12.5, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {task.description}
-                    </strong>
-                    <span className="badge">{task.status}</span>
-                    {task.status === 'running' && send && (
-                      <button className="btn btn-sm" onClick={() => send({ t: 'task.stop', taskId: task.id })}>
-                        停止
-                      </button>
+              {tasks.length === 0 ? (
+                <p className="hint" style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>
+                  当前没有后台任务。只有运行时报出后台任务时，这里才会出现可停止的条目。
+                </p>
+              ) : (
+                tasks.map((task) => (
+                  <div className="change-file" key={task.id} style={{ padding: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <strong style={{ fontSize: 12.5, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {task.description}
+                      </strong>
+                      <span className="badge">{task.status}</span>
+                      {task.status === 'running' && send && (
+                        <button className="btn btn-sm" onClick={() => send({ t: 'task.stop', taskId: task.id })}>
+                          停止
+                        </button>
+                      )}
+                    </div>
+                    {task.summary && (
+                      <p style={{ marginTop: 5, fontSize: 11.5, color: 'var(--color-text-faint)' }}>{task.summary}</p>
                     )}
                   </div>
-                  {task.summary && (
-                    <p style={{ marginTop: 5, fontSize: 11.5, color: 'var(--color-text-faint)' }}>{task.summary}</p>
-                  )}
-                </div>
-              ))}
+                ))
+              )}
             </section>
 
             <section className="drawer-section">

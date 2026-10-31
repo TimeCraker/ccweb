@@ -54,6 +54,7 @@ export default function App() {
   const pendingPrompts = useRef(new Map<string, { key: string; text: string }>())
   const wsRef = useRef<WsClient | null>(null)
   const sendControl = useCallback((msg: Record<string, unknown>) => {
+    if (msg.t === 'settings.patch') useStore.setState({ settingsPending: Date.now() })
     wsRef.current?.send({
       ...msg,
       ...(MUTATIONS.includes(String(msg.t)) ? { commandId: crypto.randomUUID() } : {}),
@@ -110,6 +111,18 @@ export default function App() {
     document.title = busy ? '● 生成中… — ccweb' : 'ccweb'
   }, [busy])
 
+  // 设置变更的“请求中”兜底:8 秒内没有运行时回执就说明没有被确认,不能静默当作成功
+  const settingsPending = useStore((s) => s.settingsPending)
+  useEffect(() => {
+    if (settingsPending === null) return
+    const timer = setTimeout(() => {
+      if (useStore.getState().settingsPending === null) return
+      useStore.setState({ settingsPending: null })
+      useStore.getState().setError('设置更改未收到运行时确认，可能未生效。请检查连接后重试。')
+    }, 8000)
+    return () => clearTimeout(timer)
+  }, [settingsPending])
+
   // 全局快捷键:Ctrl+K 面板 / Ctrl+, 设置 / Ctrl+N 新建会话 / Ctrl+B 侧栏
   const newSessionRef = useRef<() => void>(() => {})
   useEffect(() => {
@@ -157,6 +170,7 @@ export default function App() {
           if (pending && msg.ok && localStorage.getItem(pending.key)?.trim() === pending.text) localStorage.removeItem(pending.key)
           pendingPrompts.current.delete(msg.requestId)
           useStore.setState({ lastAck: { id: msg.requestId, ok: msg.ok === true } })
+          if (!msg.ok) useStore.setState({ settingsPending: null })
           break
         }
         case 'file.baseline':
@@ -195,6 +209,7 @@ export default function App() {
           if (msg.settings) {
             s.setSettings(msg.settings)
             s.setSlashCommands(mergeCommands(msg.settings.slashCommands ?? []))
+            if (useStore.getState().settingsPending !== null) useStore.setState({ settingsPending: null })
           }
           break
         case 'queue':
@@ -309,6 +324,7 @@ export default function App() {
           break
         case 'error':
           if (msg.message) s.setError(msg.message)
+          useStore.setState({ settingsPending: null })
           break
       }
     })
@@ -362,9 +378,9 @@ export default function App() {
       }
       if (['clear', 'new', 'plan', 'model', 'effort', 'export', 'help'].includes(name)) {
         if (name === 'clear' || name === 'new') sendControl({ t: 'session.new' })
-        else if (name === 'plan') sendControl({ t: 'settings.patch', patch: { permissionMode: 'plan' } })
-        else if (name === 'model' && argument) sendControl({ t: 'settings.patch', patch: { model: argument } })
-        else if (name === 'effort' && argument && ['low', 'medium', 'high', 'xhigh', 'max'].includes(argument)) sendControl({ t: 'settings.patch', patch: { effort: argument } })
+        else if (name === 'plan') sendControl({ t: 'settings.patch', scope: useStore.getState().sessionId ? 'session' : 'default', patch: { permissionMode: 'plan' } })
+        else if (name === 'model' && argument) sendControl({ t: 'settings.patch', scope: useStore.getState().sessionId ? 'session' : 'default', patch: { model: argument } })
+        else if (name === 'effort' && argument && ['low', 'medium', 'high', 'xhigh', 'max'].includes(argument)) sendControl({ t: 'settings.patch', scope: 'default', patch: { effort: argument } })
         else if (name === 'export') exportMarkdown()
         else if (name === 'help') useStore.getState().setNotice('常用命令:/clear /new /plan /model /settings /mcp /context /export;也可以按 Ctrl K 打开命令面板。')
         else openSettings('connection')
@@ -496,6 +512,7 @@ export default function App() {
       sendControl={sendControl}
       hero={empty}
       onAddConnection={() => openSettings('connection')}
+      onNewSession={newSession}
     />
   )
 
@@ -628,6 +645,7 @@ export default function App() {
               setSettingsOpen(false)
               setNativeOpen(true)
             }}
+            onNewSession={newSession}
           />
         </Suspense>
       )}

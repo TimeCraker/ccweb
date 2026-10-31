@@ -5,6 +5,7 @@ import { IconChevron, IconPlus, IconImage } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 
 type Send = (message: Record<string, unknown>) => void
+type Scope = 'session' | 'default' | 'both'
 
 const MODE_META = [
   { value: 'default', label: 'mode.default', desc: 'mode.default.desc' },
@@ -51,33 +52,61 @@ export function currentModelOf(settings: ReturnType<typeof useStore.getState>['s
   return settings?.active?.model ?? live ?? settings?.model ?? settings?.currentModel ?? null
 }
 
-/** 工作方式菜单:逐步确认 / 先做计划 / 自动处理 + 高级权限 */
+/** 设置变更统一入口:scope 决定只影响当前会话、只保存默认,还是两者 */
+function useSettingsPatch(send: Send) {
+  const sessionId = useStore((s) => s.sessionId)
+  const pending = useStore((s) => s.settingsPending !== null)
+  const patch = (value: Record<string, unknown>, scope: Scope) => send({ t: 'settings.patch', patch: value, scope })
+  const sessionScope: Scope = sessionId ? 'session' : 'default'
+  return { sessionId, pending, patch, sessionScope }
+}
+
+function PendingHint({ pending }: { pending: boolean }) {
+  if (!pending) return null
+  return (
+    <p className="menu-foot-note" role="status">
+      正在等待运行时确认…
+    </p>
+  )
+}
+
+/** 工作方式菜单:默认只作用于当前会话,另设“保存为默认” */
 export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean }) {
   const settings = useStore((s) => s.settings)
-  const value = settings?.active?.permissionMode ?? settings?.permissionMode ?? 'default'
-  const patch = (next: string) => send({ t: 'settings.patch', patch: { permissionMode: next } })
+  const busy = useStore((s) => s.busy)
+  const { sessionId, pending, patch, sessionScope } = useSettingsPatch(send)
+  const effective = settings?.active?.permissionMode ?? settings?.permissionMode ?? 'default'
+  const defaultMode = settings?.permissionMode ?? 'default'
   return (
     <Menu
       label={t('cp.mode')}
-      width={292}
+      width={308}
       trigger={({ open }) => (
-        <button className="chip-btn" aria-expanded={open} aria-label={t('cp.mode')} title={t('cp.mode')} disabled={disabled}>
-          <span className="chip-label">{modeLabel(value)}</span>
+        <button
+          className="chip-btn"
+          aria-expanded={open}
+          aria-busy={pending}
+          aria-label={t('cp.mode')}
+          title={`${t('cp.mode')}${pending ? ' · 确认中' : ''}`}
+          disabled={disabled}
+          style={pending ? { opacity: 0.7 } : undefined}
+        >
+          <span className="chip-label">{modeLabel(effective)}</span>{pending && <span className="dot live accent" aria-hidden="true" />}
           <IconChevron width={12} height={12} />
         </button>
       )}
     >
       {(close) => (
         <>
-          <div className="menu-label">{t('mode.title')}</div>
+          <div className="menu-label">{sessionId ? '当前会话的工作方式' : '新会话默认工作方式'}</div>
           {MODE_META.filter((item) => !ADVANCED.has(item.value)).map((item) => (
             <MenuItem
               key={item.value}
-              selected={value === item.value}
+              selected={effective === item.value}
               description={t(item.desc)}
               onClick={() => {
                 close()
-                patch(item.value)
+                patch({ permissionMode: item.value }, sessionScope)
               }}
             >
               {t(item.label)}
@@ -88,40 +117,69 @@ export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean })
           {MODE_META.filter((item) => ADVANCED.has(item.value)).map((item) => (
             <MenuItem
               key={item.value}
-              selected={value === item.value}
+              selected={effective === item.value}
               description={t(item.desc)}
               onClick={() => {
                 if (item.value === 'bypassPermissions' && !window.confirm(t('mode.confirmBypass'))) return
                 close()
-                patch(item.value)
+                patch({ permissionMode: item.value }, sessionScope)
               }}
             >
               {t(item.label)}
             </MenuItem>
           ))}
-          <p className="menu-foot-note">修改由运行时确认；不接受时保持原值。</p>
+          <div className="menu-sep" />
+          <MenuItem
+            disabled={defaultMode === effective}
+            onClick={() => {
+              close()
+              patch({ permissionMode: effective }, 'default')
+            }}
+            description={
+              defaultMode === effective
+                ? '当前选择已经是新会话的默认值'
+                : `新会话默认：${modeLabel(defaultMode)}`
+            }
+          >
+            保存为默认工作方式
+          </MenuItem>
+          <p className="menu-foot-note">
+            {sessionId ? '修改只影响当前对话；默认值单独保存。' : '当前还没有会话，修改会保存为新会话默认。'}
+          </p>
+          {busy && <p className="menu-foot-note">生成中修改由运行时确认；不支持时保持原值。</p>}
+          <PendingHint pending={pending} />
         </>
       )}
     </Menu>
   )
 }
 
-/** 模型菜单:已配置连接 + 模型 + 思考力度 + 添加入口 */
-export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnection: () => void }) {
+/** 模型菜单:模型/思考力度分层,连接切换需新会话生效 */
+export function ModelMenu({
+  send,
+  onAddConnection,
+  onNewSession,
+}: {
+  send: Send
+  onAddConnection: () => void
+  onNewSession?: () => void
+}) {
   const settings = useStore((s) => s.settings)
   const liveModel = useStore((s) => s.model)
   const availableModels = useStore((s) => s.availableModels)
   const conn = useStore((s) => s.conn)
+  const busy = useStore((s) => s.busy)
   const { name: connectionName } = useConnectionLabel()
   const templates = settings?.endpointTemplate ?? null
   const activeConnection = templates ? settings?.endpoints.find((endpoint) => endpoint.key === templates) : undefined
   const model = currentModelOf(settings, liveModel) ?? activeConnection?.model ?? null
+  const defaultModel = settings?.model ?? null
   const [query, setQuery] = useState('')
   const [custom, setCustom] = useState('')
-  const patch = (value: Record<string, unknown>) => send({ t: 'settings.patch', patch: value })
+  const { sessionId, pending, patch, sessionScope } = useSettingsPatch(send)
   const endpoints = settings?.endpoints ?? []
-  const activeMode = settings?.effort ?? null
-  const currentEffort = settings?.active?.effort ?? activeMode
+  const currentEffort = settings?.active?.effort ?? settings?.effort ?? null
+  const defaultEffort = settings?.effort ?? null
   const models = [
     ...(settings?.model ? [{ value: settings.model, displayName: settings.model, description: '默认模型' }] : []),
     ...availableModels,
@@ -140,17 +198,19 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
   return (
     <Menu
       label={t('cp.model')}
-      width={330}
+      width={340}
       align="end"
       trigger={({ open }) => (
         <button
           className={`chip-btn model-chip ${model ? '' : 'warn'}`}
           aria-expanded={open}
+          aria-busy={pending}
           aria-label={t('cp.model')}
-          title={model ?? (connectionName ? '使用连接默认模型' : t('cp.needConnection'))}
+          title={`${model ?? (connectionName ? '使用连接默认模型' : t('cp.needConnection'))}${pending ? ' · 确认中' : ''}`}
           disabled={disabled && !open}
+          style={pending ? { opacity: 0.7 } : undefined}
         >
-          <span className="chip-label">{triggerLabel}</span>
+          <span className="chip-label">{triggerLabel}</span>{pending && <span className="dot live accent" aria-hidden="true" />}
           <IconChevron width={12} height={12} />
         </button>
       )}
@@ -174,10 +234,14 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
                 <MenuItem
                   key={endpoint.key}
                   selected={templates === endpoint.key}
-                  description={endpoint.baseUrl ?? '地址未记录'}
+                  description={`${endpoint.baseUrl ?? '地址未记录'}${endpoint.model ? ` · 默认 ${endpoint.model}` : ''}`}
                   onClick={() => {
                     close()
-                    patch({ endpointTemplate: endpoint.key, model: null })
+                    patch({ endpointTemplate: endpoint.key, model: null }, 'default')
+                    if (sessionId && onNewSession) {
+                      const apply = window.confirm('连接切换需要新会话才会生效。现在新建会话并应用？当前会话会保留在列表里。')
+                      if (apply) setTimeout(() => onNewSession(), 0)
+                    }
                   }}
                 >
                   {endpoint.name}
@@ -197,17 +261,15 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
             </>
           )}
 
-          <div className="menu-label">模型</div>
+          <div className="menu-label">{sessionId ? '当前会话的模型' : '新会话默认模型'}</div>
           <MenuItem
             selected={!settings?.model}
             description={
-              activeConnection?.model
-                ? `由连接决定：${activeConnection.model}`
-                : '由连接决定，切换连接时恢复'
+              activeConnection?.model ? `由连接决定：${activeConnection.model}` : '由连接决定，切换连接时恢复'
             }
             onClick={() => {
               close()
-              patch({ model: null })
+              patch({ model: null }, sessionScope)
             }}
           >
             使用连接默认
@@ -220,40 +282,63 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
           {visibleModels.map((item) => (
             <MenuItem
               key={item.value}
-              selected={settings?.model === item.value}
+              selected={model === item.value}
               description={item.description || item.displayName}
               onClick={() => {
                 close()
-                patch({ model: item.value })
+                patch({ model: item.value }, sessionScope)
               }}
             >
               {item.value}
             </MenuItem>
           ))}
-          {activeMode !== null && (
-            <>
-              <div className="menu-sep" />
-              <div className="menu-label">思考力度</div>
-              <div className="effort-row">
-                <button
-                  className={`effort-pill ${currentEffort == null ? 'is-active' : ''}`}
-                  onClick={() => patch({ effort: null })}
-                >
-                  默认
-                </button>
-                {EFFORTS.map((effort) => (
-                  <button
-                    key={effort}
-                    className={`effort-pill ${currentEffort === effort ? 'is-active' : ''}`}
-                    onClick={() => patch({ effort })}
-                  >
-                    {EFFORT_LABEL[effort]}
-                  </button>
-                ))}
-              </div>
-              <p className="menu-foot-note">运行时未明确支持时，保持默认更安全。</p>
-            </>
+          {availableModels.length > 0 && (
+            <p className="menu-foot-note">
+              这里只显示运行时发现的模型清单；是否可用仍取决于服务商账号权限与额度。
+            </p>
           )}
+
+          <div className="menu-sep" />
+          <MenuItem
+            disabled={defaultModel === (settings?.active?.model ?? settings?.model ?? null)}
+            description={`新会话使用：${settings?.active?.model ?? defaultModel ?? activeConnection?.model ?? '连接默认模型'}`}
+            onClick={() => {
+              close()
+              patch({ model: settings?.active?.model ?? defaultModel ?? null }, 'default')
+            }}
+          >
+            保存为默认模型
+          </MenuItem>
+
+          <div className="menu-sep" />
+          <div className="menu-label">
+            思考力度
+            <span style={{ marginLeft: 6, fontWeight: 400 }}>新会话生效</span>
+          </div>
+          <div className="effort-row">
+            <button
+              className={`effort-pill ${currentEffort == null ? 'is-active' : ''}`}
+              onClick={() => patch({ effort: null }, 'default')}
+              title="使用运行时默认"
+            >
+              默认
+            </button>
+            {EFFORTS.map((effort) => (
+              <button
+                key={effort}
+                className={`effort-pill ${currentEffort === effort ? 'is-active' : ''}`}
+                onClick={() => patch({ effort }, 'default')}
+                title={`新会话使用 ${effort}`}
+              >
+                {EFFORT_LABEL[effort]}
+              </button>
+            ))}
+          </div>
+          <p className="menu-foot-note">
+            {currentEffort === defaultEffort
+              ? '思考力度属于新会话设置；模型/服务商不支持时可能被拒绝，运行时确认后保持原值。'
+              : `当前会话尚未切换；新会话将使用「${currentEffort ? EFFORT_LABEL[currentEffort] ?? currentEffort : '默认'}」。`}
+          </p>
 
           <div className="menu-sep" />
           <form
@@ -262,7 +347,7 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
               e.preventDefault()
               if (!custom.trim()) return
               close()
-              patch({ model: custom.trim() })
+              patch({ model: custom.trim() }, sessionScope)
             }}
           >
             <input
@@ -275,6 +360,8 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
               应用
             </button>
           </form>
+          {busy && <p className="menu-foot-note">生成中修改由运行时确认；不支持时保持原值。</p>}
+          <PendingHint pending={pending} />
         </>
       )}
     </Menu>
@@ -322,7 +409,7 @@ export function AttachMenu({ onPickImage, onReferenceFile }: { onPickImage: () =
           </MenuItem>
           <div className="menu-sep" />
           <p className="menu-foot-note" style={{ padding: '4px 10px 6px' }}>
-            也可以直接拖入或粘贴图片。
+            也可以直接拖入或粘贴图片。附件只支持 PNG/JPEG/GIF/WebP，每张不超过 5 MB；模型是否理解图片取决于所选服务商。
           </p>
         </>
       )}

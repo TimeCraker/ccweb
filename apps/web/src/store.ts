@@ -95,6 +95,8 @@ interface AppState {
   error: string | null
   /** 非错误提示(信息类 toast):与 error 分开,避免把所有反馈都标成红色 */
   notice: string | null
+  /** 最近一次设置变更的请求时间;用于显示“确认中”而不是抢先展示成功 */
+  settingsPending: number | null
   busy: boolean
   /** 本轮开始时间戳(运行计时行 + turn 尾统计) */
   turnStartedAt: number | null
@@ -162,6 +164,7 @@ export const useStore = create<AppState>((set) => ({
   question: null,
   error: null,
   notice: null,
+  settingsPending: null,
   busy: false,
   turnStartedAt: null,
   lastTurnStats: null,

@@ -156,6 +156,16 @@ export default function UsageBar() {
                   <pre className="raw">{JSON.stringify(metrics.nativeTiming.modelUsage, null, 2)}</pre>
                 </details>
               ) : null}
+              {metrics?.toolTimes && Object.keys(metrics.toolTimes).length > 0 ? (
+                <details className="usage-details" style={{ borderTop: 0, paddingTop: 2 }}>
+                  <summary>工具原生耗时（{Object.keys(metrics.toolTimes).length} 项）</summary>
+                  <pre className="raw">
+                    {Object.entries(metrics.toolTimes)
+                      .map(([toolUseId, duration]) => `${toolUseId} · ${ms(duration)}`)
+                      .join('\n')}
+                  </pre>
+                </details>
+              ) : null}
               <p className="usage-foot">{t('us.streamNote')}</p>
             </details>
           </div>
