@@ -21,7 +21,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
           const result = await options.canUseTool!('Write', { file_path: 'test.txt' }, { toolUseID: 'approval-test', requestId: 'approval-control', signal: new AbortController().signal })
           mock.order.push(result?.behavior ?? 'pending')
         }
-        yield { type: 'result', subtype: 'success', usage: {}, modelUsage: {}, user_message_uuid: message.uuid }
+        yield { type: 'result', subtype: mock.mode.startsWith('failed') ? 'error_during_execution' : 'success', usage: {}, modelUsage: mock.mode === 'failed-usage' ? { test: {inputTokens: 10, outputTokens: 7} } : {}, total_cost_usd: mock.mode === 'failed-usage' ? 0.25 : 0, user_message_uuid: message.uuid }
       }
     })()
     return Object.assign(generator, {
@@ -108,6 +108,18 @@ describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
     await agent.resolvePermission('plan-test', true)
     expect(agent.settings.permissionMode).toBe('default')
     expect(mock.order).toContain('mode:default')
+  })
+
+  it('retains failure usage and does not erase it on a zeroed failure', async () => {
+    mock.mode = 'failed-usage'
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('fails after spending')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'metrics' && e.metrics.totalCostUsd === 0.25 && e.metrics.outputTokens === 7)).toBe(true))
+    mock.mode = 'failed-zero'
+    agent.send('explicit retry')
+    await vi.waitFor(() => expect(events.filter(e => e.t === 'message')).toHaveLength(2))
+    const last = events.filter(e => e.t === 'metrics').at(-1)
+    expect(last?.t === 'metrics' && last.metrics.totalCostUsd).toBe(0.25)
   })
 
 })

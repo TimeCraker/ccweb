@@ -71,4 +71,14 @@ describe('native configuration persistence contracts', () => {
     expect(invalid.status).toBe(400)
   })
 
+  it('discovers shared and local project hooks plus both rule locations', () => {
+    writeFileSync(join(workspace, '.claude', 'settings.json'), '{"hooks":{}}')
+    writeFileSync(join(workspace, '.claude', 'CLAUDE.md'), 'project rules')
+    writeFileSync(join(workspace, 'CLAUDE.local.md'), 'local rules')
+    const items = module.listResources(workspace)
+    expect(items.some(item => item.name === 'Hooks · 项目共享')).toBe(true)
+    expect(items.some(item => item.name === '.claude/CLAUDE.md')).toBe(true)
+    expect(items.some(item => item.name === 'CLAUDE.local.md')).toBe(true)
+  })
+
 })

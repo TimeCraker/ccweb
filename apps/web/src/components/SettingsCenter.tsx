@@ -56,7 +56,9 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
   const dirty = selected !== null && draft !== selected.content
   const parsed = useMemo(() => frontmatter(draft), [draft])
   const query = useMemo(() => `workspace=${encodeURIComponent(workspace)}`, [workspace])
-  const dismissDraft = useCallback(() => !dirty || window.confirm('放弃尚未保存的更改？'), [dirty])
+  const connectionDirty = Object.values(connection).some(value => value.trim() !== '')
+  const hasUnsaved = dirty || connectionDirty
+  const dismissDraft = useCallback(() => !hasUnsaved || window.confirm('放弃尚未保存的更改？'), [hasUnsaved])
   const close = useCallback(() => { if (dismissDraft()) onClose() }, [dismissDraft, onClose])
   const refresh = useCallback(async () => {
     const data = await api<Resource[]>(`resources?${query}`)
@@ -73,7 +75,7 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
   }, [open, query, send])
   useEffect(() => {
     if (!open) return
-    const beforeUnload = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = '' } }
+    const beforeUnload = (event: BeforeUnloadEvent) => { if (hasUnsaved) { event.preventDefault(); event.returnValue = '' } }
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() }
       if (event.key !== 'Tab') return
@@ -84,9 +86,9 @@ export default function SettingsCenter({ open, onClose, send }: { open: boolean;
     }
     window.addEventListener('beforeunload', beforeUnload)
     window.addEventListener('keydown', key, true)
-    box.current?.focus()
     return () => { window.removeEventListener('beforeunload', beforeUnload); window.removeEventListener('keydown', key, true) }
-  }, [open, dirty, close])
+  }, [open, hasUnsaved, close])
+  useEffect(() => { if (open) box.current?.focus() }, [open])
   async function load(item: Resource) {
     if (!dismissDraft()) return
     const id = ++request.current

@@ -181,3 +181,9 @@ TC 品牌、深浅/系统主题、对话两栏、折叠详情、统一输入与�
 - 独立 Harness 实验台按计划暂缓。此版本不是 Claude Code TUI 全功能等价客户端，也未完整覆盖 deepseekharness 的实验、对比与调优体验。
 
 建议顺序：先修 P1 可用性和指标问题，再补结果审查、配置诊断及真实模式验收，最后做视觉密度/键盘/长内容打磨。Harness 实验、配置对比与回放作为后续独立阶段，不混入本轮验收。
+
+## Stage 6.6 第一修复单元（2026-10-31）
+
+已修复设置 dirty 更新抢焦点、连接草稿关闭前保护、ContextPanel 原生 totalTokens/rawMaxTokens、失败结果用量更新和零值失败不清空累计数据；项目共享 Hooks、.claude/CLAUDE.md、CLAUDE.local.md 可发现和编辑；MultiEdit 展开 edits 数组。pnpm check 45 项、Edge 19/19 通过，逐字输入及拒绝放弃连接草稿已回归。
+
+完整终端替代仍未完成。官方 CLI 的交互会话、登录授权、后台会话附着、插件/工作流和维护操作不能从当前 SDK GUI 自动推导等价；后续需要原生终端承载与逐项实际验收，不能将本修复单元冒充全部完成。参考：https://code.claude.com/docs/en/cli-reference 、https://code.claude.com/docs/en/commands 。

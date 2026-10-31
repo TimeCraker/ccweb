@@ -503,8 +503,8 @@ export class AgentSession {
       this.firstContentMs = this.streamMetrics.firstContentMs
       this.turnActive = false
       this.completedAt = Date.now()
-      if (msg.subtype === 'success') applyResult(this.acc, msg)
-      else this.paused = true
+      applyResult(this.acc, msg)
+      if (msg.subtype !== 'success') this.paused = true
       this.emitMetrics()
       this.emitContext()
       if (this.sessionId) this.emit({ t: 'message', seq: 0, sessionId: this.sessionId, sdkMessage: msg })
@@ -625,13 +625,13 @@ function applyResult(acc: MetricsAccumulator, result: Record<string, unknown>): 
       cacheCreation += u.cacheCreationInputTokens ?? 0
       if (typeof u.contextWindow === 'number' && u.contextWindow > 0) ctxMax = u.contextWindow
     }
-    acc.inputTokens = input
-    acc.outputTokens = output
-    acc.cacheReadTokens = cacheRead
-    acc.cacheCreationTokens = cacheCreation
+    acc.inputTokens = Math.max(acc.inputTokens, input)
+    acc.outputTokens = Math.max(acc.outputTokens, output)
+    acc.cacheReadTokens = Math.max(acc.cacheReadTokens, cacheRead)
+    acc.cacheCreationTokens = Math.max(acc.cacheCreationTokens, cacheCreation)
     acc.contextMax = ctxMax
   }
-  if (typeof result.total_cost_usd === 'number') acc.totalCostUsd = result.total_cost_usd
+  if (typeof result.total_cost_usd === 'number') acc.totalCostUsd = Math.max(acc.totalCostUsd ?? 0, result.total_cost_usd)
   if (typeof result.ttft_ms === 'number') acc.ttftMs = result.ttft_ms
 
   const usage = result.usage as

@@ -58,6 +58,12 @@ export function listResources(workspace: string): Resource[] {
     scan(join(config, 'rules'), 'rule', source, root)
     const md = source === 'user' ? join(CC_DIR, 'CLAUDE.md') : join(workspace, 'CLAUDE.md')
     if (existsSync(md)) add(md, 'CLAUDE.md', 'rule', source, root)
+    if (source === 'project') {
+      for (const [file, name] of [[join(config, 'CLAUDE.md'), '.claude/CLAUDE.md'], [join(workspace, 'CLAUDE.local.md'), 'CLAUDE.local.md']]) {
+        if (existsSync(file!)) add(file!, name!, 'rule', source, root)
+      }
+      add(join(config, 'settings.json'), 'Hooks · 项目共享', 'hooks', source, root)
+    }
     add(join(config, source === 'project' ? 'settings.local.json' : 'settings.json'), 'Hooks', 'hooks', source, root)
     // MCP's native user file is ~/.claude.json, project file is .mcp.json.
     const mcpRoot = source === 'user' ? homedir() : workspace

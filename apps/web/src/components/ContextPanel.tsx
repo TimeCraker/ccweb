@@ -10,9 +10,9 @@ function extractUsage(raw: Record<string, unknown> | null): { used: number; max:
   const num = (v: unknown): number | null => (typeof v === 'number' && v > 0 ? v : null)
   // 常见字段形状逐一尝试
   const used =
-    num(raw.total_tokens) ?? num(raw.usedTokens) ?? num(raw.used_tokens) ?? num(raw.inputTokens) ?? num(raw.contextTokens)
+    num(raw.totalTokens) ?? num(raw.total_tokens) ?? num(raw.usedTokens) ?? num(raw.used_tokens) ?? num(raw.inputTokens) ?? num(raw.contextTokens)
   const max =
-    num(raw.raw_max_tokens) ?? num(raw.maxTokens) ?? num(raw.max_tokens) ?? num(raw.contextWindow) ?? num(raw.contextLimit)
+    num(raw.rawMaxTokens) ?? num(raw.raw_max_tokens) ?? num(raw.maxTokens) ?? num(raw.max_tokens) ?? num(raw.contextWindow) ?? num(raw.contextLimit)
   if (used != null && max != null) return { used, max }
   return null
 }

@@ -10,7 +10,9 @@ test('configuration CRUD, shared source draft, cancel and source scopes through 
   await page.locator('.resource-create').getByLabel('名称').fill(name)
   await page.getByRole('button', { name: '创建', exact: true }).click()
   await expect(page.locator('.resource-heading h3')).toHaveText(name)
-  await page.getByLabel('说明', { exact: true }).fill('【E2E】 shared draft description')
+  await page.getByLabel('说明', { exact: true }).fill('')
+  await page.getByLabel('说明', { exact: true }).pressSequentially('【E2E】 shared draft description')
+  await expect(page.getByLabel('说明', { exact: true })).toBeFocused()
   await page.getByRole('button', { name: '源码', exact: true }).click()
   const source = page.getByRole('textbox', { name: '配置源码', exact: true })
   await expect(source).toHaveValue(/shared draft description/)
@@ -71,4 +73,19 @@ test('conversation-first layouts and persistent metrics at desktop sizes', async
   }
   await page.evaluate(() => { document.documentElement.style.zoom = '' })
 
+})
+
+test('typing keeps focus and unsaved connection requires explicit discard', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'settings', exact: true }).click()
+  await page.getByText('添加或更新连接', { exact: true }).click()
+  const name = page.getByLabel('连接名称', { exact: true })
+  await name.pressSequentially('audit-draft')
+  await expect(name).toBeFocused()
+  page.once('dialog', dialog => void dialog.dismiss())
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click()
+  await expect(name).toHaveValue('audit-draft')
+  page.once('dialog', dialog => void dialog.accept())
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
