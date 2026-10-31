@@ -9,6 +9,7 @@ import { createRequire } from 'node:module'
 import { parseDocument } from 'yaml'
 import { APP_DIR, CC_DIR, runtimeSettings, effectiveEnv, listEndpointTemplates } from './settings.js'
 import { listConnections, removeConnection, saveConnection, testConnection, templateKeyOf } from './connections.js'
+import { listDeletedSessions, restoreDeletedSession } from './session-backup.js'
 
 type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp' | 'permissions'
 type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
@@ -331,4 +332,12 @@ configApi.post('/connections/test', async c => {
     connectionKey: body.connectionKey ?? null,
   })
   return c.json(result)
+})
+// 最近删除的会话:删除时保留 transcript 备份,恢复只写回 ~/.claude/projects 原始目录
+configApi.get('/sessions/deleted', c => c.json(listDeletedSessions()))
+configApi.post('/sessions/restore', async c => {
+  const body = await c.req.json<{ id: string }>()
+  const sessionId = restoreDeletedSession(String(body.id ?? ''))
+  if (!sessionId) throw new Error('备份不存在、已恢复，或目标会话仍然存在')
+  return c.json({ ok: true, sessionId })
 })

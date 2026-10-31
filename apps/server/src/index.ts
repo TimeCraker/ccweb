@@ -13,6 +13,7 @@ import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from '
 import { forkSession, query } from '@anthropic-ai/claude-agent-sdk'
 import { AgentSession, buildAgentEnv } from './agent.js'
 import { fetchHistory, listSessionMetas, renameSessionMeta, deleteSessionMeta } from './sessions.js'
+import { backupSession } from './session-backup.js'
 import { searchWorkspaceFiles } from './files.js'
 import {
   runtimeSettings,
@@ -381,6 +382,8 @@ wss.on('connection', (ws) => {
         emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
         break
       case 'session.delete': {
+        // 删除前备份原生 transcript;没有备份文件(纯模拟会话)时照常删除
+        backupSession(msg.sessionId, msg.title ?? '')
         const ok = await deleteSessionMeta(msg.sessionId)
         if (!ok) {
           throw new Error('deleteSession failed.')

@@ -30,7 +30,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('session.list') }),
   z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional(), upToMessageId: z.string().uuid().optional() }),
   z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
-  z.object({ t: z.literal('session.delete'), sessionId: z.string() }),
+  z.object({ t: z.literal('session.delete'), sessionId: z.string(), title: z.string().max(200).optional() }),
   z.object({ t: z.literal('queue.resume') }),
   z.object({ t: z.literal('queue.delete'), uuid: z.string() }),
   z.object({
