@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defineConfig } from '@playwright/test'
@@ -6,10 +6,10 @@ import { defineConfig } from '@playwright/test'
 /**
  * e2e 前置:server 起在 3477 并服务构建产物(pnpm build 后 node bin/ccweb.mjs)。
  * 本地:pnpm exec playwright test;CI:workflow_dispatch job。
+ * 每次运行使用独立临时 HOME,避免上一轮会话/设置污染断言。
  */
 const testPort = process.env.CCWEB_E2E_PORT ?? '3477'
-const testHome = join(tmpdir(), 'ccweb-playwright-profile')
-mkdirSync(testHome, { recursive: true })
+const testHome = mkdtempSync(join(tmpdir(), 'ccweb-playwright-'))
 mkdirSync(join(testHome, 'workspace'), { recursive: true })
 
 export default defineConfig({

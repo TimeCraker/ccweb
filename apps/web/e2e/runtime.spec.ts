@@ -51,7 +51,7 @@ test('approval survives reload, preserves draft and stays isolated from another 
   await expect(page.locator('.permission-card')).toHaveCount(0)
   const drawer = await openDrawer(page, '本次改动')
   await expect(drawer).toBeVisible()
-  await expect(drawer.getByText('fixture.txt')).toBeVisible()
+  await expect(drawer.getByText('fixture.txt').first()).toBeVisible()
   await drawer.getByRole('button', { name: '关闭面板' }).click()
   await expect(otherPage.getByText('【E2E】模拟完成：APPROVAL reconnect')).toHaveCount(0)
   await expect(page.locator('.usage')).toContainText('tok/s')

@@ -130,7 +130,7 @@ test('connection form validates drafts and marks stale test results', async ({ p
   await expect(dialog.getByText('表单已修改，以上结果不再代表当前草稿。')).toBeVisible()
 
   await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/v1/chat/completions')
-  await expect(dialog.getByText(/OpenAI Chat Completions 接口/)).toBeVisible()
+  await expect(dialog.getByText('此接口格式当前不兼容。')).toBeVisible()
   await page.getByLabel('接口地址（Base URL）').fill('not-a-url')
   await page.getByRole('button', { name: '保存并使用' }).click()
   await expect(dialog.getByText(/接口地址不是合法 URL|请包含 http/)).toBeVisible()
@@ -169,4 +169,69 @@ test('composer draft survives settings, sidebar collapse and session list toggle
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: /展开侧栏/ }).click()
   await expect(box).toHaveValue('切换前草稿')
+})
+
+test('session model changes stay separate from the saved default', async ({ page }) => {
+  await ready(page)
+  await send(page, 'scope session model')
+  await expect(page.getByText('【E2E】模拟完成：scope session model', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '模型', exact: true }).click()
+  const sessionModel = `fixture-session-${Date.now().toString(36)}`
+  await page.getByLabel('自定义模型 ID').fill(sessionModel)
+  await page.getByRole('button', { name: '应用', exact: true }).click()
+  await expect(page.locator('.model-chip')).toContainText(sessionModel)
+
+  // 当前会话已改,但默认值未变:保存为默认仍可用
+  await page.getByRole('button', { name: '模型', exact: true }).click()
+  const saveDefault = page.getByRole('menuitem', { name: /保存为默认模型/ })
+  await expect(saveDefault).toBeEnabled()
+  await saveDefault.click()
+  await page.waitForTimeout(500)
+
+  // 保存默认后,再次打开应显示“已是默认”(按钮禁用)
+  await page.getByRole('button', { name: '模型', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: /保存为默认模型/ })).toBeDisabled()
+})
+
+test('an OpenAI-style endpoint is clearly rejected before saving', async ({ page }) => {
+  await ready(page)
+  await page.keyboard.press('Control+,')
+  const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+  await dialog.getByRole('button', { name: '添加连接' }).click()
+  await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/v1/chat/completions')
+  await expect(dialog.getByText('此接口格式当前不兼容。')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '保存并使用' })).toBeDisabled()
+  await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/anthropic')
+  await expect(dialog.getByRole('button', { name: '保存并使用' })).toBeEnabled()
+})
+
+test('connection test can be cancelled without saving', async ({ page }) => {
+  await page.route('**/api/connections/test', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2500))
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        category: 'ok',
+        status: 200,
+        model: 'glm-5.3',
+        elapsedMs: 180,
+        requestUrl: 'https://api.example.com/anthropic/v1/messages',
+        message: '连接成功。',
+      }),
+    })
+  })
+  await ready(page)
+  await page.keyboard.press('Control+,')
+  const dialog = page.getByRole('dialog', { name: '设置', exact: true })
+  await dialog.getByRole('button', { name: '添加连接' }).click()
+  await page.getByLabel('接口地址（Base URL）').fill('https://api.example.com/anthropic')
+  await page.getByLabel('API Key').fill('sk-cancel-me')
+  await dialog.getByRole('button', { name: '测试连接' }).click()
+  await expect(dialog.getByRole('button', { name: '取消测试' })).toBeVisible()
+  await dialog.getByRole('button', { name: '取消测试' }).click()
+  await expect(dialog.getByText('已取消测试，没有保存任何更改。')).toBeVisible()
+  await expect(dialog.getByText('连通成功')).toHaveCount(0)
 })
