@@ -131,7 +131,11 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
   )
   const disabled = conn !== 'open' || !settings
 
-  const triggerLabel = model ? `${connectionName ? `${connectionName} · ` : ''}${model}` : '选择模型'
+  const triggerLabel = model
+    ? `${connectionName ? `${connectionName} · ` : ''}${model}`
+    : connectionName
+      ? `${connectionName} · 默认模型`
+      : '选择模型'
 
   return (
     <Menu
@@ -143,7 +147,7 @@ export function ModelMenu({ send, onAddConnection }: { send: Send; onAddConnecti
           className={`chip-btn model-chip ${model ? '' : 'warn'}`}
           aria-expanded={open}
           aria-label={t('cp.model')}
-          title={model ?? t('cp.needConnection')}
+          title={model ?? (connectionName ? '使用连接默认模型' : t('cp.needConnection'))}
           disabled={disabled && !open}
         >
           <span className="chip-label">{triggerLabel}</span>

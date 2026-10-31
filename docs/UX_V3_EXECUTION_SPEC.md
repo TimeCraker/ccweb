@@ -326,6 +326,6 @@
 | --- | --- |
 | 质量门 | `pnpm check`：lint、typecheck、45 项服务端测试、23 项前端测试、web/server 构建全部通过 |
 | 浏览器回归 | Edge 39/39（mock SDK + 真实浏览器，端口 3499/3495）；另用干净 fixture 环境生成文档截图 |
-| 本地安装包 | `ccweb-console-0.1.4.tgz`，27 个文件，411,317 字节，SHA256 `C8268B62E53BEE12C11534A2622A465F5A621BB90B08641C8539CDD484D4E0FC` |
+| 本地安装包 | `ccweb-console-0.1.4.tgz`，27 个文件，411,329 字节，SHA256 `E8FCEC3941C5899447D4FBB367842D1849D056D4772D71AE920DE894A97C4E9C` |
 | 发布状态 | 未发布 npm、未推送远端；安装包只用于本地校验 |
 | 截图 | `docs/ux-v3/implemented/*.png`（Edge 1440×960，样例数据，非真实模型证据） |
