@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-31",
+  "sdk": "0.3.314",
+  "source": "locked SDK runtime, local HTTP test server, synthetic credentials",
+  "cases": [
+    {
+      "inputBaseSuffix": "/v1",
+      "savedBase": "http://127.0.0.1:<port>",
+      "probePath": "/v1/messages",
+      "runtimePaths": ["/v1/messages"],
+      "query": "beta=true",
+      "result": "one /v1/messages request, no /v1/v1 or /messages/v1"
+    },
+    {
+      "inputBaseSuffix": "/v1/messages",
+      "savedBase": "http://127.0.0.1:<port>",
+      "probePath": "/v1/messages",
+      "runtimePaths": ["/v1/messages"],
+      "query": "beta=true",
+      "result": "one /v1/messages request, no duplicated suffix"
+    }
+  ],
+  "auth": [
+    {
+      "case": "explicit connection without key, local gateway",
+      "sentAuthorization": "Bearer ccweb-local-no-auth",
+      "inheritedSyntheticTokenSent": false
+    },
+    {
+      "case": "explicit inherit mode",
+      "sentAuthorization": "Bearer sk-synthetic-runtime-path",
+      "note": "synthetic token only; never a real credential"
+    },
+    {
+      "case": "external explicit connection without key",
+      "effectiveEnvToken": "",
+      "note": "no fallback to process.env or ~/.claude token"
+    }
+  ],
+  "tests": {
+    "server": 56,
+    "web": 26,
+    "browser": 54,
+    "runtimePathTests": ["src/runtime-path.test.ts"],
+    "connectionTests": ["src/connections.test.ts"]
+  }
+}

@@ -189,7 +189,7 @@
 - [ ] P3 完成连接与模型闭环：ccweb 自有连接存储、真实连通测试与错误分类、模板兼容合并、模型/工作方式菜单与生效范围说明、认证来源保留。
 - [x] P4 整理任务过程与结果：移除顶栏终端/改动/详情三大入口，终端降级为设置中的排障功能；用量降噪；改动侧面板与运行详情抽屉；任务/回退按需；中断与导航显式确认。
 - [ ] P5 细节统一与自发现修复：深浅主题、1280/1440/1920/2560、窄屏抽屉、中文 IME、长路径/长输出、空/错/加载态、文案与对比度统一。
-- [ ] P6 同版交付：lint / typecheck / 单测 / 构建 / 42 项 E2E 全通过；实际打包安装并在浏览器验证；新增 V3 契约用例与截图；文档与本地提交。未发布、未推送。
+- [x] P6 同版交付：lint / typecheck / 单测 / 构建 / 54 项 E2E 全通过；实际打包安装并在浏览器验证；新增 V3 契约用例与截图；文档与本地提交。未发布、未推送。
 
 重新打开原因：P2 对应 IA05 键盘交互；P3 对应 IA01–IA04、IA06；P5 需完成剩余能力/规模/缩放验证；P6 需在缺陷关闭后冻结同版重新交付。详见独立验收报告，已有实施成果保留。
 
@@ -274,10 +274,10 @@
 
 | 层 | 结果 | 证据 |
 | --- | --- | --- |
-| 单元/协议（server） | 50 项通过 | `apps/server` vitest：连接存储、URL 规范化、真实探测分类、配置 API、协议与运行校验、设置作用域、会话备份恢复 |
+| 单元/协议（server） | 56 项通过 | `apps/server` vitest：连接存储、URL 规范化、真实探测分类、配置 API、协议与运行校验、设置作用域、会话备份恢复 |
 | 单元（web） | 26 项通过 | `apps/web` vitest：渲染模型、ANSI、markdown 增量、上下文口径 |
 | 静态检查 | 通过 | `pnpm lint`、`pnpm typecheck`、`pnpm build` |
-| 浏览器 E2E（模拟 SDK + 真实浏览器 Edge） | 45 项通过 | `apps/web/e2e`：V3 契约、会话/默认作用域、审批/队列、配置编辑、协议拒绝、原生终端、布局与截图 |
+| 浏览器 E2E（模拟 SDK + 真实浏览器 Edge） | 54 项通过 | `apps/web/e2e`：V3 契约、会话/默认作用域、审批/队列、配置编辑、协议拒绝、原生终端、布局与截图 |
 | 实际打包安装 | 通过 | `npm pack` 产物在临时目录 `npm install --ignore-scripts`（110 个依赖）后启动 3496 端口；浏览器加载 V3 界面、设置分类、`/api/connections` 与 `/api/sessions/deleted` 正常，无 pageerror |
 | 真实浏览器人工走查 | 已完成 | 1440×960 深浅主题、1280/1920、760 窄屏抽屉、设置单列、菜单/用量/审批/改动/详情截图 |
 | 真实服务商模型 | **未验证** | 本轮无可用第三方凭证；连通测试接口只在测试中通过 mock HTTP 校验分类，未对真实服务商发请求 |
@@ -345,9 +345,9 @@
 
 | 项 | 结果 |
 | --- | --- |
-| 质量门 | `pnpm check`：lint、typecheck、50 项服务端测试、26 项前端测试、web/server 构建全部通过 |
-| 浏览器回归 | Edge 45/45（mock SDK + 真实浏览器，端口 3499/3495）；另用干净 fixture 环境生成文档截图 |
-| 本地安装包 | `ccweb-console-0.1.4.tgz`，27 个文件，417,746 字节，SHA256 `2051F2238DFD69E7280C6A63EE225B6A4078720052F9DF2681567CAAE0B75862` |
+| 质量门 | `pnpm check`：lint、typecheck、56 项服务端测试、26 项前端测试、web/server 构建全部通过 |
+| 浏览器回归 | Edge 54/54（mock SDK + 真实浏览器，端口 3499/3495）；另用干净 fixture 环境生成文档截图 |
+| 本地安装包 | `ccweb-console-0.1.4.tgz`，27 个文件，420,512 字节，SHA256 `F0054C275D0080215C21A718ED5EC6B85916883070A7BD25631C476A5FD5A526` |
 | 安装验证 | 临时目录 `npm install --ignore-scripts`（110 个依赖）→ 启动 3496 → 浏览器加载 V3、打开设置、`/api/connections` 与 `/api/sessions/deleted` 正常，无 pageerror |
 | 发布状态 | 未发布 npm、未推送远端；安装包只用于本地校验 |
 | 截图 | `docs/ux-v3/implemented/*.png`（Edge 1440×960，样例数据，非真实模型证据） |
@@ -436,12 +436,26 @@
 ### 15.6 证据索引
 
 - 代码：`apps/server/src/{connections,protocol,index,settings,agent}.ts`、`apps/web/src/components/`、`apps/web/src/index.css`
-- 回归：`apps/server/src/*.test.ts`（50）、`apps/web/src/**/*.test.ts`（26）、`apps/web/e2e/{v3,runtime,controls,basic,v2,native,visual}.spec.ts`（45）
-- 交付：`pnpm check`、`npm pack`、临时安装启动 3496、Edge 42/42、文档截图 `docs/ux-v3/implemented/`
-- 包指纹：`ccweb-console-0.1.4.tgz` / 417,746 B / SHA256 `2051F2238DFD69E7280C6A63EE225B6A4078720052F9DF2681567CAAE0B75862`
+- 回归：`apps/server/src/*.test.ts`（56）、`apps/web/src/**/*.test.ts`（26）、`apps/web/e2e/{v3,runtime,controls,basic,v2,native,visual,ia}.spec.ts`（54）
+- 交付：`pnpm check`、`npm pack`、临时安装启动 3496、Edge 54/54、文档截图 `docs/ux-v3/implemented/`、独立复核截图 `docs/ux-v3/independent-audit/recheck/`
+- 包指纹：`ccweb-console-0.1.4.tgz` / 420,512 B / SHA256 `F0054C275D0080215C21A718ED5EC6B85916883070A7BD25631C476A5FD5A526`
 
 ### 15.7 不能由本轮宣称的结论
 
-- 不能宣称真实第三方模型连接、真实工具/图片/长任务已经过验收。
-- 不能宣称 Windows 原生缩放、删除会话恢复、100 文件规模已经验证。
-- 不能把模拟 SDK 的 42 项 E2E 当作真实模型验收；技术验收不等于用户主观认可。
+- 不能宣称真实模型的工具/图片/长任务已经过验收；本轮只完成一条真实文本任务。
+- 不能宣称 Windows 系统级 125%/150% 缩放已经验证；DPR/视口测试不能替代。
+- 不能把模拟 SDK 的 54 项 E2E 当作真实模型验收；技术验收不等于用户主观认可。
+
+### 15.8 独立验收第二轮（IA01–IA06）
+
+第一轮独立报告指出的六处连接/菜单缺陷已修复并有专项回归，证据与截图见 [recheck](ux-v3/independent-audit/recheck/README.md)。摘要：
+
+- **IA01**：探测与锁定运行时统一为“根地址 + /v1/messages”；实际 SDK 0.3.314 访问本机服务验证 `/v1` 与 `/v1/messages` 都只产生一次请求。
+- **IA02**：显式连接不再继承环境旧 token；表单提供连接 Key / 明确继承 / 无认证三种方式；本机无认证用非机密占位头使运行时可达。
+- **IA03**：探测绑定草稿版本与完整 Key，改 Key、请求中修改、迟到旧响应都不会复活旧结果。
+- **IA04**：连接与模型同时参与搜索并保留分组。
+- **IA05**：菜单内表单支持 Tab/Shift+Tab/Home/End，焦点真正离开才关闭。
+- **IA06**：当前会话模型选中来自 active.model，与新会话默认分开；覆盖自定义、恢复默认、保存默认、运行时拒绝。
+- **P2/P3/P5**：思考力度仅展示运行时声明档位；连接页区分当前/下次生效与来源；补外部配置冲突、120 文件改动、WebSocket 断线附件回归。
+
+复核后计数：服务端 56、前端 26、Edge E2E 54；包指纹 `F0054C275D0080215C21A718ED5EC6B85916883070A7BD25631C476A5FD5A526`。仍保留的未验项是真实工具/图片/长任务、官方登录/MCP OAuth（用户暂缓）、Windows 系统级缩放和用户主观手感。
