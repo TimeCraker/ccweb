@@ -34,7 +34,8 @@ export interface SessionMeta {
 }
 
 export interface SettingsSnapshot {
-  active?: { model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
+  authentication?: 'inherit' | 'native'
+  active?: { authentication?: 'inherit' | 'native'; model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
   serverVersion: string
   contextScope: 'full' | 'project' | 'none'
   model: string | null

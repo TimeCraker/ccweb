@@ -56,7 +56,7 @@ beforeAll(async () => {
 beforeEach(() => {
   for (const agent of agents.splice(0)) agent.abort()
   mock.mode = 'success'; mock.options.length = 0; mock.order.length = 0
-  Object.assign(settings, { model: 'sonnet', permissionMode: 'plan', contextScope: 'none', effort: null, endpointTemplate: null })
+  Object.assign(settings, { authentication: 'inherit', model: 'sonnet', permissionMode: 'plan', contextScope: 'none', effort: null, endpointTemplate: null })
 })
 afterAll(() => {
   for (const agent of agents) agent.abort()
@@ -76,6 +76,26 @@ describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
     expect(mock.options[0]?.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' })
     await vi.waitFor(() => expect(events.some(e => e.t === 'message')).toBe(true))
     expect(await agent.mcpStatus()).toEqual([{ name: 'test-server', status: 'connected' }])
+  })
+  it('native authentication never reuses an inherited third-party bearer or endpoint', async () => {
+    const previous = { token: process.env.ANTHROPIC_AUTH_TOKEN, key: process.env.ANTHROPIC_API_KEY, url: process.env.ANTHROPIC_BASE_URL }
+    process.env.ANTHROPIC_AUTH_TOKEN = 'private-third-party-token'; process.env.ANTHROPIC_API_KEY = 'private-third-party-key'; process.env.ANTHROPIC_BASE_URL = 'https://third-party.example'
+    try {
+      const { buildAgentEnv } = await import('./agent.js')
+      const env = buildAgentEnv({ ...settings, authentication: 'native' })
+      expect(env.ANTHROPIC_AUTH_TOKEN).toBe('')
+      expect(env.ANTHROPIC_API_KEY).toBe('')
+      expect(env.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com')
+      expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe('private-third-party-token')
+      Object.assign(settings, { authentication: 'native' })
+      const agent = create([]); agent.send('hello')
+      expect(mock.options[0]?.settings).toMatchObject({ env: { ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_API_KEY: '' }, apiKeyHelper: '' })
+    } finally {
+      if (previous.token === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN; else process.env.ANTHROPIC_AUTH_TOKEN = previous.token
+      if (previous.key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = previous.key
+      if (previous.url === undefined) delete process.env.ANTHROPIC_BASE_URL; else process.env.ANTHROPIC_BASE_URL = previous.url
+      settings.authentication = 'inherit'
+    }
   })
   it('uses real SDK control contracts and rejects unknown MCP names', async () => {
     const agent = create([])

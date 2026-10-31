@@ -20,7 +20,7 @@ type UserContentBlock =
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
 import type { ServerMessage } from './protocol.js'
 import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metrics.js'
-import { runtimeSettings, endpointEnv, readActiveEnv } from './settings.js'
+import { runtimeSettings, effectiveEnv, nativeAuthenticationEnv } from './settings.js'
 
 /**
  * Agent 桥接层(SPEC §2)
@@ -37,8 +37,7 @@ import { runtimeSettings, endpointEnv, readActiveEnv } from './settings.js'
 /** 构建 agent 子进程 env —— 整体替换语义,必须展开 process.env(否则丢 PATH);
  * 运行时设置(端点模板/effort)叠加其上,新会话生效 */
 export function buildAgentEnv(config = runtimeSettings): Record<string, string | undefined> {
-  const extra = endpointEnv(config.endpointTemplate)
-  const env: Record<string, string | undefined> = { ...process.env, ...readActiveEnv(), ...extra }
+  const env = effectiveEnv(config)
   const temporary = join(APP_DIR, 'tmp')
   mkdirSync(temporary, { recursive: true, mode: 0o700 })
   env.TMPDIR = temporary; env.TEMP = temporary; env.TMP = temporary
@@ -445,7 +444,7 @@ export class AgentSession {
           includePartialMessages: true,
           enableFileCheckpointing: true,
           systemPrompt: { type: 'preset', preset: 'claude_code' },
-          settings: { plansDirectory },
+          settings: { plansDirectory, ...(this.settings.authentication === 'native' ? { env: nativeAuthenticationEnv(), apiKeyHelper: '' } : {}) },
           ...(process.env.CCWEB_MAX_BUDGET_USD ? { maxBudgetUsd: Number(process.env.CCWEB_MAX_BUDGET_USD) } : {}),
           ...(process.env.CCWEB_MAX_TURNS ? { maxTurns: Number(process.env.CCWEB_MAX_TURNS) } : {}),
           model: this.settings.model ?? undefined,

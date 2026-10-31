@@ -42,6 +42,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({
     t: z.literal('settings.patch'),
     patch: z.object({
+      authentication: z.enum(['inherit', 'native']).optional(),
       model: z.string().nullable().optional(),
       permissionMode: z.enum(['auto', 'default', 'acceptEdits', 'plan', 'bypassPermissions']).nullable().optional(),
       effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().optional(),
@@ -131,7 +132,8 @@ export interface SessionMeta {
 
 /** 设置快照(下发前端;端点只带 name/url,无凭证) */
 export interface SettingsSnapshot {
-  active?: { model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
+  authentication?: 'inherit' | 'native'
+  active?: { authentication?: 'inherit' | 'native'; model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
   /** server 包版本(package.json,前端页脚展示) */
   serverVersion: string
   /** 会话上下文注入档位 */

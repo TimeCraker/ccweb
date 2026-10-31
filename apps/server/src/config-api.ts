@@ -7,7 +7,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createRequire } from 'node:module'
 import { parseDocument } from 'yaml'
-import { APP_DIR, CC_DIR, runtimeSettings, endpointEnv, listEndpointTemplates, readActiveEnv } from './settings.js'
+import { APP_DIR, CC_DIR, runtimeSettings, effectiveEnv, listEndpointTemplates } from './settings.js'
 
 type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp' | 'permissions'
 type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
@@ -271,7 +271,7 @@ configApi.post('/resource/delete', async c => {
 configApi.get('/runtime', c => {
   const require = createRequire(import.meta.url)
   const sdk = JSON.parse(readFileSync(join(dirname(require.resolve('@anthropic-ai/claude-agent-sdk')), 'package.json'), 'utf8')) as { version: string }
-  const env = { ...process.env, ...readActiveEnv(), ...endpointEnv(runtimeSettings.endpointTemplate) }
+  const env = effectiveEnv()
   return c.json({ sdkVersion: sdk.version, binarySource: 'SDK bundled', credentialConfigured: !!(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || env.CLAUDE_CODE_OAUTH_TOKEN), endpoint: env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com', configDirectory: CC_DIR, endpoints: listEndpointTemplates() })
 })
 configApi.get('/readiness', async c => {
@@ -280,7 +280,7 @@ configApi.get('/readiness', async c => {
   const nativePackage = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`
   const binary = join(dirname(sdkRequire.resolve(`${nativePackage}/package.json`)), process.platform === 'win32' ? 'claude.exe' : 'claude')
   const { stdout } = await promisify(execFile)(binary, ['--version'], { timeout: 15000, windowsHide: true })
-  const env = { ...process.env, ...readActiveEnv(), ...endpointEnv(runtimeSettings.endpointTemplate) }
+  const env = effectiveEnv()
   return c.json({ binaryStarted: stdout.includes('Claude Code'), version: stdout.trim(), credentialConfigured: !!(env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_API_KEY || env.CLAUDE_CODE_OAUTH_TOKEN), authenticationVerified: false })
 })
 configApi.get('/updates', async c => {

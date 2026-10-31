@@ -2,7 +2,7 @@ import { assertVerifiedRuntime, bundledBinary } from './runtime.js'
 export { bundledBinary } from './runtime.js'
 import { copyFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { APP_DIR } from './settings.js'
+import { APP_DIR, runtimeSettings, nativeAuthenticationEnv } from './settings.js'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { spawn as spawnPty, type IPty } from 'node-pty'
 import { spawn as spawnChild, spawnSync } from 'node:child_process'
@@ -40,6 +40,7 @@ export function startNative(workspace: string, action: string, extraArgs: string
   env.DISABLE_AUTOUPDATER = '1'
   const args: string[] = [...terminalActions[action as Action]]
   if (action === 'custom' || action === 'maintenance') args.push(...extraArgs)
+  if (runtimeSettings.authentication === 'native') args.unshift('--settings', JSON.stringify({ env: nativeAuthenticationEnv(), apiKeyHelper: '' }))
   if (action === 'interactive') args.push('--session-id', id)
   let executable = bundledBinary()
   if (action === 'maintenance' || action === 'maintenanceHelp') {

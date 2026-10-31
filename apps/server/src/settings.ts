@@ -9,6 +9,7 @@ import { homedir } from 'node:os'
  */
 
 export interface RuntimeSettings {
+  authentication: 'inherit' | 'native'
   model: string | null
   permissionMode: 'auto' | 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions' | null
   effort: string | null
@@ -26,6 +27,7 @@ export interface RuntimeSettings {
 }
 
 export const runtimeSettings: RuntimeSettings = {
+  authentication: 'inherit',
   model: null,
   permissionMode: null,
   effort: null,
@@ -47,6 +49,7 @@ try {
   for (const key of ['model', 'effort', 'endpointTemplate', 'workspace'] as const) {
     if (typeof saved[key] === 'string' || saved[key] === null) runtimeSettings[key] = saved[key] ?? null
   }
+  if (['inherit', 'native'].includes(String(saved.authentication))) runtimeSettings.authentication = saved.authentication!
   if (['full', 'project', 'none'].includes(String(saved.contextScope))) runtimeSettings.contextScope = saved.contextScope!
   if (['default', 'auto', 'acceptEdits', 'plan'].includes(String(saved.permissionMode))) runtimeSettings.permissionMode = saved.permissionMode!
 } catch { /* First run uses defaults. */ }
@@ -259,4 +262,13 @@ export function listSlashCommands(workspace?: string | null): Array<{ name: stri
     try { for (const name of readdirSync(join(config, 'skills'))) add(join(config, 'skills', name, 'SKILL.md'), name) } catch { /* No skills. */ }
   }
   return [...new Map(out.map(item => [item.name, item])).values()]
+}
+
+
+/** Explicit native login must not reuse a third-party endpoint's bearer credential. */
+export function nativeAuthenticationEnv(): Record<string, string> {
+  return { ANTHROPIC_BASE_URL: 'https://api.anthropic.com', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_MODEL: '', ANTHROPIC_DEFAULT_SONNET_MODEL: '', ANTHROPIC_DEFAULT_OPUS_MODEL: '', ANTHROPIC_DEFAULT_HAIKU_MODEL: '', ANTHROPIC_SMALL_FAST_MODEL: '', CLAUDE_CODE_SUBAGENT_MODEL: '', ANTHROPIC_CUSTOM_HEADERS: '', CLAUDE_CODE_USE_BEDROCK: '0', CLAUDE_CODE_USE_VERTEX: '0', CLAUDE_CODE_USE_FOUNDRY: '0' }
+}
+export function effectiveEnv(config = runtimeSettings): Record<string, string | undefined> {
+  return { ...process.env, ...readActiveEnv(), ...endpointEnv(config.endpointTemplate), ...(config.authentication === 'native' ? nativeAuthenticationEnv() : {}) }
 }

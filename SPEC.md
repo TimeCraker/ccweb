@@ -269,4 +269,5 @@ Stage 6.6 第一单元：pnpm check 通过（45 项），Edge 19/19；新增逐�
 - [x] D/C 真实失败与取消：可控 MCP 返回 failed/Connection closed；SessionStart Hook 返回 error/2，模型轮次成功与配置执行失败分开呈现；30 秒 Hook 在约 4.3 秒被停止并终结为 cancelled，无模型完成结果。
 - [x] C 追加保护：Write 写入前原文基线与逐项 MultiEdit 审批差异；审批期间检测原文件变化并拒绝覆盖，保存与恢复基线；附件发送等待回执、导航放弃确认和消息内恢复；55 项单元/协议待最终质量门。
 - [ ] F 原生缩放由 Windows Computer Use 阻塞：工具无法可靠识别当前 URL，已停止 Windows 窗口操作。CSS zoom 回归不计原生缩放。
+- [x] A/D 认证边界：新增原生登录来源选项，显式清空第三方端点/凭证/模型别名/认证头并禁用 API key helper 的会话覆盖；与当前会话、未来默认连接分别呈现。56 项单元/协议通过，源码及 tarball 最终回归进行中。
 - [ ] A–G 全量闭包及同版本最终验收。

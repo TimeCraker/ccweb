@@ -17,10 +17,9 @@ import { searchWorkspaceFiles } from './files.js'
 import {
   runtimeSettings,
   saveRuntimeSettings,
-  endpointEnv,
+  effectiveEnv,
   APP_DIR,
   listEndpointTemplates,
-  readActiveEnv,
   listWorkspaces,
   listUserSkills,
   listUserRules,
@@ -407,6 +406,7 @@ wss.on('connection', (ws) => {
         const p = msg.patch
         const previous = { ...runtimeSettings }
         try {
+        if (p.authentication !== undefined) runtimeSettings.authentication = p.authentication
         if (p.model !== undefined) runtimeSettings.model = p.model
         if (p.permissionMode !== undefined) runtimeSettings.permissionMode = p.permissionMode
         if (p.effort !== undefined) runtimeSettings.effort = p.effort
@@ -481,8 +481,9 @@ wss.on('connection', (ws) => {
 })
 
 function settingsSnapshot(workspace: string): SettingsSnapshot {
-  const activeEnv = { ...readActiveEnv(), ...endpointEnv(runtimeSettings.endpointTemplate) }
+  const activeEnv = effectiveEnv()
   return {
+    authentication: runtimeSettings.authentication,
     serverVersion: PKG_VERSION,
     contextScope: runtimeSettings.contextScope,
     model: runtimeSettings.model,
