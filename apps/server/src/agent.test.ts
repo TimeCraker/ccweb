@@ -5,7 +5,7 @@ import { join, resolve, sep } from 'node:path'
 import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ServerMessage } from './protocol.js'
 const mock = vi.hoisted(() => ({ options: [] as Options[], mode: 'success', order: [] as string[], rejectInterrupt: null as null | ((error: Error) => void) }))
-vi.mock('./runtime.js', () => ({ assertVerifiedRuntime: () => undefined, assertNoNativeBackground: () => undefined }))
+vi.mock('./runtime.js', () => ({ assertVerifiedRuntime: () => undefined, assertNoNativeBackground: () => undefined, trackSdkProcess: () => () => undefined }))
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: ({ prompt, options }: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => {
     mock.options.push(options)

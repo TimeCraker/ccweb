@@ -55,6 +55,9 @@ test('image drafts require navigation consent and accepted attachments survive r
   await expect(page.locator('.user-message img')).toHaveCount(1)
   await page.reload()
   await expect(page.locator('.user-message img')).toHaveCount(1)
+  await page.getByRole('button', { name: '重新生成', exact: true }).click()
+  await expect(page.locator('.user-message img')).toHaveCount(2)
+  await expect(page.getByText('【E2E】模拟完成：【E2E】 image attachment', { exact: true })).toHaveCount(2)
 })
 
 test('permission rules and additional directories have a shared GUI/source draft', async ({ page }) => {

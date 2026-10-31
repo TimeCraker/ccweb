@@ -1,5 +1,5 @@
 import { StreamMetrics } from './stream-metrics.js'
-import { assertVerifiedRuntime, assertNoNativeBackground } from './runtime.js'
+import { assertVerifiedRuntime, assertNoNativeBackground, trackSdkProcess } from './runtime.js'
 import { atomicWrite } from './config-api.js'
 import { APP_DIR } from './settings.js'
 import { mkdirSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
@@ -462,6 +462,7 @@ export class AgentSession {
               windowsHide: true,
             })
             this.childPid = cp.pid ?? null
+            if (cp.pid) cp.once('exit', trackSdkProcess(cp.pid))
             return cp
           },
           env: buildAgentEnv(this.settings),

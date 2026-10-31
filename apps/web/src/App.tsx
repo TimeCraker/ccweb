@@ -373,7 +373,7 @@ export default function App() {
   const regenerate = () => {
     const { entries } = useStore.getState()
     const lastUser = [...entries].reverse().find((e) => e.type === 'user')
-    if (lastUser && lastUser.type === 'user') send(lastUser.text)
+    if (lastUser && lastUser.type === 'user') send(lastUser.text, lastUser.images)
   }
   const patchSettings = (patch: Record<string, unknown>) => {
     sendControl({ t: 'settings.patch', patch })
