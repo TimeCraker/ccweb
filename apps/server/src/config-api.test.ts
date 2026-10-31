@@ -71,6 +71,36 @@ describe('native configuration persistence contracts', () => {
     expect(invalid.status).toBe(400)
   })
 
+  it('stores ccweb connections through the API without ever returning the key', async () => {
+    const secret = 'route-level-secret-value'
+    const headers = { 'content-type': 'application/json' }
+    const saved = await module.configApi.request('/connections', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: '路由连接', baseUrl: 'https://api.example.com/anthropic', model: 'glm-5.3', apiKey: secret }),
+    })
+    expect(saved.status).toBe(200)
+    const payload = (await saved.json()) as { templateKey: string; connection: { key: string } }
+    expect(payload.templateKey).toBe(`ccweb-${payload.connection.key}`)
+    expect(JSON.stringify(payload)).not.toContain(secret)
+    const listed = await (await module.configApi.request('/connections')).text()
+    expect(listed).toContain('路由连接')
+    expect(listed).not.toContain(secret)
+    const invalid = await module.configApi.request('/connections', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: '坏地址', baseUrl: 'ftp://api.example.com' }),
+    })
+    expect(invalid.status).toBe(400)
+    const removed = await module.configApi.request('/connections/delete', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ key: payload.connection.key }),
+    })
+    expect(removed.status).toBe(200)
+    expect(await (await module.configApi.request('/connections')).text()).not.toContain('路由连接')
+  })
+
   it('discovers shared and local project hooks plus both rule locations', () => {
     writeFileSync(join(workspace, '.claude', 'settings.json'), '{"hooks":{}}')
     writeFileSync(join(workspace, '.claude', 'CLAUDE.md'), 'project rules')

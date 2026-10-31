@@ -8,6 +8,7 @@ import { promisify } from 'node:util'
 import { createRequire } from 'node:module'
 import { parseDocument } from 'yaml'
 import { APP_DIR, CC_DIR, runtimeSettings, effectiveEnv, listEndpointTemplates } from './settings.js'
+import { listConnections, removeConnection, saveConnection, testConnection, templateKeyOf } from './connections.js'
 
 type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp' | 'permissions'
 type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
@@ -302,4 +303,32 @@ configApi.post('/connection', async c => {
   previous.env = env
   atomicWrite(file, JSON.stringify(previous, null, 2))
   return c.json({ ok: true, key: body.name, credentialConfigured: !!(env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_API_KEY), path: file })
+})
+// ccweb 自有模型连接:默认存储(不含 cc-toolkit 兼容负担),凭证只留在本机文件
+configApi.get('/connections', c => c.json(listConnections()))
+configApi.post('/connections', async c => {
+  const body = await c.req.json<{ key?: string | null; name?: string; baseUrl: string; model?: string | null; apiKey?: string | null }>()
+  const connection = saveConnection({
+    key: body.key ?? null,
+    name: body.name ?? null,
+    baseUrl: body.baseUrl,
+    model: body.model ?? null,
+    apiKey: body.apiKey === undefined ? undefined : body.apiKey,
+  })
+  return c.json({ connection, templateKey: templateKeyOf(connection.key), path: join(APP_DIR, 'connections.json') })
+})
+configApi.post('/connections/delete', async c => {
+  const body = await c.req.json<{ key: string }>()
+  const removed = removeConnection(body.key)
+  return c.json({ ok: removed })
+})
+configApi.post('/connections/test', async c => {
+  const body = await c.req.json<{ baseUrl: string; apiKey?: string | null; model?: string | null; connectionKey?: string | null }>()
+  const result = await testConnection({
+    baseUrl: body.baseUrl,
+    apiKey: body.apiKey ?? null,
+    model: body.model ?? null,
+    connectionKey: body.connectionKey ?? null,
+  })
+  return c.json(result)
 })

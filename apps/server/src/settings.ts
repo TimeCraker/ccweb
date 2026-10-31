@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
-import { homedir } from 'node:os'
+import { CC_DIR, APP_DIR } from './dirs.js'
+import { connectionEnv, listConnections, templateKeyOf } from './connections.js'
 
 /**
  * 运行时设置与端点模板。
@@ -40,10 +41,11 @@ export interface EndpointTemplate {
   key: string
   name: string
   baseUrl: string | null
+  /** 模板/连接声明的默认模型;仅用于界面显示"使用默认"的具体值 */
+  model: string | null
 }
 
-export const CC_DIR = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude')
-export const APP_DIR = process.env.CCWEB_HOME ?? join(homedir(), '.ccweb')
+export { CC_DIR, APP_DIR } from './dirs.js'
 try {
   const saved = JSON.parse(readFileSync(join(APP_DIR, 'settings.json'), 'utf8')) as Partial<RuntimeSettings>
   for (const key of ['model', 'effort', 'endpointTemplate', 'workspace'] as const) {
@@ -73,14 +75,16 @@ export function readActiveEnv(): Record<string, string> {
   }
 }
 
-/** 读取 cc-toolkit 端点模板列表(不含任何凭证;URL 明文展示) */
+/** 读取端点模板列表(不含任何凭证;URL 明文展示)。
+ *  来源合并:cc-toolkit 旧模板(只读兼容) + ccweb 自有连接(可编辑)。
+ */
 export function listEndpointTemplates(): EndpointTemplate[] {
   const dir = join(CC_DIR, 'cc-toolkit', 'settings')
   let files: string[]
   try {
     files = readdirSync(dir).filter((f) => f.startsWith('settings.') && f.endsWith('.json'))
   } catch {
-    return []
+    files = []
   }
   const out: EndpointTemplate[] = []
   for (const f of files) {
@@ -93,10 +97,19 @@ export function listEndpointTemplates(): EndpointTemplate[] {
         key,
         name: key,
         baseUrl: json.env?.ANTHROPIC_BASE_URL ?? null,
+        model: json.env?.ANTHROPIC_MODEL ?? null,
       })
     } catch {
       // 跳过坏模板
     }
+  }
+  for (const connection of listConnections()) {
+    out.push({
+      key: templateKeyOf(connection.key),
+      name: connection.name,
+      baseUrl: connection.baseUrl,
+      model: connection.model,
+    })
   }
   return out
 }
@@ -104,6 +117,8 @@ export function listEndpointTemplates(): EndpointTemplate[] {
 /** 应用端点模板:返回需注入子进程的 env 片段(含 token,仅留在 server 侧) */
 export function endpointEnv(templateKey: string | null): Record<string, string> {
   if (!templateKey) return {}
+  // ccweb 自有连接优先:key 前缀区分,避免与用户 cc-toolkit 模板重名
+  if (templateKey.startsWith('ccweb-')) return connectionEnv(templateKey)
   if (!/^[a-zA-Z0-9_-]+$/.test(templateKey)) throw new Error('Invalid endpoint template key')
   const dir = join(CC_DIR, 'cc-toolkit', 'settings')
   try {

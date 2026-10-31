@@ -590,7 +590,9 @@ export class AgentSession {
       else if (this.modelError || msg.is_error === true) {
         msg = { ...msg, subtype: 'error_during_execution', is_error: true }
         this.paused = true
-        this.emit({ t: 'error', seq: 0, code: this.modelError ?? 'model_error', message: `模型请求失败：${this.modelError ?? '运行时报告错误'}。请检查连接、模型权限与额度。`, retry: false })
+        // 只有确实拿到模型层错误码时才声称"模型请求失败";中断后迟到的 is_error 结果
+        // 不能冒充模型/凭证故障(客户端仍会显示本轮错误行)。
+        if (this.modelError) this.emit({ t: 'error', seq: 0, code: this.modelError, message: `模型请求失败：${this.modelError}。请检查连接、模型权限与额度。`, retry: false })
       }
       if (this.terminalStatus !== 'cancelled') this.terminalStatus = msg.subtype === 'success' ? 'completed' : 'failed'
       const summary = this.streamMetrics.summary()
