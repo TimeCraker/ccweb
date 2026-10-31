@@ -1,0 +1,92 @@
+{
+  "simulated": false,
+  "results": [
+    {
+      "phase": "attach",
+      "subtype": "success"
+    },
+    {
+      "phase": "auto",
+      "subtype": "success"
+    },
+    {
+      "phase": "plan",
+      "subtype": "success"
+    },
+    {
+      "phase": "question",
+      "subtype": "success"
+    }
+  ],
+  "errors": [],
+  "approvals": [
+    {
+      "phase": "plan",
+      "tool": "Write",
+      "allow": true
+    }
+  ],
+  "settings": [
+    {
+      "phase": "attach",
+      "default": "default"
+    },
+    {
+      "phase": "auto",
+      "mode": "auto",
+      "default": "auto"
+    },
+    {
+      "phase": "auto",
+      "mode": "auto",
+      "default": "auto"
+    },
+    {
+      "phase": "reset",
+      "mode": "default",
+      "default": "default"
+    },
+    {
+      "phase": "plan",
+      "default": "plan"
+    },
+    {
+      "phase": "plan",
+      "mode": "plan",
+      "default": "plan"
+    },
+    {
+      "phase": "plan",
+      "mode": "default",
+      "default": "plan"
+    },
+    {
+      "phase": "plan",
+      "mode": "default",
+      "default": "plan"
+    },
+    {
+      "phase": "question",
+      "mode": "default",
+      "default": "plan"
+    },
+    {
+      "phase": "question",
+      "mode": "default",
+      "default": "plan"
+    }
+  ],
+  "plan": {
+    "adopted": true,
+    "baseline": "04dc70b2e0cdc259c27c535c4cc669b70b88d0d9510b359cd9bbcb7fa1b3f453",
+    "beforeAdoptionUnchanged": true,
+    "planCharacters": 626,
+    "file": "PLAN67_OK",
+    "finalMode": "default"
+  },
+  "question": true,
+  "auto": {
+    "applied": true,
+    "file": "AUTO67_OK"
+  }
+}

@@ -1,0 +1,53 @@
+[
+  {
+    "factor": 1,
+    "actual": 1,
+    "innerWidth": 1574,
+    "dpr": 1,
+    "scale": 1,
+    "cssZoom": "1",
+    "overflow": false,
+    "nativeConfirmed": true,
+    "layout": {
+      "width": 1291,
+      "scroll": 1291,
+      "closeRight": 1544,
+      "viewport": 1574
+    },
+    "settingsVisible": true
+  },
+  {
+    "factor": 1.25,
+    "actual": 1.25,
+    "innerWidth": 1259,
+    "dpr": 1.25,
+    "scale": 1,
+    "cssZoom": "1",
+    "overflow": false,
+    "nativeConfirmed": true,
+    "layout": {
+      "width": 1029,
+      "scroll": 1029,
+      "closeRight": 1229.1999740600586,
+      "viewport": 1259
+    },
+    "settingsVisible": true
+  },
+  {
+    "factor": 1.5,
+    "actual": 1.5,
+    "innerWidth": 1049,
+    "dpr": 1.5,
+    "scale": 1,
+    "cssZoom": "1",
+    "overflow": false,
+    "nativeConfirmed": true,
+    "layout": {
+      "width": 839,
+      "scroll": 839,
+      "closeRight": 1027.3333358764648,
+      "viewport": 1049
+    },
+    "settingsVisible": true
+  }
+]

@@ -1,0 +1,307 @@
+{
+  "simulated": false,
+  "tasks": [
+    {
+      "type": "system",
+      "subtype": "task_started",
+      "task_id": "ae86ed96630f475c8",
+      "run_id": "0mvw87vlq-a88c09f5",
+      "tool_use_id": "call_5f2b923606ae47c4b2ff46ae",
+      "description": "E2E 后台子代理测试",
+      "subagent_type": "general-purpose",
+      "is_backgrounded": true,
+      "spawn_depth": 1,
+      "task_type": "local_agent",
+      "prompt": "仅回复文本 CHILD67_OK，不要调用任何工具，不要访问任何文件，不要执行任何命令。直接输出 CHILD67_OK 即可。",
+      "uuid": "65cfba85-0181-4826-af31-c49e95d65341",
+      "session_id": "600aa5b7-d666-42e4-b223-3a2cb72ed1a6"
+    }
+  ],
+  "results": [
+    "success"
+  ],
+  "tools": [
+    {
+      "name": "Agent",
+      "input": {
+        "description": "E2E 后台子代理测试",
+        "prompt": "仅回复文本 CHILD67_OK，不要调用任何工具，不要访问任何文件，不要执行任何命令。直接输出 CHILD67_OK 即可。",
+        "subagent_type": "general-purpose",
+        "run_in_background": true
+      }
+    }
+  ],
+  "errors": [],
+  "metrics": [
+    {
+      "turns": 1,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0,
+      "ttftMs": null,
+      "tokensPerSecond": null,
+      "cacheHitRate": null,
+      "totalCostUsd": null,
+      "terminalStatus": "running",
+      "runId": "74f96cd9-a6b3-4ef7-aeb6-3a3e34239906",
+      "firstContentMs": null,
+      "speedScope": "last_request",
+      "runStartedAt": 1793440578430,
+      "completedAt": null,
+      "sampledRequests": 0,
+      "metricsComplete": false,
+      "requests": [],
+      "approvalWaitMs": 0,
+      "toolTimes": {},
+      "queueWaitMs": 0,
+      "retries": [],
+      "nativeTiming": {
+        "durationMs": null,
+        "apiDurationMs": null,
+        "modelUsage": null
+      }
+    },
+    {
+      "turns": 1,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0,
+      "ttftMs": 502,
+      "tokensPerSecond": null,
+      "cacheHitRate": null,
+      "totalCostUsd": null,
+      "terminalStatus": "running",
+      "runId": "74f96cd9-a6b3-4ef7-aeb6-3a3e34239906",
+      "firstContentMs": null,
+      "speedScope": "last_request",
+      "runStartedAt": 1793440578430,
+      "completedAt": null,
+      "sampledRequests": 0,
+      "metricsComplete": false,
+      "requests": [
+        {
+          "requestId": "msg_20261031175623f6bfcf99f15845ba",
+          "role": "main",
+          "streamOpenedAt": 1793440579884,
+          "firstContentAt": null,
+          "endedAt": null,
+          "outputTokens": null,
+          "outputDurationMs": null
+        }
+      ],
+      "approvalWaitMs": 0,
+      "toolTimes": {},
+      "queueWaitMs": 0,
+      "retries": [],
+      "nativeTiming": {
+        "durationMs": null,
+        "apiDurationMs": null,
+        "modelUsage": null
+      }
+    },
+    {
+      "turns": 1,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0,
+      "ttftMs": 502,
+      "tokensPerSecond": 67.64919062575501,
+      "cacheHitRate": null,
+      "totalCostUsd": null,
+      "terminalStatus": "running",
+      "runId": "74f96cd9-a6b3-4ef7-aeb6-3a3e34239906",
+      "firstContentMs": 2108,
+      "speedScope": "last_request",
+      "runStartedAt": 1793440578430,
+      "completedAt": null,
+      "sampledRequests": 1,
+      "metricsComplete": true,
+      "requests": [
+        {
+          "requestId": "msg_20261031175623f6bfcf99f15845ba",
+          "role": "main",
+          "streamOpenedAt": 1793440579884,
+          "firstContentAt": 1793440580538,
+          "endedAt": 1793440584677,
+          "outputTokens": 280,
+          "outputDurationMs": 4139
+        }
+      ],
+      "approvalWaitMs": 0,
+      "toolTimes": {},
+      "queueWaitMs": 0,
+      "retries": [],
+      "nativeTiming": {
+        "durationMs": null,
+        "apiDurationMs": null,
+        "modelUsage": null
+      }
+    },
+    {
+      "turns": 1,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0,
+      "ttftMs": 437,
+      "tokensPerSecond": 67.64919062575501,
+      "cacheHitRate": null,
+      "totalCostUsd": null,
+      "terminalStatus": "running",
+      "runId": "74f96cd9-a6b3-4ef7-aeb6-3a3e34239906",
+      "firstContentMs": 2108,
+      "speedScope": "last_request",
+      "runStartedAt": 1793440578430,
+      "completedAt": null,
+      "sampledRequests": 1,
+      "metricsComplete": false,
+      "requests": [
+        {
+          "requestId": "msg_20261031175623f6bfcf99f15845ba",
+          "role": "main",
+          "streamOpenedAt": 1793440579884,
+          "firstContentAt": 1793440580538,
+          "endedAt": 1793440584677,
+          "outputTokens": 280,
+          "outputDurationMs": 4139
+        },
+        {
+          "requestId": "msg_20261031175628fa78132c2d854939",
+          "role": "main",
+          "streamOpenedAt": 1793440585152,
+          "firstContentAt": null,
+          "endedAt": null,
+          "outputTokens": null,
+          "outputDurationMs": null
+        }
+      ],
+      "approvalWaitMs": 0,
+      "toolTimes": {},
+      "queueWaitMs": 0,
+      "retries": [],
+      "nativeTiming": {
+        "durationMs": null,
+        "apiDurationMs": null,
+        "modelUsage": null
+      }
+    },
+    {
+      "turns": 1,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0,
+      "ttftMs": 437,
+      "tokensPerSecond": 57.525083612040135,
+      "cacheHitRate": null,
+      "totalCostUsd": null,
+      "terminalStatus": "running",
+      "runId": "74f96cd9-a6b3-4ef7-aeb6-3a3e34239906",
+      "firstContentMs": 2108,
+      "speedScope": "last_request",
+      "runStartedAt": 1793440578430,
+      "completedAt": null,
+      "sampledRequests": 2,
+      "metricsComplete": true,
+      "requests": [
+        {
+          "requestId": "msg_20261031175623f6bfcf99f15845ba",
+          "role": "main",
+          "streamOpenedAt": 1793440579884,
+          "firstContentAt": 1793440580538,
+          "endedAt": 1793440584677,
+          "outputTokens": 280,
+          "outputDurationMs": 4139
+        },
+        {
+          "requestId": "msg_20261031175628fa78132c2d854939",
+          "role": "main",
+          "streamOpenedAt": 1793440585152,
+          "firstContentAt": 1793440586269,
+          "endedAt": 1793440587764,
+          "outputTokens": 86,
+          "outputDurationMs": 1495
+        }
+      ],
+      "approvalWaitMs": 0,
+      "toolTimes": {},
+      "queueWaitMs": 0,
+      "retries": [],
+      "nativeTiming": {
+        "durationMs": null,
+        "apiDurationMs": null,
+        "modelUsage": null
+      }
+    },
+    {
+      "turns": 1,
+      "inputTokens": 2946,
+      "outputTokens": 366,
+      "cacheReadTokens": 26240,
+      "cacheCreationTokens": 0,
+      "ttftMs": 4283,
+      "tokensPerSecond": 64.96272630457933,
+      "cacheHitRate": 0.8990611937230178,
+      "totalCostUsd": 0.037,
+      "terminalStatus": "completed",
+      "runId": "74f96cd9-a6b3-4ef7-aeb6-3a3e34239906",
+      "firstContentMs": 2108,
+      "speedScope": "turn",
+      "runStartedAt": 1793440578430,
+      "completedAt": 1793440587771,
+      "sampledRequests": 2,
+      "metricsComplete": true,
+      "requests": [
+        {
+          "requestId": "msg_20261031175623f6bfcf99f15845ba",
+          "role": "main",
+          "streamOpenedAt": 1793440579884,
+          "firstContentAt": 1793440580538,
+          "endedAt": 1793440584677,
+          "outputTokens": 280,
+          "outputDurationMs": 4139
+        },
+        {
+          "requestId": "msg_20261031175628fa78132c2d854939",
+          "role": "main",
+          "streamOpenedAt": 1793440585152,
+          "firstContentAt": 1793440586269,
+          "endedAt": 1793440587764,
+          "outputTokens": 86,
+          "outputDurationMs": 1495
+        }
+      ],
+      "approvalWaitMs": 0,
+      "toolTimes": {},
+      "queueWaitMs": 0,
+      "retries": [],
+      "nativeTiming": {
+        "durationMs": 8508,
+        "apiDurationMs": 8395,
+        "modelUsage": {
+          "glm-5.3": {
+            "inputTokens": 2946,
+            "outputTokens": 366,
+            "cacheReadInputTokens": 26240,
+            "cacheCreationInputTokens": 0,
+            "webSearchRequests": 0,
+            "costUSD": 0.037,
+            "contextWindow": 1000000,
+            "maxOutputTokens": 32000,
+            "thinkingTokens": 0,
+            "cacheCreationEphemeral5mInputTokens": 0,
+            "cacheCreationEphemeral1hInputTokens": 0,
+            "canonicalModel": "glm-5.3",
+            "provider": "firstParty",
+            "costBasis": "unknown"
+          }
+        }
+      }
+    }
+  ],
+  "stopped": false,
+  "taskVisible": true
+}

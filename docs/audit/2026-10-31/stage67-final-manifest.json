@@ -1,0 +1,100 @@
+{
+  "capturedAt": "2026-10-31T10:04:43.658Z",
+  "businessCommit": "8e59fcce424b2ca38089d98c904d0ccd2e334aad",
+  "runtime": {
+    "sdk": "0.3.314",
+    "cli": "2.1.314",
+    "platform": "win32-x64"
+  },
+  "quality": {
+    "command": "corepack pnpm check",
+    "passed": true,
+    "serverTests": 34,
+    "webTests": 23,
+    "lint": true,
+    "typecheck": true,
+    "build": true,
+    "remoteCi": "not run"
+  },
+  "reports": {
+    "source-browser": {
+      "stats": {
+        "startTime": "2026-10-31T09:44:47.826Z",
+        "duration": 80862.425,
+        "expected": 30,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errors": []
+    },
+    "installed-browser": {
+      "stats": {
+        "startTime": "2026-10-31T09:47:30.280Z",
+        "duration": 72445.993,
+        "expected": 30,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "errors": []
+    }
+  },
+  "package": {
+    "codeCommit": "8e59fcce424b2ca38089d98c904d0ccd2e334aad",
+    "tarball": "C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\ccweb-console-0.1.4.tgz",
+    "sha256": "fd91f7096e0736ae768b18c5c7744a72020834b56b395f3e0c25a168bcacb7b8",
+    "filesCompared": 21,
+    "mismatched": [],
+    "manifestSdk": "0.3.314",
+    "cli": "2.1.314 (Claude Code)",
+    "cliStatus": 0,
+    "installedPackage": "C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\ccweb-console"
+  },
+  "forkBoundary": {
+    "selectedUuid": "abb0a8c8-0c16-4448-a729-2f281f4f31af",
+    "targetFound": true,
+    "toolCountBeforeBoundary": 3,
+    "forkToolCount": 3,
+    "tailUserTextMatches": true
+  },
+  "realEvidence": [
+    "stage67-final-real-installed.json",
+    "stage67-final-real-modes.json",
+    "stage67-final-real-installed-integration.json",
+    "stage67-final-real-vision.json",
+    "stage67-final-image-integrity.json",
+    "stage67-final-real-pipe.json",
+    "stage67-final-real-failures.json",
+    "stage67-final-real-probe.json",
+    "stage67-final-real-tasks.json",
+    "stage67-final-real-task-status.json",
+    "stage67-final-real-task-stop.json",
+    "stage67-final-real-native-diagnostics.json",
+    "stage67-final-real-tui.json",
+    "stage67-final-real-fork.json",
+    "stage67-final-restart-before.json",
+    "stage67-final-restart-after.json",
+    "stage67-final-native-zoom-extension.json",
+    "stage67-final-package-metadata.json",
+    "stage67-final-real-compact.json",
+    "stage67-final-real-native-rewind.json"
+  ],
+  "publishing": {
+    "pushed": false,
+    "published": false
+  },
+  "knownFailures": [
+    {
+      "area": "provider vision",
+      "result": "Red PNG answered blue",
+      "transportHashMatched": true
+    }
+  ],
+  "manualAcceptance": [
+    "Claude official login / MCP OAuth",
+    "physical Chinese IME composition",
+    "user visual approval"
+  ],
+  "manualDecision": "User declined Claude official login and MCP OAuth for this round"
+}

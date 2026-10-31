@@ -1,0 +1,77 @@
+{
+  "simulated": false,
+  "phase": "after",
+  "states": [],
+  "errors": [],
+  "metrics": {
+    "turns": 2,
+    "inputTokens": 6555,
+    "outputTokens": 845,
+    "cacheReadTokens": 69376,
+    "cacheCreationTokens": 0,
+    "ttftMs": 1785,
+    "tokensPerSecond": 78.44276583381755,
+    "cacheHitRate": 0.9136716229208097,
+    "totalCostUsd": 0.08858799999999999,
+    "terminalStatus": "completed",
+    "runId": "abb0a8c8-0c16-4448-a729-2f281f4f31af",
+    "firstContentMs": 1222,
+    "speedScope": "turn",
+    "runStartedAt": 1793440259722,
+    "completedAt": 1793440266752,
+    "sampledRequests": 2,
+    "metricsComplete": true,
+    "requests": [
+      {
+        "requestId": "msg_2026103117510311b63c5e9f23491b",
+        "role": "main",
+        "streamOpenedAt": 1793440260457,
+        "firstContentAt": 1793440260944,
+        "endedAt": 1793440261543,
+        "outputTokens": 67,
+        "outputDurationMs": 599
+      },
+      {
+        "requestId": "msg_202610311751050a3a46226faa49d6",
+        "role": "main",
+        "streamOpenedAt": 1793440262152,
+        "firstContentAt": 1793440265624,
+        "endedAt": 1793440266746,
+        "outputTokens": 68,
+        "outputDurationMs": 1122
+      }
+    ],
+    "approvalWaitMs": 0,
+    "toolTimes": {},
+    "queueWaitMs": 0,
+    "retries": [],
+    "nativeTiming": {
+      "durationMs": 7004,
+      "apiDurationMs": 18284,
+      "modelUsage": {
+        "glm-5.3": {
+          "inputTokens": 6555,
+          "outputTokens": 845,
+          "cacheReadInputTokens": 69376,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.08858799999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "glm-5.3",
+          "provider": "firstParty",
+          "costBasis": "unknown"
+        }
+      }
+    }
+  },
+  "textPresent": true,
+  "autoRunning": false,
+  "toolCards": 4,
+  "sameOutputTokens": true,
+  "sameSampleCount": true,
+  "sameToolCards": true
+}

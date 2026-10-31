@@ -1,0 +1,12 @@
+{
+  "simulated": false,
+  "response": {
+    "ok": true,
+    "model": "glm-5.3",
+    "elapsedMs": 2600,
+    "estimatedCostUsd": 0.0020499999999999997,
+    "category": "connected",
+    "retried": false
+  },
+  "notice": "真实连通成功：glm-5.3 · connected · 2600ms · SDK 估算费用 0.0020499999999999997。未执行任何工具、未保存会话、未重试。"
+}

@@ -1,0 +1,25 @@
+{
+  "simulated": false,
+  "requests": [
+    {
+      "t": "session.open",
+      "sessionId": "67425152-c7ae-435d-8934-71b3db43a49e",
+      "fork": false
+    },
+    {
+      "t": "session.open",
+      "sessionId": "67425152-c7ae-435d-8934-71b3db43a49e",
+      "fork": true,
+      "upToMessageId": "abb0a8c8-0c16-4448-a729-2f281f4f31af"
+    }
+  ],
+  "sessions": [
+    "67425152-c7ae-435d-8934-71b3db43a49e",
+    "b339eda2-a295-450d-a8ee-b5b54d081550"
+  ],
+  "errors": [],
+  "beforeTools": 4,
+  "afterTools": 3,
+  "userMessages": 1,
+  "autoRunning": false
+}

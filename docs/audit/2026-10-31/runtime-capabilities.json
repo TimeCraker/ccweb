@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-31T05:17:51.202Z",
+  "capturedAt": "2026-10-31T10:00:07.957Z",
   "platform": "win32",
   "arch": "x64",
   "sdk": "0.3.314",
@@ -130,6 +130,15 @@
       ],
       "status": 0,
       "stdout": "Usage: claude update|upgrade [options]\n\nCheck for updates and install if available; package-manager installs update\nthrough the package manager\n\nOptions:\n  -h, --help  Display help for command\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "import",
+        "--help"
+      ],
+      "status": 0,
+      "stdout": "Usage: claude import [options] [source]\n\nImport config from another AI coding agent into Claude Code\n\nArguments:\n  source      Which agent to import from (codex, gemini, cursor)\n\nOptions:\n  --dry-run   Show what would be imported without writing anything\n  -h, --help  Display help for command\n  --yes       Skip the interactive picker. On headless surfaces, pass\n              --yes=<digest> from the `/import` preview.\n",
       "stderr": ""
     }
   ]

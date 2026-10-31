@@ -1,0 +1,82 @@
+{
+  "simulated": false,
+  "hooks": [
+    {
+      "phase": "failure",
+      "subtype": "hook_started",
+      "event": "SessionStart"
+    },
+    {
+      "phase": "failure",
+      "subtype": "hook_response",
+      "event": "SessionStart",
+      "outcome": "error",
+      "exit": 2
+    },
+    {
+      "phase": "cancel",
+      "subtype": "hook_started",
+      "event": "SessionStart"
+    }
+  ],
+  "mcp": [
+    {
+      "phase": "failure",
+      "servers": []
+    },
+    {
+      "phase": "failure",
+      "servers": [
+        {
+          "name": "ccwebLocal",
+          "status": "failed",
+          "error": "Connection closed",
+          "scope": "project",
+          "source": "project"
+        }
+      ]
+    },
+    {
+      "phase": "failure",
+      "servers": [
+        {
+          "name": "ccwebLocal",
+          "status": "failed",
+          "error": "Connection closed",
+          "scope": "project",
+          "source": "project"
+        }
+      ]
+    },
+    {
+      "phase": "failure",
+      "servers": [
+        {
+          "name": "ccwebLocal",
+          "status": "failed",
+          "error": "Connection closed",
+          "scope": "project",
+          "source": "project"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "phase": "failure",
+      "subtype": "success"
+    }
+  ],
+  "states": [
+    {
+      "phase": "cancel",
+      "state": "cancelled"
+    },
+    {
+      "phase": "cancel",
+      "state": "cancelled"
+    }
+  ],
+  "errors": [],
+  "stopMs": 4259
+}

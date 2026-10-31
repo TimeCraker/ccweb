@@ -1,0 +1,11 @@
+{
+  "codeCommit": "8e59fcce424b2ca38089d98c904d0ccd2e334aad",
+  "tarball": "C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\ccweb-console-0.1.4.tgz",
+  "sha256": "fd91f7096e0736ae768b18c5c7744a72020834b56b395f3e0c25a168bcacb7b8",
+  "filesCompared": 21,
+  "mismatched": [],
+  "manifestSdk": "0.3.314",
+  "cli": "2.1.314 (Claude Code)",
+  "cliStatus": 0,
+  "installedPackage": "C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\ccweb-console"
+}

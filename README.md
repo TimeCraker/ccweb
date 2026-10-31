@@ -143,6 +143,7 @@ Open `http://127.0.0.1:3477`. Endpoint credentials come from your environment (`
 - `/plan`、`/model`、`/effort`、`/clear`、`/new`、`/settings`、`/mcp`、`/permissions`、`/memory`、`/context`、`/tasks`、`/rewind` 等对应 GUI 入口；发现的原生命令交给 SDK。登录与终端专属操作使用 ccweb 内的原生终端，账号授权仍需本人完成。随包二进制始终锁定，版本不符拒绝启动；升级须更新精确 SDK、能力矩阵与回归后重新安装/启动，不自动改全局 CLI。
 - 原生交互能够切换目录/恢复会话，因此 SDK 与原生执行在本服务整体互斥。启动 SDK 前还会核对原生后台会话，存在后台写入时要求先在 ccweb 内处理。
 - 操作覆盖与未验项见 [版本能力矩阵](docs/NATIVE_CAPABILITY_MATRIX.md)；执行状态见 [A–G Spec](docs/EXECUTION_HANDOFF.md)。模拟测试、真实模型与人工视觉/登录验收分别记录，未验不计完成。
+- 最新本地分发和真实验收见 [Stage 6.7 同版本报告](docs/audit/2026-10-31/STAGE67_ACCEPTANCE.md)：A/B/C/D/G 关闭，E/F 人工与账号项保留；GLM 图片理解失败如实记录，不宣称无条件全功能等价。
 - 费用为 SDK 估算，输出速度不包含请求之间的工具或审批等待。没有完整样本时不显示伪造数值；旧历史无统计时显示未记录。
 - Dependabot 每周提出升级 PR；CI 验证契约、原生二进制、浏览器和实际 tarball 安装。配置提交到默认分支后才会在 GitHub 生效，不能保证未来任何上游版本自动兼容。
 

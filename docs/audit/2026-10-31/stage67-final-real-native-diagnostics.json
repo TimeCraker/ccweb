@@ -1,0 +1,30 @@
+[
+  {
+    "action": "auth",
+    "output": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[H\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\u001b[H\u001b]0;C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe\u0007\u001b[?25h\u001b]0;claude\u0007\u001b[?1016l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l\u001b[>4m\u001b[?2031l\u001b[?2004l\u001b[<uAuth\u001b[1Ctoken:\u001b[1CANTHROPIC_AUTH_TOKEN\r\nAnthropic\u001b[1Cbase\u001b[1CURL:\u001b[1Chttps://open.bigmodel.cn/api/anthropic\r\n",
+    "exit": 0,
+    "errors": [],
+    "text": "Auth token: ANTHROPIC_AUTH_TOKEN\nAnthropic base URL: https://open.bigmodel.cn/api/anthropic\n "
+  },
+  {
+    "action": "doctor",
+    "output": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[H\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\u001b[H\u001b]0;C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe\u0007\u001b[?25h\u001b]0;claude\u0007\u001b[?25lClaude Code doctor\u001b[3;1HRunning: npm-global (2.1.314)\r\nCommit: 5c99a5b63997\r\nPlatform: win32-x64\r\nPath: C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe\r\nConfig install method: unknown\r\nSearch: OK (bundled)\r\nAuto-updates: disabled (set by env: DISABLE_AUTOUPDATER)\r\nAuto-update channel: latest\r\nLast update attempt: none recorded\r\nManaged settings (remote): not fetched — not available with a custom ANTHROPIC_BASE_URL\r\nOrganization policy: not fetched with a custom ANTHROPIC_BASE_URL\u001b[16;1HRemote Control\r\nRemote Control is only available when using Claude via api.anthropic.com. ANTHROPIC_BASE_URL is set and does not point at api.anthropic.com, so this session is using a custom endpoint — unset it (or run in a shell without it) to use Remote Control.\r\n- Not connected to the Anthropic API (api.anthropic.com)\r\n- Not signed in to claude.ai\r\n- claude.ai subscription auth not active\r\n- Sign-in is missing the user:profile scope\r\n- Organization not resolved\r\n- Feature-flag evaluation disabled (disabled by CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC)\r\n- Remote Control availability could not be verified (no server response this session)\u001b[27;1HNo installation issues found.\u001b[29;1HFor a full setup checkup that can also fix issues, run /doctor in a Claude Code session.\r\n\u001b[?25h",
+    "exit": 0,
+    "errors": [],
+    "text": "Claude Code doctor\nRunning: npm-global (2.1.314)\nCommit: 5c99a5b63997\nPlatform: win32-x64\nPath: C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\@anthropic-ai\\claude\n-agent-sdk-win32-x64\\claude.exe\nConfig install method: unknown\nSearch: OK (bundled)\nAuto-updates: disabled (set by env: DISABLE_AUTOUPDATER)\nAuto-update channel: latest\nLast update attempt: none recorded\nManaged settings (remote): not fetched — not available with a custom ANTHROPIC_BASE_URL\nOrganization policy: not fetched with a custom ANTHROPIC_BASE_URL\nRemote Control\nRemote Control is only available when using Claude via api.anthropic.com. ANTHROPIC_BASE_URL is set and does not point at api.anthropic.com, \nso this session is using a custom endpoint — unset it (or run in a shell without it) to use Remote Control.\n- Not connected to the Anthropic API (api.anthropic.com)\n- Not signed in to claude.ai\n- claude.ai subscription auth not active\n- Sign-in is missing the user:profile scope\n- Organization not resolved\n- Feature-flag evaluation disabled (disabled by CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC)\n- Remote Control availability could not be verified (no server response this session)\nNo installation issues found.\nFor a full setup checkup that can also fix issues, run /doctor in a Claude Code session.\n "
+  },
+  {
+    "action": "plugins",
+    "output": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[H\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\u001b[H\u001b]0;C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe\u0007\u001b[?25h\u001b]0;claude\u0007\u001b[?1016l\u001b[?1006l\u001b[?1003l\u001b[?1002l\u001b[?1000l\u001b[>4m\u001b[?2031l\u001b[?2004l\u001b[<uNo\u001b[1Cplugins\u001b[1Cinstalled.\u001b[1CUse\u001b[1C`claude\u001b[1Cplugin\u001b[1Cinstall`\u001b[1Cto\u001b[1Cinstall\u001b[1Ca\u001b[1Cplugin.\r\n",
+    "exit": 0,
+    "errors": [],
+    "text": "No plugins installed. Use `claude plugin install` to install a plugin.\n "
+  },
+  {
+    "action": "agents",
+    "output": "\u001b[?9001h\u001b[?1004h\u001b[?25l\u001b[2J\u001b[m\u001b[H\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\u001b[H\u001b]0;C:\\Users\\TimeCraker\\AppData\\Local\\Temp\\ccweb-stage67-658704e739d24d1a9f0bbf7edbc14ffe\\installed-final\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe\u0007\u001b[?25h\u001b]0;claude\u0007[]\r\n",
+    "exit": 0,
+    "errors": [],
+    "text": "[]\n "
+  }
+]
