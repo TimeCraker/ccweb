@@ -97,4 +97,18 @@ describe('native configuration persistence contracts', () => {
     expect(() => module.writeResource(workspace, item.id, 'overwrite', document.revision)).toThrow('只读')
   })
 
+  it('masks inline argument and URL credentials and never echoes invalid JSON content', () => {
+    const path = join(workspace, '.mcp.json')
+    writeFileSync(path, JSON.stringify({ mcpServers: { test: { type: 'http', url: 'https://example.com?access_token=private-inline', args: ['--token=private-arg'] } } }))
+    const item = module.listResources(workspace).find(item => item.kind === 'mcp' && item.source === 'project')!
+    const first = module.readResource(workspace, item.id)
+    expect(first.content).not.toContain('private-inline')
+    expect(first.content).not.toContain('private-arg')
+    expect(first.errors).toEqual([])
+    module.writeResource(workspace, item.id, first.content, first.revision)
+    expect(readFileSync(path, 'utf8')).toContain('private-inline')
+    writeFileSync(path, '{"mcpServers":"private-invalid-json')
+    expect(() => module.readResource(workspace, item.id)).toThrow('JSON 语法无效')
+  })
+
 })

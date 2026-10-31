@@ -1,0 +1,6 @@
+{
+  "sdk": "0.3.314",
+  "cli": "2.1.314",
+  "validatedPlatform": "win32-x64",
+  "matrix": "docs/NATIVE_CAPABILITY_MATRIX.md"
+}

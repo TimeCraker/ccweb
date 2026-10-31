@@ -22,10 +22,12 @@ export default function App() {
   const pendingPrompts = useRef(new Map<string, { key: string; text: string }>())
   const wsRef = useRef<WsClient | null>(null)
   const sendControl = useCallback((msg: Record<string, unknown>) => {
-    const mutations = ['settings.patch', 'workspace.set', 'permission.resolve', 'queue.delete', 'queue.resume', 'session.new', 'session.rename', 'session.delete', 'abort', 'interrupt']
+    const mutations = ['files.rewind', 'task.stop', 'mcp.control', 'settings.patch', 'workspace.set', 'permission.resolve', 'queue.delete', 'queue.resume', 'session.new', 'session.rename', 'session.delete', 'abort', 'interrupt']
     wsRef.current?.send({ ...msg, ...(mutations.includes(String(msg.t)) ? { commandId: crypto.randomUUID() } : {}) } as { t: string })
   }, [])
   const closeSettings = useCallback(() => setSettingsOpen(false), [])
+  const [settingsTab, setSettingsTab] = useState<"connection" | "permission" | "mcp" | "hooks" | "skill" | "rule">("connection")
+  const [detailsTab, setDetailsTab] = useState<"context" | "controls">("context")
   const [nativeOpen, setNativeOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
@@ -92,9 +94,13 @@ export default function App() {
           useStore.setState({ lastAck: { id: msg.requestId, ok: msg.ok === true } })
           break
         }
+        case 'rewind':
+          if (msg.result) useStore.setState({ rewind: { preview: !!msg.preview, result: msg.result } })
+          break
         case 'accepted':
+          if (msg.runId && msg.text) useStore.setState({ checkpoints: [...s.checkpoints.filter(item => item.id !== msg.runId), { id: msg.runId, text: msg.text.slice(0, 80) }] })
           if (msg.sessionId && msg.sessionId !== s.sessionId) s.applyInit({ sessionId: msg.sessionId, model: s.model, endpoint: s.endpoint })
-          if (msg.text) s.appendUser(msg.text)
+          if (msg.text) s.appendUser(msg.text, msg.runId)
           break
         case 'state':
           if (msg.state === 'cancelled' || msg.state === 'failed') s.finishTurn()
@@ -156,6 +162,11 @@ export default function App() {
           break
         case 'message': {
           const sm = msg.sdkMessage as { type?: string; subtype?: string } | undefined
+          const task = msg.sdkMessage as { task_id?: string; run_id?: string; status?: string; description?: string; summary?: string; subtype?: string } | undefined
+          if (sm?.type === 'system' && task?.task_id && ['task_started', 'task_progress', 'task_notification'].includes(task.subtype ?? '')) {
+            const previous = s.nativeTasks.find(item => item.id === task.task_id)
+            if (!previous?.runId || !task.run_id || task.run_id >= previous.runId) useStore.setState({ nativeTasks: [...s.nativeTasks.filter(item => item.id !== task.task_id), { id: task.task_id, runId: task.run_id, status: task.status ?? 'running', description: task.description ?? previous?.description ?? task.task_id, summary: task.summary }].slice(-200) })
+          }
           const diagnostic = msg.sdkMessage as { subtype?: string; hook_id?: string; hook_name?: string; hook_event?: string; outcome?: string; output?: string; stderr?: string; exit_code?: number } | undefined
           if (sm?.type === 'system' && diagnostic?.hook_id && ['hook_started', 'hook_progress', 'hook_response'].includes(diagnostic.subtype ?? '')) {
             const record = { id: diagnostic.hook_id, event: diagnostic.hook_event ?? 'Hook', name: diagnostic.hook_name ?? '', status: diagnostic.outcome ?? diagnostic.subtype ?? 'unknown', output: String(diagnostic.output ?? diagnostic.stderr ?? '').slice(0, 16000), exitCode: diagnostic.exit_code }
@@ -179,6 +190,7 @@ export default function App() {
               s.onUserMessage(msg.sdkMessage)
             }
           }
+          else if (sm?.type === 'system' && ['local_command_output', 'informational'].includes(sm.subtype ?? '')) { const content = (msg.sdkMessage as { content?: string }).content; if (content) s.pushTurnError(content, true) }
           else if (sm?.type === 'result') {
             // turn 错误行:result 非 success 时在流末尾追加红色错误行;
             // 用户主动中断(Esc/Stop)时若有 result 也走中性提示(通常中断无 result)
@@ -255,15 +267,21 @@ export default function App() {
     const command = /^\/([\w:-]+)(?:\s+(.*))?$/.exec(text.trim())
     if (command) {
       const name = command[1]!, argument = command[2]?.trim()
-      if (['clear', 'new', 'settings', 'mcp', 'help', 'model', 'plan'].includes(name)) {
+      const guiTabs = { permissions: 'permission', mcp: 'mcp', hooks: 'hooks', skills: 'skill', memory: 'rule', model: 'connection', settings: 'connection' } as const
+      if (Object.hasOwn(guiTabs, name) && !(name === 'model' && argument)) {
+        setSettingsTab(guiTabs[name as keyof typeof guiTabs]); setSettingsOpen(true); return 'local'
+      }
+      if (['context', 'tasks', 'rewind'].includes(name)) { setDetailsTab(name === 'context' ? 'context' : 'controls'); setDetailsOpen(true); return 'local' }
+      if (['clear', 'new', 'plan', 'model', 'effort', 'export'].includes(name)) {
         if (name === 'clear' || name === 'new') sendControl({ t: 'session.new' })
         else if (name === 'plan') sendControl({ t: 'settings.patch', patch: { permissionMode: 'plan' } })
         else if (name === 'model' && argument) sendControl({ t: 'settings.patch', patch: { model: argument } })
-        else setSettingsOpen(true)
-        localStorage.removeItem(`ccweb.draft:${useStore.getState().settings?.workspace ?? 'launch'}:${useStore.getState().sessionId ?? 'new'}`)
+        else if (name === 'effort' && argument && ['low','medium','high','xhigh','max'].includes(argument)) sendControl({ t: 'settings.patch', patch: { effort: argument } })
+        else if (name === 'export') exportMarkdown()
+        else { setSettingsTab('connection'); setSettingsOpen(true) }
         return 'local'
       }
-      if (['login', 'logout', 'terminal-setup', 'vim', 'doctor', 'update', 'install', 'compact', 'rewind', 'tasks', 'plugins', 'permissions', 'add-dir', 'context'].includes(name)) {
+      if (['login', 'logout', 'terminal-setup', 'vim', 'doctor', 'update', 'install', 'plugins', 'plugin', 'add-dir', 'help'].includes(name)) {
         setNativeOpen(true)
         return false
       }
@@ -355,10 +373,10 @@ export default function App() {
   const patchSettings = (patch: Record<string, unknown>) => {
     sendControl({ t: 'settings.patch', patch })
   }
-  /** 消息级 fork 入口:SDK 仅支持会话级 fork(从末尾),故从现会话分叉即可 */
-  const forkFromMessage = () => {
+  /** Fork the native transcript at the selected user message, inclusive. */
+  const forkFromMessage = (uuid: string) => {
     const sid = useStore.getState().sessionId
-    if (sid) openSession(sid, true)
+    if (sid) sendControl({ t: 'session.open', sessionId: sid, fork: true, upToMessageId: uuid })
   }
   /** @文件补全:server 侧工作区扫描 */
   const searchFiles = (query: string) => {
@@ -431,7 +449,7 @@ export default function App() {
           )}
           </div>
         </main>
-        {detailsOpen && <div className="runtime-details"><button onClick={() => setDetailsOpen(false)}>关闭运行详情</button><ContextPanel /></div>}
+        {detailsOpen && <div className="runtime-details"><button onClick={() => setDetailsOpen(false)}>关闭运行详情</button><ContextPanel key={detailsTab} send={sendControl} initialTab={detailsTab} /></div>}
       </div>
       <CommandPalette
         open={paletteOpen}
@@ -443,6 +461,7 @@ export default function App() {
       />
       {settingsOpen && <Suspense fallback={<div role="status">正在打开设置…</div>}><SettingsModal
         open={settingsOpen}
+        initialTab={settingsTab}
         onClose={closeSettings}
         send={sendControl}
       /></Suspense>}

@@ -30,6 +30,11 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
       close: () => undefined,
       setModel: async (model?: string) => { mock.order.push(`model:${model}`) },
       setPermissionMode: async (mode: string) => { if (mode === 'auto') throw new Error('auto unavailable'); mock.order.push(`mode:${mode}`) },
+      supportedModels: async () => [{ value: 'discovered', displayName: 'Discovered', description: 'Test' }],
+      reconnectMcpServer: async (name: string) => { mock.order.push(`mcp-reconnect:${name}`) },
+      toggleMcpServer: async (name: string, enabled: boolean) => { mock.order.push(`mcp-toggle:${name}:${enabled}`) },
+      rewindFiles: async (id: string, options: { dryRun: boolean }) => ({ canRewind: true, filesChanged: [id], dryRun: options.dryRun }),
+      stopTask: async (id: string) => { mock.order.push(`stop:${id}`) },
       mcpServerStatus: async () => [{ name: 'test-server', status: 'connected' }],
       getContextUsage: async () => ({ usage: { total_tokens: 50, raw_max_tokens: 100, percentage: 50 } }),
     })
@@ -70,6 +75,19 @@ describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
     expect(mock.options[0]?.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code' })
     await vi.waitFor(() => expect(events.some(e => e.t === 'message')).toBe(true))
     expect(await agent.mcpStatus()).toEqual([{ name: 'test-server', status: 'connected' }])
+  })
+  it('uses real SDK control contracts and rejects unknown MCP names', async () => {
+    const agent = create([])
+    await expect(agent.models()).rejects.toThrow('已启动')
+    agent.send('hello')
+    await vi.waitFor(() => expect(mock.options).toHaveLength(1))
+    expect(mock.options[0]?.enableFileCheckpointing).toBe(true)
+    expect((await agent.models())[0]?.value).toBe('discovered')
+    await agent.controlMcp('test-server', 'disable')
+    await agent.controlMcp('test-server', 'reconnect')
+    await expect(agent.controlMcp('foreign', 'enable')).rejects.toThrow('未发现')
+    expect(mock.order).toContain('mcp-toggle:test-server:false')
+    expect(mock.order).toContain('mcp-reconnect:test-server')
   })
   it('preserves a pending approval until explicitly resolved, without tool-wide allow', async () => {
     mock.mode = 'approval'

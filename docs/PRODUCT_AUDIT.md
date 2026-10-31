@@ -192,3 +192,6 @@ TC 品牌、深浅/系统主题、对话两栏、折叠详情、统一输入与�
 ## Stage 6.7 接手复核（2026-10-31，进行中）
 
 启动 HEAD 3df8311，工作树干净，SDK 仍精确 0.3.314。基线 pnpm check 45 项通过（server 23 / web 22），不等于本轮完成。复核发现上下文 0 值被详情当作未知、底栏只读 percentage；已统一解析原生 totalTokens/rawMaxTokens。新增配置草稿保护与请求样本持久化属于增量实现；A–G 未关闭，后续终端、安装和真实任务证据须重新生成。
+
+
+Stage 6.7 增量真实证据：源码 GLM-5.3 完成两次 Write 审批、一次 Bash 审批，模型测试与独立重跑均 2/2；刷新恢复成功（重放产生的重复记录不计第二次任务）。见 audit/2026-10-31/stage67-source-task.json。另一次经 GUI 新建 Skill/Command、配置本地 MCP 和 SessionStart Hook 的真实任务，Skill→ToolSearch→MCP echo 成功，Hook 实际 success/0 并写入隔离标记；MCP disable/enable/reconnect 状态真实变化，见 stage67-source-integration.json。仍非最终安装同版本验收。新发现的高级参数 URL 凭证遮罩及 JSON 错误片段泄露边界已补回归；权限规则分区、精确 UUID 分叉、文件检查点与 stdin 管道正在验证。

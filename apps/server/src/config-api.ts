@@ -9,7 +9,7 @@ import { createRequire } from 'node:module'
 import { parseDocument } from 'yaml'
 import { APP_DIR, CC_DIR, runtimeSettings, endpointEnv, listEndpointTemplates, readActiveEnv } from './settings.js'
 
-type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp'
+type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp' | 'permissions'
 type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
 interface Resource { id: string; name: string; kind: Kind; source: Source; path: string; writable: boolean; description?: string; invocation?: string; scope?: string }
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
@@ -63,8 +63,10 @@ export function listResources(workspace: string): Resource[] {
         if (existsSync(file!)) add(file!, name!, 'rule', source, root)
       }
       add(join(config, 'settings.json'), 'Hooks · 项目共享', 'hooks', source, root)
+      add(join(config, 'settings.json'), '权限 · 项目共享', 'permissions', source, root)
     }
     add(join(config, source === 'project' ? 'settings.local.json' : 'settings.json'), 'Hooks', 'hooks', source, root)
+    add(join(config, source === 'project' ? 'settings.local.json' : 'settings.json'), source === 'project' ? '权限 · 项目本地' : '权限 · 用户', 'permissions', source, root)
     // MCP's native user file is ~/.claude.json, project file is .mcp.json.
     const mcpRoot = source === 'user' ? homedir() : workspace
     add(join(mcpRoot, source === 'user' ? '.claude.json' : '.mcp.json'), 'MCP servers', 'mcp', source, mcpRoot)
@@ -109,6 +111,7 @@ function resource(workspace: string, id: string): Resource {
 const MASK = '•••••••• (stored)'
 function mask(value: unknown, key = ''): unknown {
   if (/(token|secret|password|authorization|api.?key)/i.test(key) && value != null) return MASK
+  if (typeof value === 'string' && /(?:--?(?:api[-_]?key|token|secret|password|authorization)=|[?&](?:api[-_]?key|token|secret|password|access_token)=|https?:\/\/[^/\s]+@)/i.test(value)) return MASK
   if (Array.isArray(value)) return value.map((v, i) => typeof v === 'string' && i > 0 && /(?:key|token|password|secret)/i.test(String(value[i - 1])) ? MASK : mask(v))
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, key === 'env' || key === 'headers' ? MASK : mask(v, k)]))
   return value
@@ -120,17 +123,21 @@ function restore(value: unknown, original: unknown): unknown {
   return value
 }
 function jsonRoot(raw: string): Record<string, unknown> {
-  const value: unknown = JSON.parse(raw || '{}')
+  let value: unknown
+  try { value = JSON.parse(raw || '{}') } catch { throw new Error('配置 JSON 语法无效；原文保留在文件中，请检查括号和逗号') }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('配置必须是 JSON 对象')
   return value as Record<string, unknown>
 }
 export function validateContent(kind: Kind, content: string): string[] {
   if (Buffer.byteLength(content) > 1024 * 1024) return ['配置文件最大 1 MiB']
-  if (kind === 'hooks' || kind === 'mcp') {
+  if (kind === 'hooks' || kind === 'mcp' || kind === 'permissions') {
     try {
       const root = jsonRoot(content), errors: string[] = []
       for (const [name, value] of Object.entries(root)) {
-        if (kind === 'mcp') {
+        if (kind === 'permissions') {
+          if (['allow', 'deny', 'ask', 'additionalDirectories'].includes(name) && (!Array.isArray(value) || value.some(item => typeof item !== 'string'))) errors.push(`${name}: 必须是字符串数组`)
+          if (name === 'defaultMode' && !['default', 'acceptEdits', 'plan', 'bypassPermissions', 'auto', 'dontAsk'].includes(String(value))) errors.push('defaultMode 不是锁定版本模式')
+        } else if (kind === 'mcp') {
           if (!value || typeof value !== 'object' || Array.isArray(value)) { errors.push(`${name}: 服务配置必须是对象`); continue }
           const config = value as Record<string, unknown>
           if (!config.type || config.type === 'stdio') { if (typeof config.command !== 'string' || !config.command.trim()) errors.push(`${name}: stdio 需要 command`) }
@@ -182,19 +189,20 @@ export function readResource(workspace: string, id: string) {
   const item = resource(workspace, id)
   if (existsSync(item.path) && statSync(item.path).size > 1024 * 1024) throw new Error('文件过大，请使用外部编辑器')
   const raw = read(item.path)
-  const content = item.kind === 'hooks' || item.kind === 'mcp' ? JSON.stringify(mask(jsonRoot(raw)[item.kind === 'hooks' ? 'hooks' : 'mcpServers'] ?? {}), null, 2) : raw
-  return { ...item, content, revision: hash(raw), errors: validateContent(item.kind, content) }
+  const content = item.kind === 'hooks' || item.kind === 'mcp' || item.kind === 'permissions' ? JSON.stringify(mask(jsonRoot(raw)[item.kind === 'hooks' ? 'hooks' : item.kind === 'permissions' ? 'permissions' : 'mcpServers'] ?? {}), null, 2) : raw
+  return { ...item, content, revision: hash(raw), errors: validateContent(item.kind, item.kind === 'hooks' || item.kind === 'mcp' || item.kind === 'permissions' ? JSON.stringify(jsonRoot(raw)[item.kind === 'hooks' ? 'hooks' : item.kind === 'permissions' ? 'permissions' : 'mcpServers'] ?? {}) : content) }
 }
 export function writeResource(workspace: string, id: string, content: string, revision: string): void {
   const item = resource(workspace, id)
   if (!item.writable) throw new Error('此来源只读，请复制到用户或项目范围')
   const raw = read(item.path)
   if (hash(raw) !== revision) throw new Error('文件已被其他操作修改，请重新加载后比较；草稿已保留')
-  const errors = validateContent(item.kind, content)
+  const restoredContent = item.kind === 'hooks' || item.kind === 'mcp' || item.kind === 'permissions' ? JSON.stringify(restore(jsonRoot(content), jsonRoot(raw)[item.kind === 'hooks' ? 'hooks' : item.kind === 'permissions' ? 'permissions' : 'mcpServers'])) : content
+  const errors = validateContent(item.kind, restoredContent)
   if (errors.length) throw new Error(errors.join('\n'))
   let next = content
-  if (item.kind === 'hooks' || item.kind === 'mcp') {
-    const root = jsonRoot(raw), key = item.kind === 'hooks' ? 'hooks' : 'mcpServers'
+  if (item.kind === 'hooks' || item.kind === 'mcp' || item.kind === 'permissions') {
+    const root = jsonRoot(raw), key = item.kind === 'hooks' ? 'hooks' : item.kind === 'permissions' ? 'permissions' : 'mcpServers'
     root[key] = restore(jsonRoot(content), root[key])
     next = JSON.stringify(root, null, 2) + '\n'
   }

@@ -28,7 +28,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   }),
   z.object({ t: z.literal('session.new') }),
   z.object({ t: z.literal('session.list') }),
-  z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional() }),
+  z.object({ t: z.literal('session.open'), sessionId: z.string(), fork: z.boolean().optional(), upToMessageId: z.string().uuid().optional() }),
   z.object({ t: z.literal('session.rename'), sessionId: z.string(), title: z.string().min(1) }),
   z.object({ t: z.literal('session.delete'), sessionId: z.string() }),
   z.object({ t: z.literal('queue.resume') }),
@@ -52,6 +52,8 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('mcp.status') }),
   z.object({ t: z.literal('mcp.control'), name: z.string().min(1), action: z.enum(['reconnect', 'enable', 'disable']) }),
   z.object({ t: z.literal('models.list') }),
+  z.object({ t: z.literal('task.stop'), taskId: z.string().min(1) }),
+  z.object({ t: z.literal('files.rewind'), userMessageId: z.string().uuid(), dryRun: z.boolean() }),
   z.object({ t: z.literal('request.status'), commandId: z.string().uuid() }),
   z.object({ t: z.literal('ping'), lastSeq: z.number().int().optional() }),
 ]).and(z.object({ commandId: z.string().uuid().optional() }))
@@ -111,6 +113,7 @@ export type ServerMessage =
   | { t: 'queue'; seq: number; items: Array<{ uuid: string; text: string }> }
   | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
   | { t: 'settings'; seq: number; settings: SettingsSnapshot }
+  | { t: 'rewind'; seq: number; preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } }
   | { t: 'models'; seq: number; models: Array<{ value: string; displayName: string; description: string }> }
   | { t: 'mcpStatus'; seq: number; servers: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }> }
   | { t: 'cleared'; seq: number }
@@ -151,7 +154,9 @@ export interface SettingsSnapshot {
 
 /** 底栏指标条(SPEC §5 口径) */
 export interface SessionMetrics {
-  requests?: Array<{ requestId: string; role: 'main'; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  requests?: Array<{ requestId: string; role: 'main' | 'subagent'; parentToolUseId?: string; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  approvalWaitMs?: number
+  toolTimes?: Record<string, number>
   nativeTiming?: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown }
   terminalStatus?: 'running' | 'completed' | 'failed' | 'cancelled'
   runId?: string | null

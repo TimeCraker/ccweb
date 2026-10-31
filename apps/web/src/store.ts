@@ -98,6 +98,9 @@ interface AppState {
   /** 上一轮完成时的统计(turn 尾渲染) */
   lastTurnStats: { totalS: number; ttftMs: number | null; tps: number | null } | null
   settings: SettingsSnapshot | null
+  nativeTasks: Array<{ id: string; runId?: string; status: string; description: string; summary?: string }>
+  checkpoints: Array<{ id: string; text: string }>
+  rewind: { preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } } | null
   runtimeDiagnostics: Array<{ id: string; event: string; name: string; status: string; output: string; exitCode?: number }>
   availableModels: Array<{ value: string; displayName: string; description: string }>
   mcpServers: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }>
@@ -117,7 +120,7 @@ interface AppState {
   setSlashCommands: (list: Array<{ name: string; description: string }>) => void
   setFileResults: (files: string[]) => void
   setQueue: (items: Array<{ uuid: string; text: string }>) => void
-  appendUser: (text: string) => void
+  appendUser: (text: string, nativeUuid?: string) => void
   onBlockStart: (ev: { blockType: 'thinking' | 'text' | 'tool_use'; index: number; toolUseId?: string; toolName?: string }) => void
   onDelta: (ev: { kind: 'text' | 'thinking' | 'tool_input'; text: string; toolUseId?: string }) => void
   onBlockStop: (index: number) => void
@@ -156,6 +159,7 @@ export const useStore = create<AppState>((set) => ({
   turnStartedAt: null,
   lastTurnStats: null,
   settings: null,
+  nativeTasks: [], checkpoints: [], rewind: null,
   runtimeDiagnostics: [],
   availableModels: [],
   mcpServers: [],
@@ -172,9 +176,9 @@ export const useStore = create<AppState>((set) => ({
   setSlashCommands: (slashCommands) => set({ slashCommands }),
   setFileResults: (fileResults) => set({ fileResults }),
   setQueue: (queue) => set({ queue }),
-  appendUser: (text) =>
+  appendUser: (text, nativeUuid) =>
     set((s) => ({
-      entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text }],
+      entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text, nativeUuid }],
       busy: true,
       turnStartedAt: Date.now(),
       lastTurnStats: null,
@@ -214,9 +218,9 @@ export const useStore = create<AppState>((set) => ({
   /** 历史回放:顺序跑渲染模型(与实时流同构--一条用户消息一个 turn,
    * assistant 消息经对账追加,tool_result 回填;新用户消息前收束上一 turn) */
   replayHistory: (messages) => {
-    set({ runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
+    set({ nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
     for (const raw of messages) {
-      const m = raw as { type?: string; ccwebMetrics?: SessionMetrics; message?: { content?: unknown } } | null
+      const m = raw as { type?: string; uuid?: string; ccwebMetrics?: SessionMetrics; message?: { content?: unknown } } | null
       if (!m?.type) continue
       const st = useStore.getState()
       if (m.type === 'user') {
@@ -255,7 +259,7 @@ export const useStore = create<AppState>((set) => ({
           useStore.setState({ metrics: m.ccwebMetrics ?? null, turnStartedAt: m.ccwebMetrics?.runStartedAt ?? null })
           for (const t of texts) {
             useStore.setState((s) => ({
-              entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t }],
+              entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t, nativeUuid: m.uuid }],
             }))
           }
         }
@@ -265,7 +269,7 @@ export const useStore = create<AppState>((set) => ({
     }
     useStore.getState().finishTurn()
   },
-  clearView: () => set({ runtimeDiagnostics: [], availableModels: [], entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
+  clearView: () => set({ nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
   setMetrics: (metrics) => set(s => ({ metrics, ...(s.busy && metrics.runStartedAt ? { turnStartedAt: metrics.runStartedAt } : {}) })),
   setContext: (raw) => set({ context: { raw } }),
   pushPermission: (p) => set((s) => ({ permissions: [...s.permissions.filter(item => item.requestId !== p.requestId), p] })),

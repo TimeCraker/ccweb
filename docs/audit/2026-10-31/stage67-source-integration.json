@@ -1,0 +1,157 @@
+{
+  "simulated": false,
+  "sdk": "0.3.314",
+  "cli": "2.1.314",
+  "results": [
+    {
+      "subtype": "success",
+      "modelUsage": {
+        "glm-5.3": {
+          "inputTokens": 8409,
+          "outputTokens": 515,
+          "cacheReadInputTokens": 61824,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.08583199999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "cacheCreationEphemeral5mInputTokens": 0,
+          "cacheCreationEphemeral1hInputTokens": 0,
+          "canonicalModel": "glm-5.3",
+          "provider": "firstParty",
+          "costBasis": "unknown"
+        }
+      }
+    }
+  ],
+  "tools": [
+    {
+      "type": "tool_use",
+      "id": "call_e19a52148ffc4994954d3b5d",
+      "name": "Skill",
+      "input": {
+        "skill": "e2e-proof"
+      }
+    },
+    {
+      "type": "tool_result",
+      "tool_use_id": "call_e19a52148ffc4994954d3b5d",
+      "content": "Launching skill: e2e-proof"
+    },
+    {
+      "type": "tool_use",
+      "id": "call_cc76c0fcb1fc4f1784df7981",
+      "name": "ToolSearch",
+      "input": {
+        "query": "select:mcp__ccwebLocal__echo",
+        "max_results": 5
+      }
+    },
+    {
+      "type": "tool_result",
+      "tool_use_id": "call_cc76c0fcb1fc4f1784df7981",
+      "content": [
+        {
+          "type": "tool_reference",
+          "tool_name": "mcp__ccwebLocal__echo"
+        }
+      ]
+    },
+    {
+      "type": "tool_use",
+      "id": "call_31391a9817874e689b6b9609",
+      "name": "mcp__ccwebLocal__echo",
+      "input": {
+        "text": "LOCAL_MCP67_OK"
+      }
+    },
+    {
+      "tool_use_id": "call_31391a9817874e689b6b9609",
+      "type": "tool_result",
+      "content": [
+        {
+          "type": "text",
+          "text": "LOCAL_MCP67_OK"
+        }
+      ]
+    }
+  ],
+  "hooks": [
+    {
+      "subtype": "hook_started",
+      "event": "SessionStart"
+    },
+    {
+      "subtype": "hook_response",
+      "event": "SessionStart",
+      "outcome": "success",
+      "exit": 0,
+      "output": "{\"systemMessage\":\"LOCAL_HOOK_OK\"}\n"
+    }
+  ],
+  "errors": [],
+  "mcp": [
+    [],
+    [
+      {
+        "name": "ccwebLocal",
+        "status": "connected",
+        "scope": "project",
+        "source": "project",
+        "tools": [
+          "echo"
+        ]
+      }
+    ],
+    [
+      {
+        "name": "ccwebLocal",
+        "status": "connected",
+        "scope": "project",
+        "source": "project",
+        "tools": [
+          "echo"
+        ]
+      }
+    ],
+    [
+      {
+        "name": "ccwebLocal",
+        "status": "disabled",
+        "scope": "project",
+        "source": "project"
+      }
+    ],
+    [
+      {
+        "name": "ccwebLocal",
+        "status": "connected",
+        "scope": "project",
+        "source": "project",
+        "tools": [
+          "echo"
+        ]
+      }
+    ],
+    [
+      {
+        "name": "ccwebLocal",
+        "status": "connected",
+        "scope": "project",
+        "source": "project",
+        "tools": [
+          "echo"
+        ]
+      }
+    ]
+  ],
+  "approvals": [
+    {
+      "tool": "mcp__ccwebLocal__echo",
+      "allow": true
+    }
+  ],
+  "hookMarker": "{\"event\":\"SessionStart\"}\n",
+  "evidenceScope": "Stage 6.7 source intermediate build, not final package acceptance"
+}

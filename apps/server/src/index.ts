@@ -42,12 +42,12 @@ app.post('/api/native/start', async c => {
   const origin = c.req.header('origin')
   if (origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin ?? '')) return c.json({ error: 'Origin rejected' }, 403)
   try {
-    const body = await c.req.json<{ workspace?: string; action: string }>()
+    const body = await c.req.json<{ workspace?: string; action: string; args?: string[]; stdin?: string }>()
     const workspace = workspacePath(body.workspace)
-    const agents = [...new Set(registry.values())].filter(agent => agent.workspace === workspace)
+    const agents = [...new Set(registry.values())]
     if (agents.some(agent => agent.isRunning)) return c.json({ error: '先停止或完成此工作区的 GUI 任务，再启动原生进程' }, 409)
     for (const agent of agents) { agent.abort(); for (const [key, value] of registry) if (value === agent) registry.delete(key); for (const [socket, value] of observers) if (value === agent) { observers.set(socket, null); socket.send(JSON.stringify({ t: 'state', state: 'cancelled', sessionId: agent.sessionId, seq: ++seq })) } }
-    return c.json(startNative(workspace, body.action))
+    return c.json(startNative(workspace, body.action, body.args, body.stdin))
   } catch (error) { return c.json({ error: error instanceof Error ? error.message : String(error) }, 400) }
 })
 app.get('/healthz', (c) => c.json({ ok: true, name: 'ccweb', version: PKG_VERSION }))
@@ -301,7 +301,8 @@ wss.on('connection', (ws) => {
           // 避免 resume 死会话导致后续所有消息 error_during_execution
           openId = undefined
         }
-        if (openId && msg.fork) openId = (await forkSession(openId, { dir: workspace.replace(/\\/g, '/') })).sessionId
+        if (openId && msg.fork && registry.get(openId)?.isRunning) throw new Error('请先完成或停止原会话再分叉')
+        if (openId && msg.fork) openId = (await forkSession(openId, { dir: workspace.replace(/\\/g, '/'), ...(msg.upToMessageId ? { upToMessageId: msg.upToMessageId } : {}) })).sessionId
         const agent = getOrCreateSession(openId)
         emit({
           t: 'init',
@@ -389,6 +390,14 @@ wss.on('connection', (ws) => {
         emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
         break
       }
+      case 'task.stop':
+        if (!currentSession) throw new Error('请先启动会话')
+        await currentSession.stopTask(msg.taskId)
+        break
+      case 'files.rewind':
+        if (!currentSession || nativeWorkspaceBusy(workspace)) throw new Error('此会话当前不可回退')
+        emit({ t: 'rewind', seq: 0, preview: msg.dryRun, result: await currentSession.rewindFiles(msg.userMessageId, msg.dryRun) })
+        break
       case 'models.list':
         if (!currentSession) throw new Error('先启动原生会话以发现模型；可使用自定义模型')
         emit({ t: 'models', seq: 0, models: await currentSession.models() })

@@ -48,7 +48,7 @@ export function query({ prompt, options }) {
       yield { type: 'result', subtype: 'success', is_error: wasInterrupted, duration_ms: 200, usage: { output_tokens: 30 }, modelUsage: { fixture: { inputTokens: 50, outputTokens: 30, contextWindow: 1000 } }, total_cost_usd: 0, session_id: sid }
     }
   })()
-  return Object.assign(query, { interrupt: async () => { interrupted = true }, close: () => undefined, setModel: async () => {}, setPermissionMode: async mode => { if (mode === 'auto') throw new Error('【E2E】auto unavailable') }, mcpServerStatus: async () => [{ name: 'fixture-mcp', status: 'connected' }], getContextUsage: async () => ({ usage: { total_tokens: 260, raw_max_tokens: 1000, percentage: 26, categories: [] } }) })
+  return Object.assign(query, { interrupt: async () => { interrupted = true }, close: () => undefined, setModel: async () => {}, setPermissionMode: async mode => { if (mode === 'auto') throw new Error('【E2E】auto unavailable') }, supportedModels: async () => [{ value: 'fixture-discovered', displayName: 'Discovered fixture model', description: 'Simulated discovery' }], reconnectMcpServer: async () => {}, toggleMcpServer: async () => {}, rewindFiles: async () => ({ canRewind: true, filesChanged: ['fixture-file.ts'], insertions: 1, deletions: 2 }), stopTask: async () => {}, mcpServerStatus: async () => [{ name: 'fixture-mcp', status: 'connected' }], getContextUsage: async () => ({ usage: { total_tokens: 260, raw_max_tokens: 1000, percentage: 26, categories: [] } }) })
 }
 
 export async function forkSession() { const sessionId = crypto.randomUUID(); sessions.set(sessionId, true); return { sessionId } }

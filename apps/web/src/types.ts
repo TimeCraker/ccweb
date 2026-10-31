@@ -1,7 +1,9 @@
 /** 与 server/src/protocol.ts 对应的前端侧类型(P0 子集) */
 
 export interface SessionMetrics {
-  requests?: Array<{ requestId: string; role: 'main'; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  requests?: Array<{ requestId: string; role: 'main' | 'subagent'; parentToolUseId?: string; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  approvalWaitMs?: number
+  toolTimes?: Record<string, number>
   nativeTiming?: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown }
   terminalStatus?: 'running' | 'completed' | 'failed' | 'cancelled'
   runId?: string | null
@@ -49,6 +51,9 @@ export interface SettingsSnapshot {
 }
 
 export interface ServerMessage {
+  runId?: string
+  preview?: boolean
+  result?: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number }
   models?: Array<{ value: string; displayName: string; description: string }>
   t: string
   ok?: boolean

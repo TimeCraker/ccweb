@@ -11,8 +11,8 @@ import { IconFork, IconWarn, BrandMark } from './Icon'
 
 interface StreamProps {
   onRegenerate?: () => void
-  /** 消息级 fork:从用户消息行分叉(SDK 为会话级 fork,从现会话末尾复制) */
-  onForkFromMessage?: () => void
+  /** Only expose message-level forks when a native UUID is known. */
+  onForkFromMessage?: (uuid: string) => void
 }
 
 /**
@@ -66,7 +66,7 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
           <div className="px-6 py-1.5">
             <div className="message-column">
               {e.type === 'user' ? (
-                <UserRow key={e.id} text={e.text} onFork={onForkFromMessage} />
+                <UserRow key={e.id} text={e.text} onFork={e.nativeUuid && onForkFromMessage ? () => onForkFromMessage(e.nativeUuid!) : undefined} />
               ) : e.type === 'turnError' ? (
                 <TurnErrorRow key={e.id} text={e.text} muted={e.muted} />
               ) : (

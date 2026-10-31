@@ -264,4 +264,6 @@ Stage 6.6 第一单元：pnpm check 通过（45 项），Edge 19/19；新增逐�
 - [x] E 增量原生承载（全矩阵仍未关闭）：选用精确 node-pty 1.1.0 + xterm 6.0.0 / fit 0.11.0。ConPTY 提供 TUI、中文输入、粘贴与尺寸变化；增加原生依赖分发成本，需真实 Windows tarball 安装验证。仅使用随 SDK 二进制，不自动升级全局或随包 CLI；工作区运行互斥、连接能力令牌和断线恢复必须验证。
 - [x] E Windows 真实源码浏览器：随包 --help / TUI 主题菜单启动、按键、尺寸变化、取消；刷新重放及无效能力令牌拒绝，3/3。真实登录、OAuth 和已认证 TUI 命令不计完成。
 - [x] A/C/D 增量：父级与托管指令只读发现、Skill 原生可选元数据、MCP/Hooks 结构校验、冲突比较与显式基线选择、结果分层摘要、MCP 运行重连/启停、原生模型发现、Hook 事件诊断。等待增量浏览器及真集成，不据此关闭整包。
+- [x] D 真实源码集成：GUI 配置本地 stdio MCP 与 SessionStart Hook，真实 GLM-5.3 调用 Skill→ToolSearch→MCP echo 成功；Hook 返回 success/0 并写隔离标记，MCP 原生状态 connected→disabled→connected，重连成功。不同提交的最终安装仍待复验。
+- [x] C/E 增量：原生后台任务与停止、文件回退预览/确认、精确用户消息 UUID 分叉、权限规则与附加目录原生分区编辑、原生 CLI 参数与真实 stdin 管道。模型/Hook 来源与状态分层，需继续浏览器与安装验收。
 - [ ] A–G 全量闭包及同版本最终验收。

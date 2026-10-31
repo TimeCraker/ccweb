@@ -41,8 +41,13 @@ function tryParse(raw: string): Record<string, unknown> | null {
   }
 }
 
-export default function ContextPanel() {
-  const [tab, setTab] = useState<'context' | 'trajectory'>('context')
+export default function ContextPanel({ send, initialTab = "context" }: { send?: (message: Record<string, unknown>) => void; initialTab?: "context" | "controls" }) {
+  const tasks = useStore(s => s.nativeTasks)
+  const checkpoints = useStore(s => s.checkpoints)
+  const rewind = useStore(s => s.rewind)
+  const busy = useStore(s => s.busy)
+  const [checkpoint, setCheckpoint] = useState('')
+  const [tab, setTab] = useState<'context' | 'trajectory' | 'controls'>(initialTab)
   const ctx = useStore((s) => s.context)
   const m = useStore((s) => s.metrics)
   const entries = useStore((s) => s.entries)
@@ -74,7 +79,7 @@ export default function ContextPanel() {
   return (
     <aside className="hidden w-52 shrink-0 flex-col border-l border-border bg-panel xl:flex">
       <div className="flex shrink-0 border-b border-border">
-        {(['context', 'trajectory'] as const).map((k) => (
+        {(['context', 'trajectory', 'controls'] as const).map((k) => (
           <button
             key={k}
             onClick={() => setTab(k)}
@@ -82,13 +87,13 @@ export default function ContextPanel() {
               tab === k ? 'text-text' : 'text-text-faint hover:text-text-dim'
             }`}
           >
-            {t(k === 'context' ? 'ctx.tab.context' : 'ctx.tab.trajectory')}
+            {k === 'controls' ? '任务与回退' : t(k === 'context' ? 'ctx.tab.context' : 'ctx.tab.trajectory')}
             {tab === k && <span className="absolute inset-x-3 bottom-0 h-px bg-accent" />}
           </button>
         ))}
       </div>
 
-      {tab === 'context' ? (
+      {tab === 'controls' ? <div className="runtime-controls"><h3>原生后台任务与子代理</h3>{tasks.length ? tasks.map(task => <article key={task.id}><strong>{task.description}</strong><p>{task.status}</p><p>{task.summary}</p>{task.status === 'running' && <button onClick={() => send?.({ t: 'task.stop', taskId: task.id })}>停止任务</button>}</article>) : <p>尚未收到原生任务事件。未启动与已完成任务不混为一谈。</p>}<h3>文件检查点</h3><p>仅回退原生跟踪的文件，不回退对话。预览后确认会修改文件；Bash 等外部写入不一定被跟踪。历史检查点不可用时原生会返回错误。</p><select aria-label="文件检查点" value={checkpoint} onChange={e => { setCheckpoint(e.target.value); useStore.setState({ rewind: null }) }}><option value="">选择本次连接的用户轮次</option>{checkpoints.map(item => <option key={item.id} value={item.id}>{item.text}</option>)}</select><button disabled={busy || !checkpoint} onClick={() => send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: true })}>预览文件回退</button>{rewind && <div role="status"><p>{rewind.preview ? '预览' : '原生执行结果'} · {rewind.result.canRewind ? '可回退/已执行' : rewind.result.error ?? '不可回退'}</p><pre>{rewind.result.filesChanged?.join('\n') ?? '未提供文件列表'}</pre><p>新增 {rewind.result.insertions ?? '—'} / 删除 {rewind.result.deletions ?? '—'} · 链接跳过 {rewind.result.skippedLinks ?? '—'}</p>{rewind.preview && rewind.result.canRewind && <button disabled={busy} onClick={() => { if (window.confirm('确认按此检查点回退原生跟踪的文件？这会修改文件，Bash 写入及对话不会回退。')) send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: false }) }}>确认回退文件</button>}</div>}</div> : tab === 'context' ? (
         <>
           {/* 高水位警示:接近压缩阈值时主动提醒(不只靠环形图变色) */}
           {level && pct > 85 && (
@@ -128,6 +133,7 @@ export default function ContextPanel() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-3">
+            <details><summary>原生上下文组成与来源</summary><pre className="overflow-auto text-xs">{ctx ? JSON.stringify(ctx.raw, null, 2) : '原生运行时尚未提供'}</pre></details>
             <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-text-faint">
               {t('ctx.composition')}
             </h3>

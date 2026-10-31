@@ -158,9 +158,13 @@ class PermissionGate {
 
 export class AgentSession {
   promptQueue = new PromptQueue()
-  private readonly gate = new PermissionGate((requestId, allow) => this.emit({ t: "permission.resolved", seq: 0, requestId, allow }))
+  private readonly gate = new PermissionGate((requestId, allow) => { const began = this.permissionWaits.get(requestId); if (began !== undefined) this.approvalWaitMs += Math.max(0, Date.now() - began); this.permissionWaits.delete(requestId); this.emit({ t: "permission.resolved", seq: 0, requestId, allow }) })
   private readonly acc: MetricsAccumulator = newAccumulator()
   private readonly streamMetrics = new StreamMetrics()
+  private readonly childStreams = new Map<string, StreamMetrics>()
+  private readonly permissionWaits = new Map<string, number>()
+  private approvalWaitMs = 0
+  private nativeToolTimes = new Map<string, number>()
   private runId: string | null = null
   private runStartedAt = 0
   private firstContentMs: number | null = null
@@ -251,6 +255,7 @@ export class AgentSession {
     this.completedAt = null
     this.terminalStatus = 'running'
     this.streamMetrics.begin(this.runStartedAt)
+    this.childStreams.clear(); this.approvalWaitMs = 0; this.nativeToolTimes.clear()
     this.firstContentMs = null
     this.modelError = null
     this.acc.ttftMs = null
@@ -373,6 +378,14 @@ export class AgentSession {
     if (action === 'reconnect') await this.q.reconnectMcpServer(name)
     else await this.q.toggleMcpServer(name, action === 'enable')
   }
+  async stopTask(taskId: string): Promise<void> {
+    if (!this.q) throw new Error('当前会话未启动')
+    await this.q.stopTask(taskId)
+  }
+  async rewindFiles(userMessageId: string, dryRun: boolean) {
+    if (!this.q || this.isRunning) throw new Error('请先完成或停止当前运行，再预览文件回退')
+    return this.q.rewindFiles(userMessageId, { dryRun })
+  }
   async models(): Promise<Array<{ value: string; displayName: string; description: string }>> {
     if (!this.q) throw new Error('模型发现需要已启动的原生会话；可先使用自定义模型')
     return this.q.supportedModels()
@@ -398,6 +411,7 @@ export class AgentSession {
         prompt: this.promptQueue.stream(),
         options: {
           includePartialMessages: true,
+          enableFileCheckpointing: true,
           systemPrompt: { type: 'preset', preset: 'claude_code' },
           settings: { plansDirectory },
           ...(process.env.CCWEB_MAX_BUDGET_USD ? { maxBudgetUsd: Number(process.env.CCWEB_MAX_BUDGET_USD) } : {}),
@@ -430,6 +444,7 @@ export class AgentSession {
           ): Promise<PermissionResult> => {
             const { toolUseID } = ctx
             return this.gate.wait(toolUseID, toolName, input, (id, name, inp) => {
+              this.permissionWaits.set(id, Date.now())
               this.emit({
                 t: 'permission.ask',
                 seq: 0,
@@ -516,6 +531,7 @@ export class AgentSession {
       return
     }
 
+    if (type === 'tool_progress' && typeof msg.tool_use_id === 'string' && typeof msg.elapsed_time_seconds === 'number') this.nativeToolTimes.set(msg.tool_use_id, Math.max(0, msg.elapsed_time_seconds * 1000))
     if (type === 'assistant' && typeof msg.error === 'string') this.modelError = msg.error
     if (type === 'result') {
       if (this.terminalStatus === 'cancelled') msg = { ...msg, subtype: 'cancelled', is_error: false }
@@ -556,6 +572,10 @@ export class AgentSession {
       this.firstContentMs = this.streamMetrics.firstContentMs
       this.acc.tokensPerSecond = this.streamMetrics.latestSpeed
       if (event.type === 'message_stop') this.emitMetrics()
+    } else if (typeof msg.parent_tool_use_id === 'string') {
+      let stream = this.childStreams.get(msg.parent_tool_use_id)
+      if (!stream) { stream = new StreamMetrics(); stream.begin(this.runStartedAt); this.childStreams.set(msg.parent_tool_use_id, stream) }
+      stream.observe(event, Date.now())
     }
     const sid = this.sessionId ?? ''
 
@@ -628,7 +648,7 @@ export class AgentSession {
 
   private emitMetrics(): void {
     if (!this.sessionId) return
-    const metrics = { ...computeMetrics(this.acc), terminalStatus: this.terminalStatus, runId: this.runId, firstContentMs: this.firstContentMs, speedScope: this.speedScope, runStartedAt: this.runStartedAt || null, completedAt: this.completedAt, sampledRequests: this.streamMetrics.summary().sampled, metricsComplete: this.streamMetrics.summary().complete, requests: this.streamMetrics.samples(), nativeTiming: this.nativeTiming }
+    const metrics = { ...computeMetrics(this.acc), terminalStatus: this.terminalStatus, runId: this.runId, firstContentMs: this.firstContentMs, speedScope: this.speedScope, runStartedAt: this.runStartedAt || null, completedAt: this.completedAt, sampledRequests: this.streamMetrics.summary().sampled, metricsComplete: this.streamMetrics.summary().complete, requests: [...this.streamMetrics.samples(), ...[...this.childStreams].flatMap(([parentToolUseId, stream]) => stream.samples().map(sample => ({ ...sample, role: 'subagent' as const, parentToolUseId })))], approvalWaitMs: this.approvalWaitMs + [...this.permissionWaits.values()].reduce((total, began) => total + Math.max(0, Date.now() - began), 0), toolTimes: Object.fromEntries(this.nativeToolTimes), nativeTiming: this.nativeTiming }
     this.emit({ t: 'metrics', seq: 0, sessionId: this.sessionId, metrics })
     if (this.runId) {
       try { atomicWrite(join(APP_DIR, 'metrics', this.sessionId, `${this.runId}.json`), JSON.stringify(metrics)) } catch { /* Metrics persistence must not break execution. */ }

@@ -4,12 +4,14 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useStore } from '../store'
 
-const actions = [['interactive', '原生交互会话'], ['help', 'CLI 帮助'], ['auth', '认证状态'], ['login', '原生登录'], ['doctor', '安装与配置诊断'], ['mcp', 'MCP 清单'], ['plugins', '插件清单'], ['agents', '后台任务清单']]
+const actions = [['interactive', '原生交互会话'], ['help', 'CLI 帮助'], ['auth', '认证状态'], ['login', '原生登录'], ['doctor', '安装与配置诊断'], ['mcp', 'MCP 清单'], ['plugins', '插件清单'], ['agents', '后台任务清单'], ['custom', '高级 CLI 参数 / 脚本输入']]
 export default function NativeTerminal({ onClose }: { onClose: () => void }) {
   const workspace = useStore(s => s.settings?.workspace ?? '')
   const host = useRef<HTMLDivElement>(null)
   const terminal = useRef<Terminal>()
   const socket = useRef<WebSocket>()
+  const [args, setArgs] = useState('["--help"]')
+  const [stdin, setStdin] = useState('')
   const [action, setAction] = useState('interactive')
   const [status, setStatus] = useState('尚未启动')
   const [active, setActive] = useState(false)
@@ -50,7 +52,7 @@ export default function NativeTerminal({ onClose }: { onClose: () => void }) {
   async function start() {
     setStarting(true)
     try {
-      const response = await fetch('/api/native/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspace, action }) })
+      const response = await fetch('/api/native/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspace, action, ...(action === 'custom' ? { args: JSON.parse(args), stdin } : {}) }) })
       const result = await response.json()
       if (!response.ok) throw new Error(result.error)
       sessionStorage.setItem(storageKey, JSON.stringify(result)); setRetry(value => value + 1)
@@ -58,8 +60,9 @@ export default function NativeTerminal({ onClose }: { onClose: () => void }) {
   }
   function stop() { socket.current?.send(JSON.stringify({ t: 'close' })); sessionStorage.removeItem(storageKey); setActive(false); setStatus('已结束原生进程'); socket.current?.close() }
   return <section className="native-panel" aria-label="原生终端">
-    <header><div><h2>Claude Code 原生终端</h2><p>SDK 随包 2.1.314 · 独立会话 · 与此工作区的 GUI 运行互斥</p></div><button onClick={onClose}>返回对话</button></header>
+    <header><div><h2>Claude Code 原生终端</h2><p>SDK 随包运行时 · 独立会话 · 与本服务 GUI 运行互斥</p></div><button onClick={onClose}>返回对话</button></header>
     <div className="native-toolbar"><select aria-label="原生操作" disabled={active || starting} value={action} onChange={e => setAction(e.target.value)}>{actions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button disabled={active || starting} onClick={() => void start()}>{starting ? '启动中…' : '启动原生操作'}</button><button disabled={!active} onClick={() => socket.current?.send(JSON.stringify({ t: 'input', data: '\u0003' }))}>Ctrl+C</button><button onClick={stop}>结束进程</button></div>
+    {action === 'custom' && <details className="native-advanced" open><summary>高级原生调用</summary><label>参数数组（JSON，无 shell 插值）<input aria-label="CLI 参数数组" disabled={active} value={args} onChange={e => setArgs(e.target.value)} /></label><label>可选 stdin 文本<textarea aria-label="CLI stdin" rows={3} disabled={active} value={stdin} onChange={e => setStdin(e.target.value)} /></label><p>参数直接传给固定随包二进制。可使用 --print、--resume 等已核对参数。填写文本时使用真实 stdin 管道并关闭输入；留空时使用 ConPTY 交互。SDK 与原生服务整体互斥，结束后再恢复 GUI。</p></details>}
     <p role="status">{status}</p><div className="native-screen" ref={host} />
     <p className="native-help">支持原生 / 命令、中文输入、粘贴及快捷键。返回对话保留进程；刷新后用本标签页令牌恢复，断开 30 分钟后回收。服务重启后的进程不冒充 SDK 快照。登录与 OAuth 由你亲自授权；不要在原生维护命令中升级随包二进制。</p>
   </section>

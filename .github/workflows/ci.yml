@@ -26,6 +26,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm --filter ccweb-console test:runtime
+      - run: pnpm --filter ccweb-console test:pty
       - name: Smoke (server boots + healthz)
         run: |
           node apps/server/dist/index.js &
@@ -46,6 +47,7 @@ jobs:
       - run: pnpm --filter @ccweb/web exec playwright install --with-deps chromium
       - run: pnpm build
       - run: pnpm --filter ccweb-console test:runtime
+      - run: pnpm --filter ccweb-console test:pty
       - run: pnpm --filter @ccweb/web exec playwright test
       - name: Install the actual tarball
         shell: bash
