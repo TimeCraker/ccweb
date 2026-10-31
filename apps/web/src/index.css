@@ -1415,6 +1415,11 @@ html.dark .ws-item:hover {
   line-height: 1.6;
   color: var(--color-text-dim);
 }
+.history-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
 
 /* ---------------- 用量行 ---------------- */
 

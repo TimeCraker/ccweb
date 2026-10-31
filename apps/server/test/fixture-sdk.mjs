@@ -1,10 +1,12 @@
 // Test-only simulated SDK. Loaded through fixture-server, never from production code.
 import { readFileSync } from 'node:fs'
 const sessions = new Map()
-export async function listSessions() { return [...sessions.keys()].map(sessionId => ({ sessionId, firstPrompt: '【E2E】 simulated task', lastModified: Date.now() })) }
-export async function getSessionMessages() { return [] }
+const histories = new Map()
+const titles = new Map()
+export async function listSessions() { return [...sessions.keys()].map(sessionId => ({ sessionId, firstPrompt: titles.get(sessionId) ?? '【E2E】 simulated task', lastModified: Date.now() })) }
+export async function getSessionMessages(sessionId) { return histories.get(sessionId) ?? [] }
 export async function renameSession() {}
-export async function deleteSession(id) { sessions.delete(id) }
+export async function deleteSession(id) { sessions.delete(id); histories.delete(id) }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 export function query({ prompt, options }) {
   const sid = options.resume ?? options.sessionId ?? crypto.randomUUID()
@@ -15,6 +17,19 @@ export function query({ prompt, options }) {
     yield { type: 'system', subtype: 'init', session_id: sid, model: options.model ?? 'fixture-model', slash_commands: ['compact'], claude_code_version: 'fixture' }
     for await (const user of prompt) {
       const text = typeof user.message.content === 'string' ? user.message.content : user.message.content.filter(c => c.type === 'text').map(c => c.text).join(' ')
+      if (text.includes('SEED_HISTORY')) {
+        const seeded = []
+        for (let i = 0; i < 100; i++) {
+          seeded.push(
+            { type: 'user', uuid: crypto.randomUUID(), message: { content: `历史问题 ${i}` } },
+            { type: 'assistant', uuid: crypto.randomUUID(), message: { id: crypto.randomUUID(), role: 'assistant', content: [{ type: 'text', text: `历史回答 ${i}` }] } },
+          )
+        }
+        const seedId = crypto.randomUUID()
+        sessions.set(seedId, true)
+        histories.set(seedId, seeded)
+        titles.set(seedId, '历史会话（200 条）')
+      }
       if (text.includes('SDK_ERROR')) { yield { type: 'assistant', error: 'rate_limit', message: { id: crypto.randomUUID(), content: [{type:'text',text:'API Error: fixture rejected'}] } }; yield {type:'result',subtype:'success',session_id:sid};continue }
       if (text.includes('CRASH')) throw new Error('【E2E】 simulated crash')
       const id = crypto.randomUUID()
@@ -45,6 +60,12 @@ export function query({ prompt, options }) {
       const wasInterrupted = interrupted
       interrupted = false
       yield { type: 'assistant', uuid: crypto.randomUUID(), message: { id, content: [{ type: 'text', text: `【E2E】模拟完成：${text}` }] } }
+      const history = histories.get(sid) ?? []
+      history.push(
+        { type: 'user', uuid: crypto.randomUUID(), message: { content: text } },
+        { type: 'assistant', uuid: crypto.randomUUID(), message: { id: crypto.randomUUID(), role: 'assistant', content: [{ type: 'text', text: `【E2E】模拟完成：${text}` }] } },
+      )
+      histories.set(sid, history)
       yield { type: 'result', subtype: 'success', is_error: wasInterrupted, duration_ms: 200, usage: { output_tokens: 30 }, modelUsage: { fixture: { inputTokens: 50, outputTokens: 30, contextWindow: 1000 } }, total_cost_usd: 0, session_id: sid }
     }
   })()

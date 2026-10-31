@@ -273,3 +273,31 @@ test('sending the exact same content twice asks for confirmation', async ({ page
   await box.press('Enter')
   await expect(page.getByText('【E2E】模拟完成：duplicate send check', { exact: true })).toHaveCount(2)
 })
+
+test('long history opens at the newest message and loads earlier pages', async ({ page }) => {
+  await ready(page)
+  const box = page.getByRole('textbox', { name: '任务输入' })
+  await box.fill('SEED_HISTORY')
+  await box.press('Enter')
+  await expect(page.getByText('【E2E】模拟完成：SEED_HISTORY', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '新建会话' }).click()
+  await page.getByRole('button', { name: /历史会话（200 条）/ }).click()
+  await expect(page.getByRole('button', { name: '加载更早的消息' })).toBeVisible()
+  await expect(page.getByText('历史回答 99', { exact: true })).toBeVisible()
+  const scroller = page.locator('[data-virtuoso-scroller="true"], [data-virtuoso-scroller]').first()
+  const atBottom = await scroller.evaluate((el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 8)
+  expect(atBottom).toBe(true)
+
+  // 滚到顶部加载更早,加载后不应再出现按钮(202 条 < 320)
+  await scroller.evaluate((el) => { el.scrollTop = 0 })
+  await page.waitForTimeout(300)
+  await page.getByRole('button', { name: '加载更早的消息' }).click()
+  await expect(page.getByRole('button', { name: '加载更早的消息' })).toHaveCount(0)
+  // 加载后锚定在原来的第一条(历史问题 20),更早的 0–19 在其上方
+  await page.waitForTimeout(600)
+  await expect(page.locator('.msg-user').filter({ hasText: '历史问题 20' })).toBeVisible()
+  await scroller.evaluate((el) => { el.scrollTop = 0 })
+  await page.waitForTimeout(500)
+  await expect(page.locator('.msg-user').filter({ hasText: '历史问题 0' })).toBeVisible()
+})

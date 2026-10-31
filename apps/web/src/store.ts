@@ -22,6 +22,35 @@ export interface PermissionRequest {
   input: Record<string, unknown>
 }
 
+/** 历史首屏只回放尾部一页;加载更早时每次追加一页 */
+const HISTORY_PAGE = 160
+
+function isUserPrompt(raw: unknown): boolean {
+  const m = raw as { type?: string; message?: { content?: unknown } } | null
+  if (m?.type !== 'user') return false
+  const content = m.message?.content
+  if (typeof content === 'string') return content.trim().length > 0
+  if (!Array.isArray(content)) return false
+  return content.some((block) => {
+    if (!block || typeof block !== 'object' || !('type' in block)) return false
+    const b = block as { type?: string; text?: unknown }
+    return b.type === 'text' && typeof b.text === 'string' && b.text.trim().length > 0
+  })
+}
+
+/** 从用户消息边界开始切,避免历史页从半截 tool_result 开始 */
+function historySlice(messages: unknown[], limit: number): unknown[] {
+  if (limit >= messages.length) return messages
+  let start = Math.max(0, messages.length - limit)
+  for (let i = start; i >= 0; i--) {
+    if (isUserPrompt(messages[i])) {
+      start = i
+      break
+    }
+  }
+  return messages.slice(start)
+}
+
 /** AskUserQuestion 类工具的问题结构(宽松解析 input.questions) */
 export interface QuestionOption {
   label: string
@@ -117,6 +146,13 @@ interface AppState {
   queue: Array<{ uuid: string; text: string }>
   /** 本 turn 已被用户主动中断(随后的非 success result 走中性提示) */
   interrupted: boolean
+  /** 完整历史消息(用于分页加载更早);渲染只取尾部一页 */
+  historyRaw: unknown[]
+  historyLimit: number
+  historyHasMore: boolean
+  /** 历史重放后首屏定位:>=0 表示首次渲染落在此 entry,-1 表示落到底部 */
+  historyFocus: number
+  historyVersion: number
 
   setConn: (c: ConnState) => void
   applyInit: (p: { sessionId: string | null; model: string | null; endpoint: string | null }) => void
@@ -133,7 +169,8 @@ interface AppState {
   onAssistantMessage: (msg: unknown) => void
   onUserMessage: (msg: unknown) => void
   finishTurn: () => void
-  replayHistory: (messages: unknown[]) => void
+  replayHistory: (messages: unknown[], limit?: number) => void
+  loadEarlierHistory: () => void
   clearView: () => void
   setMetrics: (m: SessionMetrics) => void
   setContext: (raw: Record<string, unknown>) => void
@@ -177,6 +214,11 @@ export const useStore = create<AppState>((set) => ({
   fileResults: [],
   queue: [],
   interrupted: false,
+  historyRaw: [],
+  historyLimit: 0,
+  historyHasMore: false,
+  historyFocus: -1,
+  historyVersion: 0,
 
   setConn: (conn) => set({ conn }),
   applyInit: ({ sessionId, model, endpoint }) => set({ sessionId, model, endpoint }),
@@ -227,9 +269,17 @@ export const useStore = create<AppState>((set) => ({
     }),
   /** 历史回放:顺序跑渲染模型(与实时流同构--一条用户消息一个 turn,
    * assistant 消息经对账追加,tool_result 回填;新用户消息前收束上一 turn) */
-  replayHistory: (messages) => {
-    set({ fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
-    for (const raw of messages) {
+  replayHistory: (messages, limit = HISTORY_PAGE) => {
+    const page = historySlice(messages, limit)
+    set({
+      fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null,
+      historyRaw: messages,
+      historyLimit: Math.min(messages.length, limit),
+      historyHasMore: page.length < messages.length,
+      historyFocus: -1,
+      historyVersion: useStore.getState().historyVersion + 1,
+    })
+    for (const raw of page) {
       const m = raw as { type?: string; uuid?: string; ccwebMetrics?: SessionMetrics; message?: { content?: unknown } } | null
       if (!m?.type) continue
       const st = useStore.getState()
@@ -281,7 +331,19 @@ export const useStore = create<AppState>((set) => ({
     }
     useStore.getState().finishTurn()
   },
-  clearView: () => set({ fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
+  loadEarlierHistory: () => {
+    const state = useStore.getState()
+    if (state.busy || state.permissions.length > 0 || state.question) return
+    const { historyRaw, historyLimit, entries } = state
+    if (historyLimit >= historyRaw.length) return
+    const before = entries.length
+    const next = Math.min(historyRaw.length, historyLimit + HISTORY_PAGE)
+    useStore.getState().replayHistory(historyRaw, next)
+    const after = useStore.getState().entries.length
+    // 定位到原来已加载的第一条,让新增的旧消息出现在上方,而不是被拉到底部
+    useStore.setState((s) => ({ historyFocus: Math.max(0, after - before), historyVersion: s.historyVersion + 1 }))
+  },
+  clearView: () => set({ fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [], historyRaw: [], historyLimit: 0, historyHasMore: false, historyFocus: -1 }),
   setMetrics: (metrics) => set(s => ({ metrics, ...(s.busy && metrics.runStartedAt ? { turnStartedAt: metrics.runStartedAt } : {}) })),
   setContext: (raw) => set({ context: { raw } }),
   pushPermission: (p) => set((s) => ({ permissions: [...s.permissions.filter(item => item.requestId !== p.requestId), p] })),

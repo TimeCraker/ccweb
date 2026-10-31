@@ -25,6 +25,8 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
   const entries = useMemo(() => visibleEntries(rawEntries), [rawEntries])
   const busy = useStore((s) => s.busy)
   const turnStartedAt = useStore((s) => s.turnStartedAt)
+  const historyVersion = useStore((s) => s.historyVersion)
+  const historyFocus = useStore((s) => s.historyFocus)
   const virtuoso = useRef<VirtuosoHandle>(null)
   const [atBottom, setAtBottom] = useState(true)
   const lastUserId = useRef<string | undefined>(undefined)
@@ -34,6 +36,20 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
   const newest = [...entries].reverse().find(entry => entry.type === 'user')?.id
   const entryCount = useRef(entries.length)
   entryCount.current = entries.length
+  const jumpedVersion = useRef(-1)
+
+  // 历史/首轮渲染后钉到底部:虚拟列表先按估算高度定位,图片和长文测量后要再校正一次
+  useEffect(() => {
+    if (entries.length === 0 || historyFocus >= 0) return
+    if (jumpedVersion.current === historyVersion) return
+    jumpedVersion.current = historyVersion
+    const jump = () => {
+      setAtBottom(true)
+      virtuoso.current?.scrollToIndex({ index: entryCount.current - 1, align: 'end', behavior: 'auto' })
+    }
+    const timers = [0, 120, 400, 900].map((ms) => window.setTimeout(jump, ms))
+    return () => timers.forEach((timer) => window.clearTimeout(timer))
+  }, [historyVersion, entries.length, historyFocus])
 
   useEffect(() => {
     if (!newest || newest === lastUserId.current) return
@@ -55,9 +71,12 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
   return (
     <div className="relative flex-1" role="log" aria-label="conversation">
       <Virtuoso
+        key={historyVersion}
         ref={virtuoso}
         data={entries}
         className="h-full"
+        components={{ Header: HistoryHeader }}
+        initialTopMostItemIndex={historyFocus >= 0 ? historyFocus : Math.max(0, entries.length - 1)}
         followOutput={atBottom ? 'auto' : false}
         atBottomStateChange={(b: boolean) => setAtBottom(b)}
         rangeChanged={(r) => {
@@ -100,6 +119,38 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
           </svg>
         </button>
       )}
+    </div>
+  )
+}
+
+/** 历史分页:仅当还有更早消息时出现在列表顶部 */
+function HistoryHeader() {
+  const hasMore = useStore((s) => s.historyHasMore)
+  const loadEarlier = useStore((s) => s.loadEarlierHistory)
+  const busy = useStore((s) => s.busy)
+  const hasPending = useStore((s) => s.permissions.length > 0 || s.question !== null)
+  const [loading, setLoading] = useState(false)
+  useLocale()
+  if (!hasMore) return null
+  const blocked = busy || hasPending
+  return (
+    <div className="history-more">
+      <button
+        className="btn btn-sm"
+        disabled={loading || blocked}
+        title={blocked ? '任务运行中或等待确认时不能加载更早的消息' : undefined}
+        onClick={() => {
+          if (blocked) return
+          setLoading(true)
+          // 先让按钮画出 loading,再同步回放旧消息
+          window.setTimeout(() => {
+            loadEarlier()
+            setLoading(false)
+          }, 0)
+        }}
+      >
+        {loading ? '载入中…' : '加载更早的消息'}
+      </button>
     </div>
   )
 }
