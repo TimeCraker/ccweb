@@ -33,6 +33,8 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
   }, [key])
   const updateText = (value: string) => { setText(value); localStorage.setItem(key, value) }
   const [images, setImages] = useState<string[]>([])
+  useEffect(() => { setImages([]) }, [key])
+  useEffect(() => { useStore.setState({ attachmentDraft: images.length > 0 }); return () => useStore.setState({ attachmentDraft: false }) }, [images.length])
   const [slashSel, setSlashSel] = useState(0)
   const [fileSel, setFileSel] = useState(0)
   const [lightbox, setLightbox] = useState<string | null>(null)
@@ -41,7 +43,8 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
   const waiting = useStore(s => s.permissions.length > 0 || s.question !== null)
   const lastAck = useStore(s => s.lastAck)
   const [pending, setPending] = useState<string | null>(null)
-  useEffect(() => { if (!lastAck || (pending && lastAck.id !== pending)) return; setText(localStorage.getItem(draftKey.current) ?? ''); setPending(null) }, [lastAck, pending])
+  useEffect(() => { if (!lastAck || !pending || lastAck.id !== pending) return; setText(localStorage.getItem(draftKey.current) ?? ''); if (lastAck.ok) setImages([]); setPending(null) }, [lastAck, pending])
+  useEffect(() => { const protect = (event: BeforeUnloadEvent) => { if (images.length) { event.preventDefault(); event.returnValue = '' } }; window.addEventListener('beforeunload', protect); return () => window.removeEventListener('beforeunload', protect) }, [images.length])
   const busy = useStore((s) => s.busy)
   const slashCommands = useStore((s) => s.slashCommands)
   const fileResults = useStore((s) => s.fileResults)
@@ -51,15 +54,16 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
   /** 粘贴/选择/拖放的图片 → data URL 附件 */
   const addImages = (files: FileList | File[] | null) => {
     if (!files) return
+    if (images.length + files.length > 5) { useStore.getState().setError('最多附加 5 张图片；请先移除已有附件。'); return }
     const imgs: string[] = []
     let pending = 0
     for (const f of Array.from(files)) {
-      if (!f.type.startsWith('image/')) continue
+      if (!['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(f.type) || f.size > 5 * 1024 * 1024) { useStore.getState().setError('附件只支持 PNG/JPEG/GIF/WebP，每张最大 5 MiB。'); continue }
       pending++
       const r = new FileReader()
       r.onload = () => {
         if (typeof r.result === 'string') imgs.push(r.result)
-        if (--pending === 0) setImages((prev) => [...prev, ...imgs])
+        if (--pending === 0) setImages((prev) => [...prev, ...imgs].slice(0, 5))
       }
       r.readAsDataURL(f)
     }
@@ -101,7 +105,7 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
     if (!settingsReady || pending || conn !== "open" || waiting || (!txt && images.length === 0)) return
     const request = onSend(txt || t('cp.imageOnly'), images.length ? images : undefined)
     if (request === 'local') { updateText(''); setImages([]) }
-    else if (request) { setPending(request); setImages([]) }
+    else if (request) { setPending(request) }
   }
 
   const pickSlash = (name: string) => {
@@ -192,7 +196,7 @@ export default function Composer({ onSend, onInterrupt, onSearchFiles, sendContr
           <input
             ref={fileRef}
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/gif,image/webp"
             multiple
             className="hidden"
             onChange={(e) => {

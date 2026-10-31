@@ -6,7 +6,7 @@
 
 **[English](#english)** | 中文
 
-基于官方 Agent SDK 随包的 **Claude Code runtime**，提供本地图形客户端。配置按所选来源和原生能力加载；终端专属操作有明确边界。
+基于官方 Agent SDK 随包的 **Claude Code runtime**，提供本地图形客户端。配置按所选来源和原生能力加载；常用操作提供 GUI，原生 TUI 与 CLI 参数/管道可在顶栏「原生终端」中操作；完整覆盖的状态见能力矩阵。
 
 [![npm](https://img.shields.io/npm/v/ccweb-console?color=CC785C&label=npm&logo=npm)](https://www.npmjs.com/package/ccweb-console)
 [![license](https://img.shields.io/badge/license-MIT-7BA05B)](#license)
@@ -14,7 +14,7 @@
 
 `npx ccweb-console` → 打开 `http://127.0.0.1:3477`，就这么简单。
 
-![ccweb V2 实际界面](https://github.com/TimeCraker/ccweb/blob/main/docs/screenshots/v2-workbench.png)
+![ccweb V2 实际界面](docs/screenshots/v2-workbench.png)
 
 </div>
 
@@ -44,6 +44,7 @@
 | ⌨️ | **补全** | `/` 斜杠命令（含自定义 skills）、`@` 工作区文件路径 |
 | ⚙️ | **全图形设置** | 九类配置中心；Skills / Commands / 规则原生文件编辑、来源筛选、差异确认、冲突检测、备份；MCP / Hooks 配置与诊断 |
 | 🌓 | **双主题 · 中英双语** | 默认跟随系统；进程内会话快照重建与请求回执 |
+| ▣ | **原生终端** | xterm + Windows ConPTY；固定随包二进制、独立进程、标签页能力令牌、断线恢复；CLI 参数与 stdin 管道 |
 | 💾 | **一键导出** | 完整对话含工具调用，导出 Markdown |
 
 ## 快速开始
@@ -87,11 +88,11 @@ pnpm check    # lint + typecheck + test + build 质量门
 
 | 工作台 | 配置管理 |
 |---|---|
-| ![实际工作台](https://github.com/TimeCraker/ccweb/blob/main/docs/screenshots/v2-workbench.png) | ![Skills 编辑](https://github.com/TimeCraker/ccweb/blob/main/docs/screenshots/v2-settings.png) |
+| ![实际工作台](docs/screenshots/v2-workbench.png) | ![Skills 编辑](docs/screenshots/v2-settings.png) |
 
-![审批与常驻指标](https://github.com/TimeCraker/ccweb/blob/main/docs/screenshots/v2-approval.png)
+![审批与常驻指标](docs/screenshots/v2-approval.png)
 
-截图来自实际浏览器。审批图使用确定性 SDK 模拟；真实模型证据和限制见 [产品诊断的 V2 验收](https://github.com/TimeCraker/ccweb/blob/main/docs/PRODUCT_AUDIT.md#v2-实施与验收2026-10-31)。
+截图来自 Stage 6.5 实际浏览器界面，TC 品牌与个人主站统一。运行和审批图使用明确标注的确定性 SDK 模拟，指标不代表真实模型表现；真实模型证据和限制见 [产品诊断的 V2 验收](docs/PRODUCT_AUDIT.md#v2-实施与验收2026-10-31)。
 
 <details>
 <summary>Troubleshooting</summary>
@@ -114,7 +115,7 @@ MIT © TimeCraker
 
 English | **[中文](#它解决什么问题)**
 
-**ccweb** is a professional, open-source web console for Claude Code — built on the official **Claude Agent SDK**, it drives a real Claude Code runtime behind a full GUI. Configuration follows the selected native setting sources and runtime capabilities; terminal-only actions remain explicit.
+**ccweb** is a professional, open-source web console for Claude Code — built on the official **Claude Agent SDK**, it drives a real Claude Code runtime behind a full GUI. Configuration follows the selected native setting sources and runtime capabilities; an embedded native terminal carries TUI operations with explicit process ownership and version boundaries.
 
 ```bash
 npx ccweb-console   # Node 20+; bundles its own claude binary
@@ -139,7 +140,9 @@ Open `http://127.0.0.1:3477`. Endpoint credentials come from your environment (`
 - 会话显式采用官方 `claude_code` 系统提示预设，避免 SDK 精简默认值造成行为差异。
 - 模型、权限支持原生热切；端点、effort、配置来源对新会话生效。界面同时保留默认值和当前会话快照。
 - 自动模式按运行时、模型和账号支持情况确认；不映射为跳过审批。运行一切需明确开启，服务重启后恢复手动审批。
-- `/plan`、`/model`、`/clear`、`/new`、`/settings`、`/mcp`、`/help` 为 GUI 操作；发现的原生命令交给 SDK。登录、终端设置、安装升级等操作需终端。
+- `/plan`、`/model`、`/effort`、`/clear`、`/new`、`/settings`、`/mcp`、`/permissions`、`/memory`、`/context`、`/tasks`、`/rewind` 等对应 GUI 入口；发现的原生命令交给 SDK。登录与终端专属操作使用 ccweb 内的原生终端，账号授权仍需本人完成。随包二进制始终锁定，版本不符拒绝启动；升级须更新精确 SDK、能力矩阵与回归后重新安装/启动，不自动改全局 CLI。
+- 原生交互能够切换目录/恢复会话，因此 SDK 与原生执行在本服务整体互斥。启动 SDK 前还会核对原生后台会话，存在后台写入时要求先在 ccweb 内处理。
+- 操作覆盖与未验项见 [版本能力矩阵](docs/NATIVE_CAPABILITY_MATRIX.md)；执行状态见 [A–G Spec](docs/EXECUTION_HANDOFF.md)。模拟测试、真实模型与人工视觉/登录验收分别记录，未验不计完成。
 - 费用为 SDK 估算，输出速度不包含请求之间的工具或审批等待。没有完整样本时不显示伪造数值；旧历史无统计时显示未记录。
 - Dependabot 每周提出升级 PR；CI 验证契约、原生二进制、浏览器和实际 tarball 安装。配置提交到默认分支后才会在 GitHub 生效，不能保证未来任何上游版本自动兼容。
 

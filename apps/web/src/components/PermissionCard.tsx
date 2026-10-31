@@ -15,6 +15,7 @@ const DANGEROUS = /\b(rm\s+-rf|del\s+\/[sq]|format|mkfs|shutdown|reboot|git\s+pu
 export default function PermissionCard({ onResolve }: Props) {
   const permissions = useStore((s) => s.permissions)
   useLocale()
+  const baselines = useStore(s => s.fileBaselines)
   const entries = useStore(s => s.entries)
   const currentText = currentTurn(entries)?.blocks.filter(b => b.kind === "text").map(b => b.kind === "text" ? b.text : "").join("\n") ?? ""
   const p = permissions[permissions.length - 1]
@@ -52,6 +53,8 @@ export default function PermissionCard({ onResolve }: Props) {
             {command}
           </pre>
         )}
+        {p.toolName === 'Write' && typeof p.input.content === 'string' && <><p className="mt-2 text-xs">{baselines[p.requestId]?.existed === false ? '新建文件' : baselines[p.requestId]?.existed === true ? '写入前原文件与待执行内容' : '原文件基线未知，仅展示待写入正文'}</p><DiffView oldStr={baselines[p.requestId]?.content ?? ''} newStr={p.input.content} /></>}
+        {p.toolName === 'MultiEdit' && Array.isArray(p.input.edits) && p.input.edits.map((edit: Record<string, unknown>, index: number) => <DiffView key={index} oldStr={String(edit.old_string ?? '')} newStr={String(edit.new_string ?? '')} />)}
         {isEdit && <DiffView oldStr={oldStr} newStr={newStr} className="mt-3" />}
         {p.toolName !== 'ExitPlanMode' && !command && !isEdit && !file && (
           <pre className="mt-3 max-h-40 overflow-auto rounded-lg border border-border bg-bg px-3 py-2 font-mono text-xs text-text-dim">

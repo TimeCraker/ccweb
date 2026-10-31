@@ -1,15 +1,11 @@
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { assertVerifiedRuntime, bundledBinary } from './runtime.js'
+export { bundledBinary } from './runtime.js'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { spawn as spawnPty, type IPty } from 'node-pty'
 import { spawn as spawnChild, spawnSync } from 'node:child_process'
 import type { WebSocket } from 'ws'
 import { buildAgentEnv } from './agent.js'
 
-export function bundledBinary(): string {
-  const require = createRequire(import.meta.resolve('@anthropic-ai/claude-agent-sdk'))
-  return join(dirname(require.resolve(`@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/package.json`)), process.platform === 'win32' ? 'claude.exe' : 'claude')
-}
 export const terminalActions = {
   custom: [], interactive: [], help: ['--help'], doctor: ['doctor'], auth: ['auth', 'status', '--text'],
   login: ['auth', 'login'], mcp: ['mcp', 'list'], plugins: ['plugin', 'list'], agents: ['agents', '--json'],
@@ -27,6 +23,7 @@ export function nativeWorkspaceBusy(_workspace: string): boolean {
   return [...sessions.values()].some(s => s.exit === null)
 }
 export function startNative(workspace: string, action: string, extraArgs: string[] = [], stdin = ''): { id: string; token: string } {
+  assertVerifiedRuntime()
   if (!Object.hasOwn(terminalActions, action)) throw new Error('未知原生操作')
   if (!Array.isArray(extraArgs) || extraArgs.length > 128 || extraArgs.some(arg => typeof arg !== 'string' || arg.length > 8192 || arg.includes('\0')) || typeof stdin !== 'string' || Buffer.byteLength(stdin) > 1024 * 1024) throw new Error('无效 CLI 参数或输入（最大 1 MiB）')
   if (action === 'custom' && ['install', 'update', 'upgrade'].includes(extraArgs[0] ?? '')) throw new Error('此操作会更换安装版本；随包运行时通过精确 SDK 依赖升级与重启维护')

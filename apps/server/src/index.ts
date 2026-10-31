@@ -10,8 +10,8 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
 import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
-import { forkSession } from '@anthropic-ai/claude-agent-sdk'
-import { AgentSession } from './agent.js'
+import { forkSession, query } from '@anthropic-ai/claude-agent-sdk'
+import { AgentSession, buildAgentEnv } from './agent.js'
 import { fetchHistory, listSessionMetas, renameSessionMeta, deleteSessionMeta } from './sessions.js'
 import { searchWorkspaceFiles } from './files.js'
 import {
@@ -38,6 +38,37 @@ const PKG_VERSION = String(
 const app = new Hono()
 app.use(logger())
 app.route('/api', configApi)
+app.post('/api/connection/probe', async c => {
+  const origin = c.req.header('origin')
+  if (origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin ?? '')) return c.json({ error: 'Origin rejected' }, 403)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30000)
+  const began = Date.now()
+  try {
+    const body = await c.req.json<{ workspace?: string }>()
+    const workspace = workspacePath(body.workspace)
+    if (nativeWorkspaceBusy(workspace)) return c.json({ error: '请先结束原生进程' }, 409)
+    let model: string | null = null, output = '', failure: string | null = null, cost: number | null = null, succeeded = false
+    const probe = query({ prompt: 'Reply exactly CCWEB_CONNECTION_OK. Do not use tools.', options: { cwd: workspace, model: runtimeSettings.model ?? undefined, env: buildAgentEnv(), tools: [], mcpServers: {}, settingSources: [], persistSession: false, permissionMode: 'default', maxTurns: 1, maxBudgetUsd: 0.05, abortController: controller } })
+    try {
+      for await (const event of probe) {
+        const message = event as unknown as Record<string, unknown>
+        if (message.type === 'system' && message.subtype === 'init') model = String(message.model ?? '')
+        if (message.type === 'assistant') {
+          if (message.error) failure = String(message.error)
+          for (const block of (message.message as { content?: Array<{ type: string; text?: string }> })?.content ?? []) if (block.type === 'text') output += block.text ?? ''
+        }
+        if (message.type === 'result') { succeeded = message.subtype === 'success' && message.is_error !== true; if (typeof message.total_cost_usd === 'number') cost = message.total_cost_usd }
+      }
+    } finally { probe.close() }
+    const ok = succeeded && !failure && output.includes('CCWEB_CONNECTION_OK')
+    return c.json({ ok, model, elapsedMs: Date.now() - began, estimatedCostUsd: cost, category: ok ? 'connected' : failure ?? 'unexpected_response', retried: false })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const category = controller.signal.aborted ? 'timeout_or_cancelled' : /401|403|auth|credential/i.test(message) ? 'authentication_or_model_permission' : /429|quota|credit|balance/i.test(message) ? 'quota_or_rate_limit' : /ENOENT|binary|spawn/i.test(message) ? 'runtime_installation' : 'network_or_runtime'
+    return c.json({ ok: false, category, elapsedMs: Date.now() - began, retried: false })
+  } finally { clearTimeout(timeout) }
+})
 app.post('/api/native/start', async c => {
   const origin = c.req.header('origin')
   if (origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin ?? '')) return c.json({ error: 'Origin rejected' }, 403)
@@ -324,6 +355,13 @@ wss.on('connection', (ws) => {
           try {
             const metricFiles = readdirSync(join(APP_DIR, 'metrics', openId)).filter(name => /^[a-f0-9-]{36}\.json$/i.test(name))
             const all = metricFiles.map(name => JSON.parse(readFileSync(join(APP_DIR, 'metrics', openId, name), 'utf8'))).sort((a, b) => b.runStartedAt - a.runStartedAt)
+            try {
+              const baselineFiles = readdirSync(join(APP_DIR, 'changes', openId)).filter(name => /^[a-f0-9-]{36}\.json$/i.test(name))
+              for (const file of baselineFiles) {
+                const baselines = JSON.parse(readFileSync(join(APP_DIR, 'changes', openId, file), 'utf8')) as Record<string, { content: string | null; existed: boolean | null; reason?: string }>
+                for (const [toolUseId, baseline] of Object.entries(baselines)) emit({ t: 'file.baseline', seq: 0, sessionId: openId, toolUseId, baseline })
+              }
+            } catch { /* Old histories have no captured Write baseline. */ }
             if (all[0]?.completedAt) emit({ t: 'metrics', seq: 0, sessionId: openId, metrics: all[0] })
             else if (all[0]) emit({ t: 'error', seq: 0, code: 'run_interrupted', message: '上次运行未记录终态，服务可能重启；不会自动重新执行。请检查文件和历史。' })
           } catch { /* No saved metrics; show unrecorded. */ }

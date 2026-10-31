@@ -2,6 +2,8 @@
 
 export interface SessionMetrics {
   requests?: Array<{ requestId: string; role: 'main' | 'subagent'; parentToolUseId?: string; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  queueWaitMs?: number
+  retries?: Array<{ id: string; attempt: number; delayMs: number; errorStatus: number | null }>
   approvalWaitMs?: number
   toolTimes?: Record<string, number>
   nativeTiming?: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown }
@@ -51,6 +53,8 @@ export interface SettingsSnapshot {
 }
 
 export interface ServerMessage {
+  images?: string[]
+  baseline?: { content: string | null; existed: boolean | null; reason?: string }
   runId?: string
   preview?: boolean
   result?: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number }

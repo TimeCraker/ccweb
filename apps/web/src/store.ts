@@ -79,6 +79,7 @@ export interface ContextUsage {
 }
 
 interface AppState {
+  attachmentDraft: boolean
   conn: ConnState
   lastAck: { id: string; ok: boolean } | null
   sessionId: string | null
@@ -98,6 +99,7 @@ interface AppState {
   /** 上一轮完成时的统计(turn 尾渲染) */
   lastTurnStats: { totalS: number; ttftMs: number | null; tps: number | null } | null
   settings: SettingsSnapshot | null
+  fileBaselines: Record<string, { content: string | null; existed: boolean | null; reason?: string }>
   nativeTasks: Array<{ id: string; runId?: string; status: string; description: string; summary?: string }>
   checkpoints: Array<{ id: string; text: string }>
   rewind: { preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } } | null
@@ -120,7 +122,7 @@ interface AppState {
   setSlashCommands: (list: Array<{ name: string; description: string }>) => void
   setFileResults: (files: string[]) => void
   setQueue: (items: Array<{ uuid: string; text: string }>) => void
-  appendUser: (text: string, nativeUuid?: string) => void
+  appendUser: (text: string, nativeUuid?: string, images?: string[]) => void
   onBlockStart: (ev: { blockType: 'thinking' | 'text' | 'tool_use'; index: number; toolUseId?: string; toolName?: string }) => void
   onDelta: (ev: { kind: 'text' | 'thinking' | 'tool_input'; text: string; toolUseId?: string }) => void
   onBlockStop: (index: number) => void
@@ -143,6 +145,7 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
+  attachmentDraft: false,
   conn: 'connecting',
   lastAck: null,
   sessionId: null,
@@ -159,7 +162,7 @@ export const useStore = create<AppState>((set) => ({
   turnStartedAt: null,
   lastTurnStats: null,
   settings: null,
-  nativeTasks: [], checkpoints: [], rewind: null,
+  fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null,
   runtimeDiagnostics: [],
   availableModels: [],
   mcpServers: [],
@@ -176,9 +179,9 @@ export const useStore = create<AppState>((set) => ({
   setSlashCommands: (slashCommands) => set({ slashCommands }),
   setFileResults: (fileResults) => set({ fileResults }),
   setQueue: (queue) => set({ queue }),
-  appendUser: (text, nativeUuid) =>
+  appendUser: (text, nativeUuid, images) =>
     set((s) => ({
-      entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text, nativeUuid }],
+      entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text, nativeUuid, images }],
       busy: true,
       turnStartedAt: Date.now(),
       lastTurnStats: null,
@@ -218,7 +221,7 @@ export const useStore = create<AppState>((set) => ({
   /** 历史回放:顺序跑渲染模型(与实时流同构--一条用户消息一个 turn,
    * assistant 消息经对账追加,tool_result 回填;新用户消息前收束上一 turn) */
   replayHistory: (messages) => {
-    set({ nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
+    set({ fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null })
     for (const raw of messages) {
       const m = raw as { type?: string; uuid?: string; ccwebMetrics?: SessionMetrics; message?: { content?: unknown } } | null
       if (!m?.type) continue
@@ -226,6 +229,7 @@ export const useStore = create<AppState>((set) => ({
       if (m.type === 'user') {
         const content = m.message?.content
         const texts: string[] = []
+        const images: string[] = []
         let hasToolResult = false
         let interruptedMarker = false
         if (typeof content === 'string') {
@@ -233,12 +237,13 @@ export const useStore = create<AppState>((set) => ({
         } else if (Array.isArray(content)) {
           for (const c of content) {
             if (c && typeof c === 'object' && 'type' in c) {
-              const block = c as { type: string; text?: unknown }
+              const block = c as { type: string; text?: unknown; source?: { type?: string; media_type?: string; data?: string } }
               if (block.type === 'text' && typeof block.text === 'string') {
                 // SDK 中断标记回放为中性提示行,不当用户消息渲染
                 if (block.text === '[Request interrupted by user]') interruptedMarker = true
                 else texts.push(block.text)
               }
+              if (block.type === 'image' && block.source?.type === 'base64' && ['image/png','image/jpeg','image/webp','image/gif'].includes(block.source.media_type ?? '')) images.push(`data:${block.source.media_type};base64,${block.source.data}`)
               if (block.type === 'tool_result') hasToolResult = true
             }
           }
@@ -259,7 +264,7 @@ export const useStore = create<AppState>((set) => ({
           useStore.setState({ metrics: m.ccwebMetrics ?? null, turnStartedAt: m.ccwebMetrics?.runStartedAt ?? null })
           for (const t of texts) {
             useStore.setState((s) => ({
-              entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t, nativeUuid: m.uuid }],
+              entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t, nativeUuid: m.uuid, images }],
             }))
           }
         }
@@ -269,7 +274,7 @@ export const useStore = create<AppState>((set) => ({
     }
     useStore.getState().finishTurn()
   },
-  clearView: () => set({ nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
+  clearView: () => set({ fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], permissions: [], question: null, error: null, busy: false, metrics: null, context: null, turnStartedAt: null, queue: [] }),
   setMetrics: (metrics) => set(s => ({ metrics, ...(s.busy && metrics.runStartedAt ? { turnStartedAt: metrics.runStartedAt } : {}) })),
   setContext: (raw) => set({ context: { raw } }),
   pushPermission: (p) => set((s) => ({ permissions: [...s.permissions.filter(item => item.requestId !== p.requestId), p] })),

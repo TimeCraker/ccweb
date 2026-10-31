@@ -266,4 +266,7 @@ Stage 6.6 第一单元：pnpm check 通过（45 项），Edge 19/19；新增逐�
 - [x] A/C/D 增量：父级与托管指令只读发现、Skill 原生可选元数据、MCP/Hooks 结构校验、冲突比较与显式基线选择、结果分层摘要、MCP 运行重连/启停、原生模型发现、Hook 事件诊断。等待增量浏览器及真集成，不据此关闭整包。
 - [x] D 真实源码集成：GUI 配置本地 stdio MCP 与 SessionStart Hook，真实 GLM-5.3 调用 Skill→ToolSearch→MCP echo 成功；Hook 返回 success/0 并写隔离标记，MCP 原生状态 connected→disabled→connected，重连成功。不同提交的最终安装仍待复验。
 - [x] C/E 增量：原生后台任务与停止、文件回退预览/确认、精确用户消息 UUID 分叉、权限规则与附加目录原生分区编辑、原生 CLI 参数与真实 stdin 管道。模型/Hook 来源与状态分层，需继续浏览器与安装验收。
+- [x] D/C 真实失败与取消：可控 MCP 返回 failed/Connection closed；SessionStart Hook 返回 error/2，模型轮次成功与配置执行失败分开呈现；30 秒 Hook 在约 4.3 秒被停止并终结为 cancelled，无模型完成结果。
+- [x] C 追加保护：Write 写入前原文基线与逐项 MultiEdit 审批差异；审批期间检测原文件变化并拒绝覆盖，保存与恢复基线；附件发送等待回执、导航放弃确认和消息内恢复；55 项单元/协议待最终质量门。
+- [ ] F 原生缩放由 Windows Computer Use 阻塞：工具无法可靠识别当前 URL，已停止 Windows 窗口操作。CSS zoom 回归不计原生缩放。
 - [ ] A–G 全量闭包及同版本最终验收。

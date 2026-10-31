@@ -1,3 +1,4 @@
+import Lightbox from './Lightbox'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso'
 import { useStore, visibleEntries } from '../store'
@@ -66,7 +67,7 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
           <div className="px-6 py-1.5">
             <div className="message-column">
               {e.type === 'user' ? (
-                <UserRow key={e.id} text={e.text} onFork={e.nativeUuid && onForkFromMessage ? () => onForkFromMessage(e.nativeUuid!) : undefined} />
+                <UserRow key={e.id} text={e.text} images={e.images} onFork={e.nativeUuid && onForkFromMessage ? () => onForkFromMessage(e.nativeUuid!) : undefined} />
               ) : e.type === 'turnError' ? (
                 <TurnErrorRow key={e.id} text={e.text} muted={e.muted} />
               ) : (
@@ -136,7 +137,8 @@ function RunningTimer({ startedAt }: { startedAt: number }) {
 }
 
 /** 用户消息:`/命令` `@提及` chip 化装饰(dsh projectUserText 对齐);hover 可复制/分叉 */
-function UserRow({ text, onFork }: { text: string; onFork?: () => void }) {
+function UserRow({ text, onFork, images }: { text: string; onFork?: () => void; images?: string[] }) {
+  const [image, setImage] = useState<string | null>(null)
   useLocale()
   return (
     <div className="user-message animate-msg-in group flex justify-end"><span className="message-avatar user-avatar" aria-hidden="true">U</span>
@@ -159,6 +161,8 @@ function UserRow({ text, onFork }: { text: string; onFork?: () => void }) {
           return <span key={i}>{tok}</span>
         })}
       </div>
+      {images?.map((src, index) => <button key={index} onClick={() => setImage(src)} aria-label={`查看消息附件 ${index + 1}`}><img src={src} alt={`消息附件 ${index + 1}`} className="size-16 rounded-md object-cover" /></button>)}
+      {image && <Lightbox src={image} onClose={() => setImage(null)} />}
       {onFork && (
         <button
           onClick={onFork}

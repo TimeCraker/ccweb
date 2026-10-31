@@ -14,7 +14,7 @@ export const clientMessageSchema = z.discriminatedUnion('t', [
     sessionId: z.string().optional(),
     text: z.string().min(1),
     /** 附件图片(data:image/png;base64,…) */
-    images: z.array(z.string()).optional(),
+    images: z.array(z.string().max(7 * 1024 * 1024).regex(/^data:image\/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/)).max(5).optional(),
   }),
   z.object({ t: z.literal('interrupt') }),
   z.object({ t: z.literal('abort') }),
@@ -63,7 +63,7 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>
 // ---------- S→C ----------
 
 export type ServerMessage =
-  | { t: 'accepted'; seq: number; sessionId: string; runId: string; text: string }
+  | { t: 'accepted'; seq: number; sessionId: string; runId: string; text: string; images?: string[] }
   | { t: 'state'; seq: number; sessionId: string; state: string }
   | { t: 'ack'; seq: number; requestId: string; ok: boolean }
 
@@ -113,6 +113,7 @@ export type ServerMessage =
   | { t: 'queue'; seq: number; items: Array<{ uuid: string; text: string }> }
   | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
   | { t: 'settings'; seq: number; settings: SettingsSnapshot }
+  | { t: 'file.baseline'; seq: number; sessionId: string; toolUseId: string; baseline: { content: string | null; existed: boolean | null; reason?: string } }
   | { t: 'rewind'; seq: number; preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } }
   | { t: 'models'; seq: number; models: Array<{ value: string; displayName: string; description: string }> }
   | { t: 'mcpStatus'; seq: number; servers: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }> }
@@ -155,6 +156,8 @@ export interface SettingsSnapshot {
 /** 底栏指标条(SPEC §5 口径) */
 export interface SessionMetrics {
   requests?: Array<{ requestId: string; role: 'main' | 'subagent'; parentToolUseId?: string; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
+  queueWaitMs?: number
+  retries?: Array<{ id: string; attempt: number; delayMs: number; errorStatus: number | null }>
   approvalWaitMs?: number
   toolTimes?: Record<string, number>
   nativeTiming?: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown }

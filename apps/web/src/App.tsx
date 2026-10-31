@@ -94,13 +94,16 @@ export default function App() {
           useStore.setState({ lastAck: { id: msg.requestId, ok: msg.ok === true } })
           break
         }
+        case 'file.baseline':
+          if (msg.toolUseId && msg.baseline) useStore.setState({ fileBaselines: { ...s.fileBaselines, [msg.toolUseId]: msg.baseline } })
+          break
         case 'rewind':
           if (msg.result) useStore.setState({ rewind: { preview: !!msg.preview, result: msg.result } })
           break
         case 'accepted':
           if (msg.runId && msg.text) useStore.setState({ checkpoints: [...s.checkpoints.filter(item => item.id !== msg.runId), { id: msg.runId, text: msg.text.slice(0, 80) }] })
           if (msg.sessionId && msg.sessionId !== s.sessionId) s.applyInit({ sessionId: msg.sessionId, model: s.model, endpoint: s.endpoint })
-          if (msg.text) s.appendUser(msg.text, msg.runId)
+          if (msg.text) s.appendUser(msg.text, msg.runId, msg.images)
           break
         case 'state':
           if (msg.state === 'cancelled' || msg.state === 'failed') s.finishTurn()
@@ -299,7 +302,6 @@ export default function App() {
   const interrupt = () => {
     sendControl({ t: 'interrupt' })
     useStore.getState().setInterrupted(true)
-    useStore.getState().setBusy(false)
   }
   const resolvePermission = (requestId: string, allow: boolean, always = false) => {
     sendControl({ t: 'permission.resolve', requestId, allow, always })
@@ -312,11 +314,14 @@ export default function App() {
   ) => {
     sendControl({ t: 'permission.resolve', requestId, allow, updatedInput })
   }
+  const confirmAttachmentNavigation = () => !useStore.getState().attachmentDraft || window.confirm('切换会话或工作区将放弃尚未发送的图片附件；文字草稿会保留。是否继续？')
   const openSession = (id: string, fork = false) => {
+    if (!confirmAttachmentNavigation()) return
     // 生成中先中断(同新建会话保护)
     sendControl({ t: 'session.open', sessionId: id, fork })
   }
   const newSession = () => {
+    if (!confirmAttachmentNavigation()) return
     // 生成中先中断,避免直接丢弃进行中的回合
     sendControl({ t: 'session.new' })
   }
@@ -388,6 +393,7 @@ export default function App() {
   )
 
   const setWorkspace = (dir: string) => {
+    if (!confirmAttachmentNavigation()) return
     sendControl({ t: 'workspace.set', dir })
   }
 

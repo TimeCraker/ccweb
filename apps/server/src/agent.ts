@@ -1,8 +1,9 @@
 import { StreamMetrics } from './stream-metrics.js'
+import { assertVerifiedRuntime, assertNoNativeBackground } from './runtime.js'
 import { atomicWrite } from './config-api.js'
 import { APP_DIR } from './settings.js'
-import { mkdirSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
+import { join, relative, resolve, sep } from 'node:path'
 import { query } from '@anthropic-ai/claude-agent-sdk'
 import type {
   Query,
@@ -164,6 +165,11 @@ export class AgentSession {
   private readonly childStreams = new Map<string, StreamMetrics>()
   private readonly permissionWaits = new Map<string, number>()
   private approvalWaitMs = 0
+  private queueWaitMs = 0
+  private retries: Array<{ id: string; attempt: number; delayMs: number; errorStatus: number | null }> = []
+  private readonly baselinePaths = new Map<string, string>()
+  private readonly fileBaselines: Record<string, { content: string | null; existed: boolean | null; reason?: string }> = {}
+  private readonly seenResults = new Set<string>()
   private nativeToolTimes = new Map<string, number>()
   private runId: string | null = null
   private runStartedAt = 0
@@ -176,7 +182,7 @@ export class AgentSession {
   private childPid: number | null = null
   /** 排队未处理的消息(dsh QueueDock 对齐:可见、可撤销)+ 当前 turn 状态 */
   private turnActive = false
-  private readonly pendingQueue: Array<{ uuid: string; summary: string; content: UserContentBlock[] }> = []
+  private readonly pendingQueue: Array<{ uuid: string; summary: string; content: UserContentBlock[]; queuedAt: number }> = []
 
   sessionId: string | null = crypto.randomUUID()
   private paused = false
@@ -201,6 +207,8 @@ export class AgentSession {
   /** 首次调用时启动底层 query(流式输入模式,常驻多轮) */
   ensureStarted(): void {
     if (this.started) return
+    assertVerifiedRuntime()
+    assertNoNativeBackground(buildAgentEnv(this.settings))
     this.started = true
     void this.run()
   }
@@ -229,12 +237,12 @@ export class AgentSession {
     // turn 结束(result)后才 flush 下一条
     if (resumeNewRequest && !this.turnActive) {
       // A new explicit prompt runs first; interrupted backlog stays paused afterwards.
-      this.pendingQueue.unshift({ uuid, summary, content })
+      this.pendingQueue.unshift({ uuid, summary, content, queuedAt: Date.now() })
       this.paused = false
       this.flushNext()
       this.paused = true
     } else {
-      this.pendingQueue.push({ uuid, summary, content })
+      this.pendingQueue.push({ uuid, summary, content, queuedAt: Date.now() })
       this.emitQueue()
       if (!this.turnActive) this.flushNext()
     }
@@ -252,6 +260,9 @@ export class AgentSession {
     this.turnActive = true
     this.runId = next.uuid
     this.runStartedAt = Date.now()
+    for (const key of Object.keys(this.fileBaselines)) delete this.fileBaselines[key]
+    this.baselinePaths.clear()
+    this.queueWaitMs = Math.max(0, this.runStartedAt - next.queuedAt); this.retries = []
     this.completedAt = null
     this.terminalStatus = 'running'
     this.streamMetrics.begin(this.runStartedAt)
@@ -269,7 +280,7 @@ export class AgentSession {
       uuid: next.uuid,
       timestamp: new Date().toISOString(),
     } as SDKUserMessage
-    this.emit({ t: "accepted", seq: 0, sessionId: this.sessionId ?? "", text: next.content.filter(c => c.type === "text").map(c => c.text).join("\n"), runId: next.uuid })
+    this.emit({ t: "accepted", seq: 0, sessionId: this.sessionId ?? "", text: next.content.filter(c => c.type === "text").map(c => c.text).join("\n"), runId: next.uuid, images: next.content.flatMap(c => c.type === 'image' ? [`data:${c.source.media_type};base64,${c.source.data}`] : []) })
     this.acc.ttftMs = null
     this.acc.tokensPerSecond = null
     this.acc.turns += 1
@@ -282,7 +293,16 @@ export class AgentSession {
     this.paused = true
     this.terminalStatus = 'cancelled'
     this.gate.cancelAll()
-    await this.q?.interrupt()
+    if (this.q) {
+      // Initialization hooks or a wedged native control request must not hold Stop forever.
+      await new Promise<void>(resolve => {
+        let settled = false
+        const finish = () => { if (settled) return; settled = true; clearTimeout(timer); resolve() }
+        const stopNative = () => { if (settled) return; this.abortController.abort(); this.killTree(); finish() }
+        const timer = setTimeout(stopNative, 4000)
+        void this.q!.interrupt().then(finish, stopNative)
+      })
+    }
     this.turnActive = false
     this.completedAt = Date.now()
     this.terminalStatus = 'cancelled'
@@ -397,6 +417,18 @@ export class AgentSession {
     always = false,
     updatedInput?: Record<string, unknown>,
   ): Promise<boolean> {
+    const baseline = this.fileBaselines[requestId], file = this.baselinePaths.get(requestId)
+    if (allow && this.gate.toolName(requestId) === 'Write' && file && baseline?.existed !== null && baseline?.existed !== undefined) {
+      let same = false
+      try {
+        const actual = realpathSync(file), rel = relative(realpathSync(this.workspace), actual)
+        if (rel !== '..' && !rel.startsWith(`..${sep}`) && !rel.includes(':') && !rel.startsWith(sep) && statSync(actual).size <= 1024 * 1024) same = baseline.existed === true && readFileSync(actual, 'utf8') === baseline.content
+      } catch (error) { same = (error as NodeJS.ErrnoException).code === 'ENOENT' && baseline.existed === false }
+      if (!same) {
+        this.emit({ t: 'error', seq: 0, code: 'file_conflict', message: '审批期间原文件发生变化或无法确认基线，已拒绝本次 Write。请让模型重新读取并审查差异；未覆盖用户文件。', retry: false })
+        return this.gate.resolve(requestId, false, false)
+      }
+    }
     if (allow && this.gate.toolName(requestId) === "ExitPlanMode") await this.applySettings({ permissionMode: "default" })
     const ok = this.gate.resolve(requestId, allow, always, updatedInput)
     return ok
@@ -443,6 +475,22 @@ export class AgentSession {
             ctx: { toolUseID: string; title?: string; description?: string; signal?: AbortSignal },
           ): Promise<PermissionResult> => {
             const { toolUseID } = ctx
+            if (toolName === 'Write' && typeof input.file_path === 'string') {
+              let baseline: { content: string | null; existed: boolean | null; reason?: string } = { content: null, existed: null, reason: '原文件不可读取或不在当前工作区' }
+              try {
+                const file = resolve(this.workspace, input.file_path), root = realpathSync(this.workspace), rel = relative(root, file)
+                if (rel !== '..' && !rel.startsWith(`..${sep}`) && !rel.includes(':') && !rel.startsWith(sep)) {
+                  try {
+                    const actual = realpathSync(file), realRel = relative(root, actual)
+                    if (realRel !== '..' && !realRel.startsWith(`..${sep}`) && !realRel.includes(':') && !realRel.startsWith(sep) && statSync(actual).isFile() && statSync(actual).size <= 1024 * 1024) baseline = { content: readFileSync(actual, 'utf8'), existed: true }
+                  } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') baseline = { content: '', existed: false } }
+                }
+              } catch { /* No arbitrary path fallback. */ }
+              this.baselinePaths.set(toolUseID, resolve(this.workspace, input.file_path))
+              this.fileBaselines[toolUseID] = baseline
+              this.emit({ t: 'file.baseline', seq: 0, sessionId: this.sessionId ?? '', toolUseId: toolUseID, baseline })
+              if (this.runId && this.sessionId) try { atomicWrite(join(APP_DIR, 'changes', this.sessionId, `${this.runId}.json`), JSON.stringify(this.fileBaselines)) } catch { /* Baseline persistence must not interrupt approval. */ }
+            }
             return this.gate.wait(toolUseID, toolName, input, (id, name, inp) => {
               this.permissionWaits.set(id, Date.now())
               this.emit({
@@ -533,7 +581,11 @@ export class AgentSession {
 
     if (type === 'tool_progress' && typeof msg.tool_use_id === 'string' && typeof msg.elapsed_time_seconds === 'number') this.nativeToolTimes.set(msg.tool_use_id, Math.max(0, msg.elapsed_time_seconds * 1000))
     if (type === 'assistant' && typeof msg.error === 'string') this.modelError = msg.error
+    if (type === 'system' && subtype === 'api_retry' && typeof msg.uuid === 'string' && !this.retries.some(sample => sample.id === msg.uuid)) this.retries.push({ id: msg.uuid, attempt: Number(msg.attempt), delayMs: Number(msg.retry_delay_ms), errorStatus: typeof msg.error_status === 'number' ? msg.error_status : null })
     if (type === 'result') {
+      const resultId = typeof msg.uuid === 'string' ? msg.uuid : typeof msg.user_message_uuid === 'string' ? msg.user_message_uuid : null
+      if (resultId && this.seenResults.has(resultId)) return
+      if (resultId) { this.seenResults.add(resultId); if (this.seenResults.size > 10000) this.seenResults.delete(this.seenResults.values().next().value!) }
       if (this.terminalStatus === 'cancelled') msg = { ...msg, subtype: 'cancelled', is_error: false }
       else if (this.modelError || msg.is_error === true) {
         msg = { ...msg, subtype: 'error_during_execution', is_error: true }
@@ -648,7 +700,7 @@ export class AgentSession {
 
   private emitMetrics(): void {
     if (!this.sessionId) return
-    const metrics = { ...computeMetrics(this.acc), terminalStatus: this.terminalStatus, runId: this.runId, firstContentMs: this.firstContentMs, speedScope: this.speedScope, runStartedAt: this.runStartedAt || null, completedAt: this.completedAt, sampledRequests: this.streamMetrics.summary().sampled, metricsComplete: this.streamMetrics.summary().complete, requests: [...this.streamMetrics.samples(), ...[...this.childStreams].flatMap(([parentToolUseId, stream]) => stream.samples().map(sample => ({ ...sample, role: 'subagent' as const, parentToolUseId })))], approvalWaitMs: this.approvalWaitMs + [...this.permissionWaits.values()].reduce((total, began) => total + Math.max(0, Date.now() - began), 0), toolTimes: Object.fromEntries(this.nativeToolTimes), nativeTiming: this.nativeTiming }
+    const metrics = { ...computeMetrics(this.acc), terminalStatus: this.terminalStatus, runId: this.runId, firstContentMs: this.firstContentMs, speedScope: this.speedScope, runStartedAt: this.runStartedAt || null, completedAt: this.completedAt, sampledRequests: this.streamMetrics.summary().sampled, metricsComplete: this.streamMetrics.summary().complete, requests: [...this.streamMetrics.samples(), ...[...this.childStreams].flatMap(([parentToolUseId, stream]) => stream.samples().map(sample => ({ ...sample, role: 'subagent' as const, parentToolUseId })))], approvalWaitMs: this.approvalWaitMs + [...this.permissionWaits.values()].reduce((total, began) => total + Math.max(0, Date.now() - began), 0), toolTimes: Object.fromEntries(this.nativeToolTimes), queueWaitMs: this.queueWaitMs, retries: this.retries, nativeTiming: this.nativeTiming }
     this.emit({ t: 'metrics', seq: 0, sessionId: this.sessionId, metrics })
     if (this.runId) {
       try { atomicWrite(join(APP_DIR, 'metrics', this.sessionId, `${this.runId}.json`), JSON.stringify(metrics)) } catch { /* Metrics persistence must not break execution. */ }

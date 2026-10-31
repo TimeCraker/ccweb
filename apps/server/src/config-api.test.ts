@@ -111,4 +111,16 @@ describe('native configuration persistence contracts', () => {
     expect(() => module.readResource(workspace, item.id)).toThrow('JSON 语法无效')
   })
 
+  it('updates native permission rules without changing hooks or dropping unknown fields', () => {
+    const path = join(workspace, '.claude', 'settings.local.json')
+    writeFileSync(path, JSON.stringify({ hooks: { Stop: [] }, permissions: { allow: ['Read'], extra: 'keep' } }))
+    const item = module.listResources(workspace).find(item => item.kind === 'permissions' && item.name === '权限 · 项目本地')!
+    const document = module.readResource(workspace, item.id)
+    module.writeResource(workspace, item.id, '{"allow":["Read"],"additionalDirectories":["../shared"],"extra":"keep"}', document.revision)
+    const saved = JSON.parse(readFileSync(path, 'utf8'))
+    expect(saved.hooks).toEqual({ Stop: [] })
+    expect(saved.permissions.extra).toBe('keep')
+    expect(module.validateContent('permissions', '{"allow":"Bash"}').length).toBeGreaterThan(0)
+  })
+
 })

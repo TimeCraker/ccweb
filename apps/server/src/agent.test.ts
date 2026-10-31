@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import type { Options, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { ServerMessage } from './protocol.js'
-const mock = vi.hoisted(() => ({ options: [] as Options[], mode: 'success', order: [] as string[] }))
+const mock = vi.hoisted(() => ({ options: [] as Options[], mode: 'success', order: [] as string[], rejectInterrupt: null as null | ((error: Error) => void) }))
+vi.mock('./runtime.js', () => ({ assertVerifiedRuntime: () => undefined, assertNoNativeBackground: () => undefined }))
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: ({ prompt, options }: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => {
     mock.options.push(options)
@@ -26,7 +27,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
       }
     })()
     return Object.assign(generator, {
-      interrupt: async () => { mock.order.push('interrupt') },
+      interrupt: async () => { mock.order.push('interrupt'); if (mock.mode === 'hung-interrupt') await new Promise((_resolve, reject) => { mock.rejectInterrupt = reject }) },
       close: () => undefined,
       setModel: async (model?: string) => { mock.order.push(`model:${model}`) },
       setPermissionMode: async (mode: string) => { if (mode === 'auto') throw new Error('auto unavailable'); mock.order.push(`mode:${mode}`) },
@@ -99,8 +100,21 @@ describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
     agent.send('write again')
     await vi.waitFor(() => expect(events.filter(e => e.t === 'permission.ask')).toHaveLength(2))
     await agent.interrupt()
-    expect(mock.order).toContain('deny')
+    await vi.waitFor(() => expect(mock.order).toContain('deny'))
     expect(events.some(e => e.t === 'permission.resolved' && !e.allow)).toBe(true)
+  })
+  it('rejects Write when the original file changes while approval is pending', async () => {
+    mock.mode = 'approval'
+    const events: ServerMessage[] = [], agent = new Agent(event => events.push(event), { cwd: temporary }); agents.push(agent)
+    const file = join(temporary, 'test.txt'); writeFileSync(file, 'original')
+    agent.send('write')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'permission.ask')).toBe(true))
+    expect(events.some(e => e.t === 'file.baseline' && e.baseline.content === 'original')).toBe(true)
+    writeFileSync(file, 'external change')
+    await agent.resolvePermission('approval-test', true)
+    await vi.waitFor(() => expect(mock.order).toContain('deny'))
+    expect(events.some(e => e.t === 'error' && e.code === 'file_conflict')).toBe(true)
+    expect(readFileSync(file, 'utf8')).toBe('external change')
   })
   it('rebuilds the query after a crash without resubmitting the failed prompt', async () => {
     mock.mode = 'crash'
@@ -141,6 +155,22 @@ describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
     expect(events.filter(e => e.t === 'cleared')).toHaveLength(1)
   })
 
+  it('bounds a hung interrupt and ignores a late rejection after cancellation', async () => {
+    mock.mode = 'hung-interrupt'
+    const events: ServerMessage[] = [], agent = create(events)
+    agent.send('hello')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'init')).toBe(true))
+    vi.useFakeTimers()
+    try {
+      const stopping = agent.interrupt()
+      await vi.advanceTimersByTimeAsync(4001)
+      await stopping
+      expect(mock.options[0]?.abortController?.signal.aborted).toBe(true)
+      mock.rejectInterrupt?.(new Error('late native rejection'))
+      await Promise.resolve()
+      expect(events.filter(e => e.t === 'state' && e.state === 'cancelled')).toHaveLength(1)
+    } finally { vi.useRealTimers() }
+  })
   it('retains failure usage and does not erase it on a zeroed failure', async () => {
     mock.mode = 'failed-usage'
     const events: ServerMessage[] = [], agent = create(events)

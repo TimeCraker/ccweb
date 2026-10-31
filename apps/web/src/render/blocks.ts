@@ -28,6 +28,7 @@ export interface ToolBlock {
 export type Block = (ThinkingBlock | TextBlock | ToolBlock) & { frameId?: string }
 
 export interface UserEntry {
+  images?: string[]
   nativeUuid?: string
   type: 'user'
   id: string

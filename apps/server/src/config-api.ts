@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { createHash, randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { dirname, join, relative, resolve, sep, isAbsolute, basename } from 'node:path'
 import { homedir } from 'node:os'
-import { execFile } from 'node:child_process'
+import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createRequire } from 'node:module'
 import { parseDocument } from 'yaml'
@@ -11,7 +11,7 @@ import { APP_DIR, CC_DIR, runtimeSettings, endpointEnv, listEndpointTemplates, r
 
 type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp' | 'permissions'
 type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
-interface Resource { id: string; name: string; kind: Kind; source: Source; path: string; writable: boolean; description?: string; invocation?: string; scope?: string }
+interface Resource { id: string; name: string; kind: Kind; source: Source; path: string; writable: boolean; description?: string; invocation?: string; scope?: string; namespace?: string }
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
 const read = (path: string) => existsSync(path) ? readFileSync(path, 'utf8') : ''
 export function atomicWrite(path: string, content: string): void {
@@ -38,7 +38,9 @@ export function listResources(workspace: string): Resource[] {
   const out: Resource[] = []
   const add = (path: string, name: string, kind: Kind, source: Source, root: string) => {
     const id = Buffer.from(JSON.stringify([source, kind, path])).toString('base64url')
-    out.push({ id, name, kind, source, path, writable: !['plugin', 'inherited', 'managed'].includes(source) && safeTarget(path, root) })
+    let namespace: string | undefined
+    if (source === 'plugin') { try { namespace = String(JSON.parse(read(join(root, '.claude-plugin', 'plugin.json'))).name || basename(root)) } catch { namespace = basename(root) } }
+    out.push({ id, name, kind, source, path, namespace, writable: !['plugin', 'inherited', 'managed'].includes(source) && safeTarget(path, root) })
   }
   function scan(dir: string, kind: Kind, source: Source, root: string, prefix = '', depth = 0): void {
     if (!existsSync(dir) || depth > 5) return
@@ -82,14 +84,28 @@ export function listResources(workspace: string): Resource[] {
   }
   const managed = process.platform === 'win32' ? join(process.env.ProgramFiles ?? 'C:/Program Files', 'ClaudeCode') : process.platform === 'darwin' ? '/Library/Application Support/ClaudeCode' : '/etc/claude-code'
   if (existsSync(join(managed, 'CLAUDE.md'))) add(join(managed, 'CLAUDE.md'), '组织托管指令', 'rule', 'managed', managed)
-  if (existsSync(join(managed, 'managed-settings.json'))) add(join(managed, 'managed-settings.json'), 'Hooks · 组织托管', 'hooks', 'managed', managed)
+  if (existsSync(join(managed, 'managed-settings.json'))) { add(join(managed, 'managed-settings.json'), 'Hooks · 组织托管', 'hooks', 'managed', managed); add(join(managed, 'managed-settings.json'), '权限 · 组织托管', 'permissions', 'managed', managed) }
+  if (existsSync(join(managed, 'managed-mcp.json'))) add(join(managed, 'managed-mcp.json'), 'MCP · 组织托管', 'mcp', 'managed', managed)
+  let projectRoot = workspace
+  try { projectRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: workspace, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 }).trim() } catch { /* A non-repository uses its project root. */ }
+  const memoryDirectories = new Set([join(CC_DIR, 'projects', process.env.CLAUDE_CODE_PROJECT_DIR_NAME || projectRoot.replace(/[^a-zA-Z0-9]/g, '-'), 'memory')])
+  for (const file of [join(CC_DIR, 'settings.json'), join(workspace, '.claude', 'settings.json'), join(workspace, '.claude', 'settings.local.json'), join(managed, 'managed-settings.json')]) {
+    try { const setting = JSON.parse(read(file)) as { autoMemoryDirectory?: string }; if (typeof setting.autoMemoryDirectory === 'string') { const directory = setting.autoMemoryDirectory.startsWith('~/') ? join(homedir(), setting.autoMemoryDirectory.slice(2)) : setting.autoMemoryDirectory; if (isAbsolute(directory)) memoryDirectories.add(directory) } } catch { /* Invalid optional settings remain diagnosable in native context. */ }
+  }
+  for (const directory of memoryDirectories) if (existsSync(directory)) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) if (entry.isFile() && entry.name.endsWith('.md')) {
+      const path = join(directory, entry.name)
+      add(path, `自动记忆/${entry.name}`, 'rule', inside(resolve(path), resolve(CC_DIR)) ? 'user' : 'inherited', inside(resolve(path), resolve(CC_DIR)) ? CC_DIR : directory)
+    }
+  }
   for (const item of out) {
     if (!['skill', 'command'].includes(item.kind)) continue
     try {
       const text = read(item.path), front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text)
       const fields = front ? parseDocument(front[1] ?? '') : null
       item.description = String(fields?.get('description') ?? '')
-      item.invocation = '/' + (item.kind === 'skill' ? String(fields?.get('name') ?? item.name) : item.name)
+      const commandName = item.kind === 'skill' ? String(fields?.get('name') ?? item.name) : item.name
+      item.invocation = '/' + (item.namespace && !commandName.startsWith(item.namespace + ':') ? `${item.namespace}:${commandName}` : commandName)
       item.scope = item.source === 'project' ? (item.path.includes('settings.local') ? '项目本地' : '项目共享') : item.source
     } catch { /* Invalid content remains visible and editable. */ }
   }
@@ -101,7 +117,9 @@ export function listResources(workspace: string): Resource[] {
       scan(join(plugin.installPath, 'commands'), 'command', 'plugin', plugin.installPath)
     }
   } catch { /* Optional plugin inventory. */ }
-  return [...new Map(out.map(item => [item.id, item])).values()]
+  const unique = new Map<string, Resource>()
+  for (const item of out) { const key = `${item.kind}:${item.path}`; if (!unique.has(key)) unique.set(key, item) }
+  return [...unique.values()]
 }
 function resource(workspace: string, id: string): Resource {
   const item = listResources(workspace).find(item => item.id === id)
@@ -173,7 +191,7 @@ export function validateContent(kind: Kind, content: string): string[] {
   if (doc.errors.length) return doc.errors.map(error => error.message)
   if (kind === 'skill' || kind === 'command') {
     const name = doc.get('name')
-    if (name !== undefined && (typeof name !== 'string' || !name.trim() || /[<>\p{Cc}\p{Cf}\p{Co}\p{Cn}]|^ | $| {2}/u.test(name))) return ['name 包含原生命令不接受的字符']
+    if (kind === 'skill' && name !== undefined && (typeof name !== 'string' || !name.trim() || /[<>\p{Cc}\p{Cf}\p{Co}\p{Cn}]|^ | $| {2}/u.test(name))) return ['name 包含原生命令不接受的字符']
     if (doc.has('description') && typeof doc.get('description') !== 'string') return ['description 必须为字符串']
     for (const field of ['disable-model-invocation', 'user-invocable']) {
       const value = doc.get(field)

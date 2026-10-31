@@ -195,3 +195,6 @@ TC 品牌、深浅/系统主题、对话两栏、折叠详情、统一输入与�
 
 
 Stage 6.7 增量真实证据：源码 GLM-5.3 完成两次 Write 审批、一次 Bash 审批，模型测试与独立重跑均 2/2；刷新恢复成功（重放产生的重复记录不计第二次任务）。见 audit/2026-10-31/stage67-source-task.json。另一次经 GUI 新建 Skill/Command、配置本地 MCP 和 SessionStart Hook 的真实任务，Skill→ToolSearch→MCP echo 成功，Hook 实际 success/0 并写入隔离标记；MCP disable/enable/reconnect 状态真实变化，见 stage67-source-integration.json。仍非最终安装同版本验收。新发现的高级参数 URL 凭证遮罩及 JSON 错误片段泄露边界已补回归；权限规则分区、精确 UUID 分叉、文件检查点与 stdin 管道正在验证。
+
+
+Stage 6.7 运行安全与验收增量：Write 审批已显示原文件基线、原生 MultiEdit 分段差异；审批期间发生外部修改会拒绝覆盖。图片 MIME/大小/数量校验、发送回执前保留、导航放弃确认及已接受消息附件恢复已有回归。原生调用固定在随包版本，启动时核对版本并检查后台原生会话，避免 TUI 跨目录或后台附着后与 SDK 并发写入。冻结依赖已使用声明的 pnpm 10.33.4 重装，最终候选质量门 55 项、源码 Edge 27/27、二进制与 ConPTY 冒烟通过。实际 tarball 与同版真实任务仍在执行，不提前认定 G 完成。原生浏览器缩放受 Windows Computer Use URL 检查阻塞，CSS zoom 不冒充原生缩放。

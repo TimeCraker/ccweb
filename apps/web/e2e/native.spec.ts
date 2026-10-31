@@ -15,12 +15,30 @@ test('real bundled CLI uses ConPTY in the browser and replays after refresh', as
   await page.getByRole('button', { name: '结束进程' }).click()
 })
 
-test('native endpoint rejects foreign origins, unknown operations and other capability tokens', async ({ page }) => {
+test('native endpoint rejects foreign origins, unknown operations and other capability tokens', async ({ page, request }) => {
+  const foreign = await request.post('/api/native/start', { headers: { Origin: 'https://foreign.example' }, data: { action: 'help' } })
+  expect(foreign.status()).toBe(403)
   await page.goto('/')
   const status = await page.evaluate(async () => (await fetch('/api/native/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'shell' }) })).status)
   expect(status).toBe(400)
   const rejected = await page.evaluate(() => new Promise<number>(resolve => { const ws = new WebSocket(`ws://${location.host}/native`); ws.onopen = () => ws.send(JSON.stringify({ id: 'unknown', token: 'invalid' })); ws.onclose = event => resolve(event.code) }))
   expect(rejected).toBe(1008)
+})
+
+test('advanced arguments and real stdin pipes stay inside the locked runtime', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.getByLabel('运行模式', { exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: '原生终端', exact: true }).click()
+  await page.getByLabel('原生操作').selectOption('custom')
+  await page.getByLabel('CLI 参数数组').fill('["--version"]')
+  await page.getByLabel('CLI stdin').fill('中文管道测试')
+  await page.getByRole('button', { name: '启动原生操作' }).click()
+  await expect(page.locator('.xterm-screen')).toContainText('2.1.314 (Claude Code)')
+  await expect(page.getByRole('status').filter({ hasText: '退出码 0' })).toBeVisible()
+  await page.getByRole('button', { name: '结束进程' }).click()
+  await page.getByLabel('CLI 参数数组').fill('["update"]')
+  await page.getByRole('button', { name: '启动原生操作' }).click()
+  await expect(page.getByRole('status').filter({ hasText: '精确 SDK 依赖升级' })).toBeVisible()
 })
 
 
