@@ -40,7 +40,7 @@
   "tests": {
     "server": 56,
     "web": 26,
-    "browser": 54,
+    "browser": 57,
     "runtimePathTests": ["src/runtime-path.test.ts"],
     "connectionTests": ["src/connections.test.ts"]
   }

@@ -1,6 +1,6 @@
 # 独立验收复核：IA01–IA06 关闭记录
 
-> **2026-11-01 第三轮独立复核**：按用户最新要求，登录/OAuth、真实模型工具/图片/长任务、Windows 系统缩放、超大历史全量传输和主观手感均不作为本轮阻塞。原六项修复确认存在且相关回归通过；但新增两个配置交互缺陷仍未关闭，见本文末。不能据此宣称当前/默认模型逻辑已全部完成。
+> **2026-11-01 第三轮独立复核**：按用户最新要求，登录/OAuth、真实模型工具/图片/长任务、Windows 系统缩放、超大历史全量传输和主观手感均不作为本轮阻塞。原六项修复确认存在且相关回归通过。第三轮发现的 IA07/IA08 已在本轮后续修复并完成回归；真实模型名称已显示服务商模型名，见文末“第三轮补充”。
 
 日期：2026-10-31（第二轮）。依据：[独立验收报告](../README.md)、[V3 Spec §14/§15](../../../UX_V3_EXECUTION_SPEC.md#15-执行者自验收对照原始-spec-逐条复核2026-10-31)。
 
@@ -9,7 +9,7 @@
 ## 环境与方法
 
 - 代码：`d50feaa`（IA 修复 + 表单可见性）+ 本文档提交；包指纹 `F0054C275D0080215C21A718ED5EC6B85916883070A7BD25631C476A5FD5A526`；未推送。
-- 构建：`pnpm check`；实际浏览器 Edge（`PLAYWRIGHT_CHANNEL=msedge`）；服务端 56 项、前端 26 项、浏览器 54 项。
+- 构建：`pnpm check`；实际浏览器 Edge（`PLAYWRIGHT_CHANNEL=msedge`）；服务端 56 项、前端 26 项、浏览器 57 项。
 - 模拟层：E2E 使用 fixture SDK，专门验证 UI 状态、焦点、请求路径与错误恢复；不把模拟结果当真实模型能力。
 - 真实运行时：使用锁定 SDK **0.3.314** 自带 runtime，访问本机 HTTP 测试服务断言最终请求路径与认证头；不使用付费模型，不发送真实凭证。
 - 真实模型任务：独立临时 server（隔离数据目录、临时工作区），继承用户本机 `~/.claude` 的真实 provider 配置，只发一条“回复 OK、禁用工具”的有界任务；凭证未打印、未写入文档。
@@ -75,9 +75,9 @@
 | 层 | 结果 |
 | --- | --- |
 | `pnpm check` | lint / typecheck / 服务端 56 / 前端 26 / 构建通过 |
-| Edge E2E | 54/54，含 IA01–IA06 专项 9 项与 P5 3 项 |
+| Edge E2E | 57/57，含 IA01–IA06 专项、P5 3 项、当前模型/默认保存/真实名称 3 项 |
 | 实际安装包 | 见 Spec §14.8；临时 `npm install --ignore-scripts` 后启动 3496，浏览器打开设置、认证方式与连接页正常，无 pageerror |
-| 真实模型任务 | `open.bigmodel.cn` / `claude-fable-5-1`，单条无工具任务，回复 `OK`，5.8s；[截图](real-model-task.png) |
+| 真实模型任务 | `open.bigmodel.cn` / 服务商实际模型 `glm-5.3[1m]`（运行时别名 claude-fable-5-1），单条无工具任务，回复 `OK`，7.4s；[截图](real-model-task.png) |
 
 截图：[连接表单](connection-form.png) · [连接搜索](connection-search.png) · [模型选中](model-selection.png) · [真实模型任务](real-model-task.png)
 
@@ -120,4 +120,21 @@
 
 IA07 截图：[当前会话被错误标为新默认连接](active-vs-default.png)。这两项都来自原 Spec §4.3“当前与默认分别管理、实际生效值可见”，与用户排除的外部未验事项无关。
 
+**复核更新（同日）**：IA07/IA08 已修复，不再保持“未关闭”：
+
+- IA07：`session.open` 重新发布带 `active.providerModel` 的 settings 快照；`useConnectionLabel` 优先 active endpoint；`currentModelOf` 有 active 时不再回落到新会话默认。当前会话使用 A、新默认改 B 后，chip 仍显示 A 的 `connection-model-a`（回归 `model display: current connection model survives...`）。
+- IA08：保存默认目标按有无会话区分，保留合法 `null`；自定义 → 使用连接默认 → 保存为默认可点击，保存后禁用（回归 `model display: "use connection default" can be saved...`）。
+- 真实名称：服务端从有效 env 解析服务商模型，随 init/settings/models 下发；chip 与菜单显示 `glm-5.3[1m]`，运行时别名只放描述；真实任务已重跑（7.4s，回复 OK）。
+
+因此第三轮遗留的两项交互缺陷已关闭；未验边界只保留用户明确排除项。
+
 本轮需求结论：侧栏/工作区、弹层点击、图片入口、设置分类、连接 URL/Key 表单与隔离、模型搜索和键盘、用量降噪、按需改动与任务面板、默认终端入口收敛均有实现和相应回归。原 IA01–IA06 关闭可保留。**模型当前/默认生效逻辑仍有 IA07/IA08，故主要需求已落地，但“所有需求都做好”尚不成立。** 国内厂商模板属于原 Spec 可选，不计缺陷；用户明确排除项保留历史记录但不用于否决本轮。
+## 第三轮补充：当前模型与真实名称
+
+用户复核又发现两处显示语义问题，已修复并补回归：
+
+1. **当前会话显示被新会话默认覆盖**：打开历史会话时服务端只发 `init`，没有重新发布当前会话设置快照，客户端把 `settings.model`（新会话默认 B）当成当前模型。现在 `session.open` 同时发送 `init` 与带 `active.providerModel` 的 settings 快照；`currentModelOf` 只在有 active 时读取当前会话/连接模型，不再回落到新会话默认。回归：当前会话使用 ConnectionA 时把 B 设为新会话默认，chip 仍显示 `connection-model-a`。
+2. **“使用连接默认”无法保存为默认**：保存目标错误地取了新会话默认；现在保存目标取当前会话覆盖值（无覆盖即 `null`）。回归：自定义保存默认 → 使用连接默认 → “保存为默认模型”可用 → 保存后禁用。
+3. **真实模型名称**：锁定运行时的 init 是别名（如 `claude-fable-5-1`）。服务端从实际生效 env 的 `ANTHROPIC_MODEL` / `ANTHROPIC_DEFAULT_*_MODEL` 解析服务商模型名，随 `init`、`settings.active` 和 `models.list` 下发；chip、当前/默认卡片和模型菜单优先显示真实名称，运行时别名放进描述。真实 env 显示 `glm-5.3[1m]`，不再显示映射名。
+
+新增：1 项服务端 provider model 单测、3 项浏览器回归；真实任务截图已用最终构建重跑。
