@@ -26,6 +26,7 @@ import {
   listUserRules,
   readClaudeMd,
   listSlashCommands,
+  providerModelName,
 } from './settings.js'
 
 const PORT = Number(process.env.CCWEB_PORT ?? 3477)
@@ -277,7 +278,7 @@ wss.on('connection', (ws) => {
           : (currentSession ?? getOrCreateSession())
         if (agent.workspace !== workspace) throw new Error('Session belongs to another workspace')
         agent.send(msg.text, msg.images, msg.commandId)
-        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, active: agent.settings } })
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, active: { ...agent.settings, providerModel: agent.providerModel() } } })
         break
       }
       case 'interrupt':
@@ -311,7 +312,7 @@ wss.on('connection', (ws) => {
         ) {
           throw new Error('No pending permission with that id.')
         }
-        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: { ...currentSession.settings, providerModel: currentSession.providerModel() } } : {}) } })
         break
       case 'session.new':
         retireCurrent()
@@ -340,10 +341,13 @@ wss.on('connection', (ws) => {
           t: 'init',
           seq: 0,
           sessionId: agent.sessionId,
-          model: null,
-          endpoint: process.env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
+          model: agent.settings.model,
+          providerModel: agent.providerModel(),
+          endpoint: buildAgentEnv(agent.settings).ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
           slashCommands: [],
         })
+        // 打开历史会话也要立即发布当前会话设置快照,否则 UI 会把“新会话默认”误当成当前模型
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, active: { ...agent.settings, providerModel: agent.providerModel() } } })
         emit({ t: 'cleared', seq: 0 })
         const journal = journals.get(agent)
         if (journal?.length) {
@@ -379,7 +383,7 @@ wss.on('connection', (ws) => {
         break
       }
       case 'settings.get':
-        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: { ...currentSession.settings, providerModel: currentSession.providerModel() } } : {}) } })
         break
       case 'session.delete': {
         // 删除前备份原生 transcript;没有备份文件(纯模拟会话)时照常删除
@@ -453,7 +457,7 @@ wss.on('connection', (ws) => {
           }
           throw error
         }
-        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: currentSession.settings } : {}) } })
+        emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, ...(currentSession ? { active: { ...currentSession.settings, providerModel: currentSession.providerModel() } } : {}) } })
         break
       }
       case 'task.stop':
@@ -464,10 +468,16 @@ wss.on('connection', (ws) => {
         if (!currentSession || nativeWorkspaceBusy(workspace)) throw new Error('此会话当前不可回退')
         emit({ t: 'rewind', seq: 0, preview: msg.dryRun, result: await currentSession.rewindFiles(msg.userMessageId, msg.dryRun) })
         break
-      case 'models.list':
+      case 'models.list': {
         if (!currentSession) throw new Error('先启动原生会话以发现模型；可使用自定义模型')
-        emit({ t: 'models', seq: 0, models: await currentSession.models() })
+        const env = effectiveEnv()
+        const models = (await currentSession.models()).map((model) => ({
+          ...model,
+          providerModel: providerModelName(env, model.value, model.value.toLowerCase().startsWith('claude')),
+        }))
+        emit({ t: 'models', seq: 0, models })
         break
+      }
       case 'mcp.control':
         if (!currentSession) throw new Error('请先启动会话')
         await currentSession.controlMcp(msg.name, msg.action)
@@ -519,6 +529,7 @@ function settingsSnapshot(workspace: string): SettingsSnapshot {
     endpointTemplate: runtimeSettings.endpointTemplate,
     currentEndpoint: activeEnv.ANTHROPIC_BASE_URL ?? process.env.ANTHROPIC_BASE_URL ?? null,
     currentModel: activeEnv.ANTHROPIC_MODEL ?? null,
+    providerModel: providerModelName(activeEnv, runtimeSettings.model, Boolean(runtimeSettings.model)),
     endpoints: listEndpointTemplates(),
     workspaces: listWorkspaces(),
     workspace: runtimeSettings.workspace,

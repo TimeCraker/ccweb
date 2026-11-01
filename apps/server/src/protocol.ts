@@ -80,6 +80,8 @@ export type ServerMessage =
       seq: number
       sessionId: string | null
       model: string | null
+      /** 服务商实际模型名(别名解析后) */
+      providerModel?: string | null
       endpoint: string | null
       slashCommands: Array<{ name: string; description: string }>
     }
@@ -130,6 +132,7 @@ export type ServerMessage =
         value: string
         displayName: string
         description: string
+        providerModel?: string | null
         resolvedModel?: string
         supportsEffort?: boolean
         supportedEffortLevels?: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'>
@@ -152,12 +155,14 @@ export interface SessionMeta {
 /** 设置快照(下发前端;端点只带 name/url,无凭证) */
 export interface SettingsSnapshot {
   authentication?: 'inherit' | 'native'
-  active?: { authentication?: 'inherit' | 'native'; model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
+  active?: { authentication?: 'inherit' | 'native'; model: string | null; providerModel?: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
   /** server 包版本(package.json,前端页脚展示) */
   serverVersion: string
   /** 会话上下文注入档位 */
   contextScope: 'full' | 'project' | 'none'
   model: string | null
+  /** 新会话默认对应的服务商实际模型名 */
+  providerModel: string | null
   permissionMode: string | null
   effort: string | null
   endpointTemplate: string | null

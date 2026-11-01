@@ -113,6 +113,7 @@ interface AppState {
   lastAck: { id: string; ok: boolean } | null
   sessionId: string | null
   model: string | null
+  providerModel: string | null
   endpoint: string | null
   sessions: SessionMeta[]
   entries: Entry[]
@@ -141,6 +142,7 @@ interface AppState {
     value: string
     displayName: string
     description: string
+    providerModel?: string | null
     resolvedModel?: string
     supportsEffort?: boolean
     supportedEffortLevels?: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'>
@@ -163,7 +165,7 @@ interface AppState {
   historyVersion: number
 
   setConn: (c: ConnState) => void
-  applyInit: (p: { sessionId: string | null; model: string | null; endpoint: string | null }) => void
+  applyInit: (p: { sessionId: string | null; model: string | null; providerModel?: string | null; endpoint: string | null }) => void
   setSessions: (list: SessionMeta[]) => void
   setSettings: (s: SettingsSnapshot) => void
   setMcp: (list: Array<{ name: string; status: string; error?: string; scope?: string; source?: string; tools?: string[] }>) => void
@@ -200,6 +202,7 @@ export const useStore = create<AppState>((set) => ({
   lastAck: null,
   sessionId: null,
   model: null,
+  providerModel: null,
   endpoint: null,
   sessions: [],
   entries: [],
@@ -229,7 +232,7 @@ export const useStore = create<AppState>((set) => ({
   historyVersion: 0,
 
   setConn: (conn) => set({ conn }),
-  applyInit: ({ sessionId, model, endpoint }) => set({ sessionId, model, endpoint }),
+  applyInit: ({ sessionId, model, providerModel, endpoint }) => set({ sessionId, model, providerModel: providerModel ?? null, endpoint }),
   setSessions: (sessions) => set({ sessions }),
   setSettings: (settings) => set({ settings }),
   setMcp: (mcpServers) => set({ mcpServers }),

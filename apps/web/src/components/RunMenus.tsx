@@ -34,7 +34,7 @@ export function modeLabel(value: string | null | undefined): string {
 export function useConnectionLabel(): { name: string | null; endpoint: string | null } {
   const settings = useStore((s) => s.settings)
   const activeEndpoint = useStore((s) => s.endpoint)
-  const template = settings?.endpointTemplate
+  const template = settings?.active?.endpointTemplate ?? settings?.endpointTemplate
   const matched = template ? settings?.endpoints.find((item) => item.key === template) : undefined
   const endpoint = activeEndpoint ?? settings?.currentEndpoint ?? settings?.endpoints[0]?.baseUrl ?? null
   let name = matched?.name ?? null
@@ -48,8 +48,15 @@ export function useConnectionLabel(): { name: string | null; endpoint: string | 
   return { name, endpoint }
 }
 
-export function currentModelOf(settings: ReturnType<typeof useStore.getState>['settings'], live: string | null): string | null {
-  return settings?.active?.model ?? settings?.model ?? settings?.currentModel ?? live ?? null
+export function currentModelOf(
+  settings: ReturnType<typeof useStore.getState>['settings'],
+  live: string | null,
+  liveProvider?: string | null,
+): string | null {
+  if (settings?.active) {
+    return settings.active.providerModel ?? settings.active.model ?? liveProvider ?? live ?? settings.currentModel ?? null
+  }
+  return settings?.providerModel ?? settings?.model ?? liveProvider ?? live ?? settings?.currentModel ?? null
 }
 
 /** 设置变更统一入口:scope 决定只影响当前会话、只保存默认,还是两者 */
@@ -166,13 +173,17 @@ export function ModelMenu({
 }) {
   const settings = useStore((s) => s.settings)
   const liveModel = useStore((s) => s.model)
+  const liveProvider = useStore((s) => s.providerModel)
   const availableModels = useStore((s) => s.availableModels)
   const conn = useStore((s) => s.conn)
   const busy = useStore((s) => s.busy)
   const { name: connectionName } = useConnectionLabel()
   const templates = settings?.endpointTemplate ?? null
-  const activeConnection = templates ? settings?.endpoints.find((endpoint) => endpoint.key === templates) : undefined
-  const model = currentModelOf(settings, liveModel) ?? activeConnection?.model ?? null
+  const activeTemplate = settings?.active?.endpointTemplate ?? null
+  const activeConnection = (activeTemplate ?? templates)
+    ? settings?.endpoints.find((endpoint) => endpoint.key === (activeTemplate ?? templates))
+    : undefined
+  const model = currentModelOf(settings, liveModel, liveProvider)
   const defaultModel = settings?.model ?? null
   const [query, setQuery] = useState('')
   const [custom, setCustom] = useState('')
@@ -182,8 +193,16 @@ export function ModelMenu({
   const defaultEffort = settings?.effort ?? null
   const sessionOverride = sessionId ? settings?.active?.model ?? null : null
   const currentSelection = sessionId ? sessionOverride : settings?.model ?? null
+  const saveTarget = sessionId ? sessionOverride : settings?.model ?? null
+  const runtimeModel = sessionId
+    ? settings?.active?.model ?? liveModel ?? activeConnection?.model ?? null
+    : settings?.model ?? liveModel ?? activeConnection?.model ?? null
   const currentModelInfo = availableModels.find(
-    (item) => item.value === (currentSelection ?? activeConnection?.model) || item.resolvedModel === (currentSelection ?? activeConnection?.model),
+    (item) =>
+      item.value === runtimeModel ||
+      item.resolvedModel === runtimeModel ||
+      item.value === model ||
+      item.resolvedModel === model,
   )
   const effortLevels: ReadonlyArray<(typeof EFFORTS)[number]> =
     !currentModelInfo || currentModelInfo.supportsEffort === false
@@ -195,9 +214,21 @@ export function ModelMenu({
           : []
   const models = [
     ...(sessionOverride && !availableModels.some((item) => item.value === sessionOverride)
-      ? [{ value: sessionOverride, displayName: sessionOverride, description: '当前会话覆盖' }]
+      ? [{
+          value: sessionOverride,
+          displayName: sessionOverride,
+          description: '当前会话覆盖',
+          providerModel: settings?.active?.providerModel ?? null,
+        }]
       : []),
-    ...(settings?.model ? [{ value: settings.model, displayName: settings.model, description: '新会话默认' }] : []),
+    ...(settings?.model
+      ? [{
+          value: settings.model,
+          displayName: settings.model,
+          description: '新会话默认',
+          providerModel: settings.providerModel ?? null,
+        }]
+      : []),
     ...availableModels,
   ].filter((item, index, list) => list.findIndex((other) => other.value === item.value) === index)
   const normalizedQuery = query.trim().toLowerCase()
@@ -316,13 +347,17 @@ export function ModelMenu({
             <MenuItem
               key={item.value}
               selected={currentSelection === item.value}
-              description={item.description || item.displayName}
+              description={
+                item.providerModel && item.providerModel !== item.value
+                  ? `运行时 ID：${item.value}${item.description ? ` · ${item.description}` : ''}`
+                  : item.description || item.displayName
+              }
               onClick={() => {
                 close()
                 patch({ model: item.value }, sessionScope)
               }}
             >
-              {item.value}
+              {item.providerModel ?? item.value}
             </MenuItem>
           ))}
           {availableModels.length > 0 && (
@@ -333,11 +368,11 @@ export function ModelMenu({
 
           <div className="menu-sep" />
           <MenuItem
-            disabled={defaultModel === (sessionOverride ?? settings?.model ?? null)}
-            description={`新会话使用：${sessionOverride ?? settings?.model ?? activeConnection?.model ?? '连接默认模型'}`}
+            disabled={defaultModel === saveTarget}
+            description={`新会话使用：${saveTarget ?? '连接默认模型'}`}
             onClick={() => {
               close()
-              patch({ model: sessionOverride ?? settings?.model ?? null }, 'default')
+              patch({ model: saveTarget }, 'default')
             }}
           >
             保存为默认模型

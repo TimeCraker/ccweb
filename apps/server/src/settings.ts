@@ -284,6 +284,33 @@ export function listSlashCommands(workspace?: string | null): Array<{ name: stri
 export function nativeAuthenticationEnv(): Record<string, string> {
   return { ANTHROPIC_BASE_URL: 'https://api.anthropic.com', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_API_KEY: '', ANTHROPIC_MODEL: '', ANTHROPIC_DEFAULT_SONNET_MODEL: '', ANTHROPIC_DEFAULT_OPUS_MODEL: '', ANTHROPIC_DEFAULT_HAIKU_MODEL: '', ANTHROPIC_SMALL_FAST_MODEL: '', CLAUDE_CODE_SUBAGENT_MODEL: '', ANTHROPIC_CUSTOM_HEADERS: '', CLAUDE_CODE_USE_BEDROCK: '0', CLAUDE_CODE_USE_VERTEX: '0', CLAUDE_CODE_USE_FOUNDRY: '0' }
 }
+/** 把运行时模型别名解析成服务商实际模型名,用于 UI 显示“真实模型”。 */
+export function providerModelName(
+  env: Record<string, string | undefined>,
+  requested?: string | null,
+  explicit = false,
+): string | null {
+  const runtime = (requested ?? '').trim()
+  const alias = runtime.toLowerCase()
+  const pick = (value: string | undefined) => (value && value.trim() ? value.trim() : null)
+  // 用户在连接/模型里明确填写的服务商模型 ID(如 glm-5.3[1m])优先
+  if (explicit && runtime && !alias.startsWith('claude')) return runtime
+  // 无显式覆盖时,连接注入的 ANTHROPIC_MODEL 就是服务商真实模型
+  if (!explicit && pick(env.ANTHROPIC_MODEL)) return pick(env.ANTHROPIC_MODEL)
+  if (alias.includes('haiku')) return pick(env.ANTHROPIC_DEFAULT_HAIKU_MODEL) ?? pick(env.ANTHROPIC_MODEL) ?? (runtime || null)
+  if (alias.includes('opus')) return pick(env.ANTHROPIC_DEFAULT_OPUS_MODEL) ?? pick(env.ANTHROPIC_MODEL) ?? (runtime || null)
+  if (alias.includes('fable')) return pick(env.ANTHROPIC_DEFAULT_FABLE_MODEL) ?? pick(env.ANTHROPIC_MODEL) ?? (runtime || null)
+  if (alias.includes('sonnet')) return pick(env.ANTHROPIC_DEFAULT_SONNET_MODEL) ?? pick(env.ANTHROPIC_MODEL) ?? (runtime || null)
+  return (
+    pick(env.ANTHROPIC_MODEL) ??
+    pick(env.ANTHROPIC_DEFAULT_SONNET_MODEL) ??
+    pick(env.ANTHROPIC_DEFAULT_OPUS_MODEL) ??
+    pick(env.ANTHROPIC_DEFAULT_FABLE_MODEL) ??
+    pick(env.ANTHROPIC_DEFAULT_HAIKU_MODEL) ??
+    (runtime || null)
+  )
+}
+
 export function effectiveEnv(config = runtimeSettings): Record<string, string | undefined> {
   const base = { ...process.env, ...readActiveEnv() }
   if (config.authentication === 'native') return { ...base, ...nativeAuthenticationEnv() }

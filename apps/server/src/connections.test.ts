@@ -210,3 +210,13 @@ describe('live connection probe', () => {
     expect((await module.testConnection({ baseUrl: 'not-a-url' })).category).toBe('invalid')
   })
 })
+
+describe('provider model display', () => {
+  it('maps runtime aliases to the provider model while preserving explicit IDs', () => {
+    expect(settings.providerModelName({ ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.3[1m]' }, 'claude-sonnet-4-5')).toBe('glm-5.3[1m]')
+    expect(settings.providerModelName({ ANTHROPIC_DEFAULT_FABLE_MODEL: 'glm-5.3[1m]' }, 'claude-fable-5-1')).toBe('glm-5.3[1m]')
+    expect(settings.providerModelName({ ANTHROPIC_MODEL: 'connection-model-a' }, 'fixture-model')).toBe('connection-model-a')
+    expect(settings.providerModelName({}, 'glm-5.3[1m]', true)).toBe('glm-5.3[1m]')
+    expect(settings.providerModelName({ ANTHROPIC_DEFAULT_SONNET_MODEL: 'glm-5.3[1m]' }, 'glm-4.7', true)).toBe('glm-4.7')
+  })
+})

@@ -17,6 +17,7 @@ export function query({ prompt, options }) {
     yield { type: 'system', subtype: 'init', session_id: sid, model: options.model ?? 'fixture-model', slash_commands: ['compact'], claude_code_version: 'fixture' }
     for await (const user of prompt) {
       const text = typeof user.message.content === 'string' ? user.message.content : user.message.content.filter(c => c.type === 'text').map(c => c.text).join(' ')
+      if (!titles.has(sid)) titles.set(sid, String(text).slice(0, 60))
       if (text.includes('SEED_HISTORY')) {
         const seeded = []
         for (let i = 0; i < 100; i++) {

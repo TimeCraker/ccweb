@@ -20,7 +20,7 @@ type UserContentBlock =
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
 import type { ServerMessage } from './protocol.js'
 import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metrics.js'
-import { runtimeSettings, effectiveEnv, nativeAuthenticationEnv } from './settings.js'
+import { runtimeSettings, effectiveEnv, nativeAuthenticationEnv, providerModelName } from './settings.js'
 
 /**
  * Agent 桥接层(SPEC §2)
@@ -190,6 +190,8 @@ export class AgentSession {
   private completedAt: number | null = null
   private terminalStatus: 'running' | 'completed' | 'failed' | 'cancelled' = 'running'
   private modelError: string | null = null
+  /** SDK init 报告的实际运行时模型(可能是 claude-* 别名) */
+  private runtimeModel: string | null = null
   private nativeTiming: { durationMs: number | null; apiDurationMs: number | null; modelUsage: unknown } = { durationMs: null, apiDurationMs: null, modelUsage: null }
   get isRunning(): boolean { return this.turnActive || this.pendingQueue.length > 0 }
   readonly settings = { ...runtimeSettings }
@@ -376,7 +378,7 @@ export class AgentSession {
 
   /** 热切设置:模型/权限模式即时生效(q 方法);其余新会话生效 */
   async applySettings(patch: { model?: string | null; permissionMode?: string | null }): Promise<void> {
-    if (patch.model !== undefined) { await this.q?.setModel(patch.model ?? undefined); this.settings.model = patch.model }
+    if (patch.model !== undefined) { await this.q?.setModel(patch.model ?? undefined); this.settings.model = patch.model; this.runtimeModel = patch.model }
     if (patch.permissionMode !== undefined) {
       const mode = patch.permissionMode ?? 'default'
       if (!['default', 'auto', 'acceptEdits', 'plan', 'bypassPermissions'].includes(mode)) throw new Error('Unsupported permission mode')
@@ -405,6 +407,11 @@ export class AgentSession {
     if (!this.q || this.isRunning) throw new Error('请先完成或停止当前运行，再预览文件回退')
     return this.q.rewindFiles(userMessageId, { dryRun })
   }
+  /** 服务商实际模型名(供 UI 显示);连接/环境映射优先于运行时别名。 */
+  providerModel(): string | null {
+    return providerModelName(buildAgentEnv(this.settings), this.settings.model ?? this.runtimeModel, Boolean(this.settings.model))
+  }
+
   async models(): Promise<Array<{ value: string; displayName: string; description: string }>> {
     if (!this.q) throw new Error('模型发现需要已启动的原生会话；可先使用自定义模型')
     return this.q.supportedModels()
@@ -546,11 +553,13 @@ export class AgentSession {
     if (type === 'system' && subtype === 'init') {
       this.initialized = true
       this.sessionId = (msg.session_id as string) ?? this.sessionId
+      this.runtimeModel = (msg.model as string) ?? null
       this.emit({
         t: 'init',
         seq: 0,
         sessionId: this.sessionId,
-        model: (msg.model as string) ?? null,
+        model: this.runtimeModel,
+        providerModel: this.providerModel(),
         endpoint: buildAgentEnv(this.settings).ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
         slashCommands: Array.isArray(msg.slash_commands)
           ? (msg.slash_commands as Array<string | { name?: string; description?: string }>)
@@ -569,7 +578,7 @@ export class AgentSession {
       this.streamMetrics.begin(Date.now())
       this.firstContentMs = null
       this.emit({ t: 'cleared', seq: 0 })
-      this.emit({ t: 'init', seq: 0, sessionId: this.sessionId, model: this.settings.model, endpoint: buildAgentEnv(this.settings).ANTHROPIC_BASE_URL ?? null, slashCommands: [] })
+      this.emit({ t: 'init', seq: 0, sessionId: this.sessionId, model: this.settings.model, providerModel: this.providerModel(), endpoint: buildAgentEnv(this.settings).ANTHROPIC_BASE_URL ?? null, slashCommands: [] })
       this.emitMetrics()
       return
     }

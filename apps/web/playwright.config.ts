@@ -31,7 +31,7 @@ export default defineConfig({
     command: 'node ../server/test/fixture-server.mjs',
     url: 'http://127.0.0.1:3495/healthz',
     reuseExistingServer: false,
-    env: { USERPROFILE: testHome, HOME: testHome, CCWEB_WORKSPACE: join(testHome, 'workspace'), CCWEB_PORT: '3495', CCWEB_HOME: join(testHome, '.fixture'), CLAUDE_CONFIG_DIR: join(testHome, '.claude') },
+    env: { USERPROFILE: testHome, HOME: testHome, CCWEB_WORKSPACE: join(testHome, 'workspace'), CCWEB_PORT: '3495', CCWEB_HOME: join(testHome, '.fixture'), CLAUDE_CONFIG_DIR: join(testHome, '.claude'), ANTHROPIC_DEFAULT_SONNET_MODEL: 'fixture-provider-model' },
     timeout: 20_000,
   }],
 })

@@ -165,7 +165,8 @@ export default function SettingsCenter({
   onOpenNative?: () => void
   onNewSession?: () => void
 }) {
-  const activeModel = useStore((s) => s.model)
+  const activeModel = useStore((s) => s.providerModel ?? s.model)
+  const runtimeAlias = useStore((s) => s.model)
   const settings = useStore((s) => s.settings)
   const sessionId = useStore((s) => s.sessionId)
   const operationError = useStore((s) => s.error)
@@ -456,7 +457,9 @@ export default function SettingsCenter({
   const currentTemplate = settings?.endpointTemplate ?? null
   const endpointList = settings?.endpoints ?? []
   const currentTemplateConnection = currentTemplate ? endpointList.find((item) => item.key === currentTemplate) : undefined
-  const currentModel = settings?.active?.model ?? activeModel ?? settings?.model ?? settings?.currentModel ?? null
+  const currentModel = settings?.active
+    ? settings.active.providerModel ?? settings.active.model ?? activeModel ?? settings.currentModel ?? null
+    : settings?.providerModel ?? settings?.model ?? activeModel ?? settings?.currentModel ?? null
   const describeSource = (key: string | null) => {
     if (!key) return settings?.authentication === 'native' ? 'Claude 原生登录' : '本机环境'
     const endpoint = endpointList.find((item) => item.key === key)
@@ -470,7 +473,7 @@ export default function SettingsCenter({
     if (connection) return '无认证'
     return '本机环境'
   }
-  const effortModel = settings?.model ?? currentModel ?? (settings?.endpointTemplate ? settings.endpoints.find((item) => item.key === settings.endpointTemplate)?.model ?? null : null)
+  const effortModel = settings?.model ?? settings?.active?.model ?? runtimeAlias ?? currentModel ?? (settings?.endpointTemplate ? settings.endpoints.find((item) => item.key === settings.endpointTemplate)?.model ?? null : null)
   const effortInfo = availableModels.find((item) => item.value === effortModel || item.resolvedModel === effortModel)
   const effortLevels: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'> =
     !effortInfo || effortInfo.supportsEffort === false
@@ -822,7 +825,9 @@ export default function SettingsCenter({
                     <div style={{ marginTop: 3 }}>
                       {settings?.active
                         ? [
-                            settings.active.model ?? currentModel ? `模型 ${settings.active.model ?? currentModel}` : '使用连接默认模型',
+                            settings.active.providerModel ?? settings.active.model ?? currentModel
+                              ? `模型 ${settings.active.providerModel ?? settings.active.model ?? currentModel}`
+                              : '使用连接默认模型',
                             describeSource(settings.active.endpointTemplate),
                             describeAuth(settings.active.authentication ?? settings.authentication, settings.active.endpointTemplate),
                           ]
@@ -833,7 +838,7 @@ export default function SettingsCenter({
                     <div style={{ marginTop: 6 }}>
                       <strong>新会话默认</strong>
                       <div style={{ marginTop: 3 }}>
-                        {settings?.model ?? currentTemplateConnection?.model ?? '连接默认模型'} ·{' '}
+                        {settings?.providerModel ?? settings?.model ?? currentTemplateConnection?.model ?? '连接默认模型'} ·{' '}
                         {currentTemplateConnection?.name ?? (settings?.authentication === 'native' ? 'Claude 原生登录' : '本机环境')}
                       </div>
                     </div>
@@ -980,7 +985,7 @@ export default function SettingsCenter({
                         <datalist id="probe-models">
                           {availableModels.map((item) => (
                             <option key={item.value} value={item.value}>
-                              {item.displayName}
+                              {item.providerModel ?? item.displayName}
                             </option>
                           ))}
                         </datalist>

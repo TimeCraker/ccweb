@@ -183,7 +183,7 @@ export default function App() {
           break
         case 'accepted':
           if (msg.runId && msg.text) useStore.setState({ checkpoints: [...s.checkpoints.filter((item) => item.id !== msg.runId), { id: msg.runId, text: msg.text.slice(0, 80) }] })
-          if (msg.sessionId && msg.sessionId !== s.sessionId) s.applyInit({ sessionId: msg.sessionId, model: s.model, endpoint: s.endpoint })
+          if (msg.sessionId && msg.sessionId !== s.sessionId) s.applyInit({ sessionId: msg.sessionId, model: s.model, providerModel: s.providerModel, endpoint: s.endpoint })
           if (msg.text) s.appendUser(msg.text, msg.runId, msg.images)
           break
         case 'state':
@@ -196,7 +196,7 @@ export default function App() {
           }
           break
         case 'init':
-          s.applyInit({ sessionId: msg.sessionId ?? null, model: msg.model ?? null, endpoint: msg.endpoint ?? null })
+          s.applyInit({ sessionId: msg.sessionId ?? null, model: msg.model ?? null, providerModel: msg.providerModel ?? null, endpoint: msg.endpoint ?? null })
           if (!msg.sessionId) nativeCommands = []
           else if (msg.slashCommands?.length) nativeCommands = msg.slashCommands
           s.setSlashCommands(mergeCommands(s.settings?.slashCommands ?? []))

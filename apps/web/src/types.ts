@@ -35,10 +35,12 @@ export interface SessionMeta {
 
 export interface SettingsSnapshot {
   authentication?: 'inherit' | 'native'
-  active?: { authentication?: 'inherit' | 'native'; model: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
+  active?: { authentication?: 'inherit' | 'native'; model: string | null; providerModel?: string | null; permissionMode: string | null; effort: string | null; contextScope: string; endpointTemplate: string | null }
   serverVersion: string
   contextScope: 'full' | 'project' | 'none'
   model: string | null
+  /** 新会话默认对应的服务商实际模型名 */
+  providerModel?: string | null
   permissionMode: string | null
   effort: string | null
   endpointTemplate: string | null
@@ -59,7 +61,7 @@ export interface ServerMessage {
   runId?: string
   preview?: boolean
   result?: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number }
-  models?: Array<{ value: string; displayName: string; description: string }>
+  models?: Array<{ value: string; displayName: string; description: string; providerModel?: string | null }>
   t: string
   ok?: boolean
   state?: string
@@ -67,6 +69,7 @@ export interface ServerMessage {
   seq?: number
   sessionId?: string | null
   model?: string | null
+  providerModel?: string | null
   endpoint?: string | null
   slashCommands?: Array<{ name: string; description: string }>
   action?: 'start' | 'stop'
