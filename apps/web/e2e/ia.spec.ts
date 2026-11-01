@@ -354,3 +354,48 @@ test('model display: shows the provider model name instead of the runtime alias'
   await expect(chip).toContainText('fixture-provider-model')
   await expect(chip).not.toContainText('fixture-model')
 })
+
+async function resetDefaultConnection(page: Page) {
+  await page.evaluate(async () => {
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`)
+    await new Promise<void>((resolve, reject) => {
+      ws.onopen = () => resolve()
+      ws.onerror = () => reject(new Error('helper websocket failed'))
+    })
+    ws.send(JSON.stringify({ t: 'settings.patch', scope: 'default', patch: { endpointTemplate: null, model: null }, commandId: crypto.randomUUID() }))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    ws.close()
+  })
+}
+
+test('model display: inherited connection name is not replaced by a new default', async ({ page }) => {
+  await ready(page)
+  const existing = (await (await page.request.get('/api/connections')).json()) as Array<{ key: string }>
+  for (const connection of existing) await page.request.post('/api/connections/delete', { data: { key: connection.key } })
+  await resetDefaultConnection(page)
+  await page.keyboard.press('Control+,')
+  await page.keyboard.press('Escape')
+
+  const box = page.getByRole('textbox', { name: '任务输入' })
+  await box.fill('inherited connection display')
+  await box.press('Enter')
+  await page.getByText('【E2E】模拟完成：inherited connection display', { exact: true }).waitFor()
+  const chip = page.locator('.model-chip')
+  await expect(chip).toContainText('api.anthropic.com')
+  await expect(chip).toContainText('fixture-provider-model')
+
+  const dialog = await openConnectionForm(page)
+  await dialog.getByLabel('连接名称').fill('NewDefaultB')
+  await dialog.getByLabel('模型 ID').fill('new-default-model')
+  await dialog.getByLabel('接口地址（Base URL）').fill('http://127.0.0.1:9/anthropic')
+  await dialog.getByLabel('API Key').fill('sk-audit-new-b')
+  await dialog.getByRole('button', { name: '保存并使用' }).click()
+  await dialog.getByText(/已保存「NewDefaultB」/).waitFor()
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(500)
+
+  await expect(chip).toContainText('api.anthropic.com')
+  await expect(chip).not.toContainText('NewDefaultB')
+  await expect(chip).toContainText('fixture-provider-model')
+  await expect(chip).not.toContainText('new-default-model')
+})

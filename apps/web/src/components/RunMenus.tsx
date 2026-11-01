@@ -34,9 +34,9 @@ export function modeLabel(value: string | null | undefined): string {
 export function useConnectionLabel(): { name: string | null; endpoint: string | null } {
   const settings = useStore((s) => s.settings)
   const activeEndpoint = useStore((s) => s.endpoint)
-  const template = settings?.active?.endpointTemplate ?? settings?.endpointTemplate
+  const template = settings?.active ? settings.active.endpointTemplate : settings?.endpointTemplate
   const matched = template ? settings?.endpoints.find((item) => item.key === template) : undefined
-  const endpoint = activeEndpoint ?? settings?.currentEndpoint ?? settings?.endpoints[0]?.baseUrl ?? null
+  const endpoint = activeEndpoint ?? (settings?.active ? null : (settings?.currentEndpoint ?? settings?.endpoints[0]?.baseUrl ?? null))
   let name = matched?.name ?? null
   if (!name && endpoint) {
     try {
@@ -179,9 +179,9 @@ export function ModelMenu({
   const busy = useStore((s) => s.busy)
   const { name: connectionName } = useConnectionLabel()
   const templates = settings?.endpointTemplate ?? null
-  const activeTemplate = settings?.active?.endpointTemplate ?? null
-  const activeConnection = (activeTemplate ?? templates)
-    ? settings?.endpoints.find((endpoint) => endpoint.key === (activeTemplate ?? templates))
+  const activeTemplate = settings?.active ? settings.active.endpointTemplate : templates
+  const activeConnection = activeTemplate
+    ? settings?.endpoints.find((endpoint) => endpoint.key === activeTemplate)
     : undefined
   const model = currentModelOf(settings, liveModel, liveProvider)
   const defaultModel = settings?.model ?? null
@@ -286,12 +286,16 @@ export function ModelMenu({
 
           {(normalizedQuery === '' || visibleEndpoints.length > 0) && (
             <>
-              <div className="menu-label">已配置连接</div>
+              <div className="menu-label">
+                已配置连接
+                {sessionId && activeTemplate === null ? '（当前继承本机配置）' : ''}
+              </div>
               {endpoints.length === 0 && normalizedQuery === '' && <p className="menu-empty">尚无已配置连接</p>}
               {visibleEndpoints.map((endpoint) => (
                 <MenuItem
                   key={endpoint.key}
                   selected={templates === endpoint.key}
+                  aside={activeTemplate === endpoint.key ? '当前' : templates === endpoint.key ? '新默认' : undefined}
                   description={`${endpoint.baseUrl ?? '地址未记录'}${endpoint.model ? ` · 默认 ${endpoint.model}` : ''}`}
                   onClick={() => {
                     close()
