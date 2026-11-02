@@ -457,7 +457,7 @@ export class AgentSession {
           model: this.settings.model ?? undefined,
           permissionMode: this.settings.permissionMode ?? undefined,
           effort: (this.settings.effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') ?? undefined,
-          allowDangerouslySkipPermissions: this.settings.permissionMode === 'bypassPermissions',
+          allowDangerouslySkipPermissions: true,
           ...(this.opts.resume || this.initialized ? {} : { sessionId: this.sessionId ?? undefined }),
           settingSources: [...settingSources],
           abortController: this.abortController,
