@@ -456,6 +456,7 @@ export class AgentSession {
           ...(process.env.CCWEB_MAX_TURNS ? { maxTurns: Number(process.env.CCWEB_MAX_TURNS) } : {}),
           model: this.settings.model ?? undefined,
           permissionMode: this.settings.permissionMode ?? undefined,
+          effort: (this.settings.effort as 'low' | 'medium' | 'high' | 'xhigh' | 'max') ?? undefined,
           allowDangerouslySkipPermissions: this.settings.permissionMode === 'bypassPermissions',
           ...(this.opts.resume || this.initialized ? {} : { sessionId: this.sessionId ?? undefined }),
           settingSources: [...settingSources],
