@@ -25,6 +25,54 @@ const EFFORT_LABEL: Record<string, string> = {
   max: '最大',
 }
 
+const EFFORT_CACHE_KEY = 'ccweb.lastEffort'
+const MODEL_EFFORT_CACHE_KEY = 'ccweb.modelEffortCache'
+
+export function getCachedEffort(modelName?: string | null): (typeof EFFORTS)[number] | null {
+  try {
+    if (modelName) {
+      const raw = localStorage.getItem(MODEL_EFFORT_CACHE_KEY)
+      if (raw) {
+        const map = JSON.parse(raw) as Record<string, string>
+        const val = map[modelName]
+        if (val && (EFFORTS as readonly string[]).includes(val)) return val as (typeof EFFORTS)[number]
+      }
+    }
+    const globalLast = localStorage.getItem(EFFORT_CACHE_KEY)
+    if (globalLast && (EFFORTS as readonly string[]).includes(globalLast)) {
+      return globalLast as (typeof EFFORTS)[number]
+    }
+  } catch {
+    /* ignore localStorage errors */
+  }
+  return null
+}
+
+export function saveCachedEffort(effort: string | null, modelName?: string | null) {
+  try {
+    if (effort && (EFFORTS as readonly string[]).includes(effort)) {
+      localStorage.setItem(EFFORT_CACHE_KEY, effort)
+      if (modelName) {
+        const raw = localStorage.getItem(MODEL_EFFORT_CACHE_KEY)
+        const map = raw ? (JSON.parse(raw) as Record<string, string>) : {}
+        map[modelName] = effort
+        localStorage.setItem(MODEL_EFFORT_CACHE_KEY, JSON.stringify(map))
+      }
+    } else {
+      if (modelName) {
+        const raw = localStorage.getItem(MODEL_EFFORT_CACHE_KEY)
+        if (raw) {
+          const map = JSON.parse(raw) as Record<string, string>
+          delete map[modelName]
+          localStorage.setItem(MODEL_EFFORT_CACHE_KEY, JSON.stringify(map))
+        }
+      }
+    }
+  } catch {
+    /* ignore localStorage errors */
+  }
+}
+
 export function modeLabel(value: string | null | undefined): string {
   const found = MODE_META.find((item) => item.value === value)
   return found ? t(found.label) : t('mode.default')
@@ -206,13 +254,12 @@ export function ModelMenu({
       item.resolvedModel === model,
   )
   const effortLevels: ReadonlyArray<(typeof EFFORTS)[number]> =
-    !currentModelInfo || currentModelInfo.supportsEffort === false
+    currentModelInfo?.supportsEffort === false
       ? []
-      : currentModelInfo.supportedEffortLevels?.length
+      : currentModelInfo?.supportedEffortLevels?.length
         ? EFFORTS.filter((level) => currentModelInfo.supportedEffortLevels?.includes(level))
-        : currentModelInfo.supportsEffort
-          ? EFFORTS
-          : []
+        : EFFORTS
+  const cachedEffort = getCachedEffort(runtimeModel)
   const models = [
     ...(sessionOverride && !availableModels.some((item) => item.value === sessionOverride)
       ? [{
@@ -362,7 +409,10 @@ export function ModelMenu({
               <div className="effort-row">
                 <button
                   className={`effort-pill ${currentEffort == null ? 'is-active' : ''}`}
-                  onClick={() => patch({ effort: null }, 'default')}
+                  onClick={() => {
+                    patch({ effort: null }, 'default')
+                    saveCachedEffort(null, runtimeModel)
+                  }}
                   title="使用运行时默认"
                 >
                   默认
@@ -371,13 +421,33 @@ export function ModelMenu({
                   <button
                     key={effort}
                     className={`effort-pill ${currentEffort === effort ? 'is-active' : ''}`}
-                    onClick={() => patch({ effort }, 'default')}
-                    title={`新会话使用 ${effort}`}
+                    onClick={() => {
+                      patch({ effort }, 'default')
+                      saveCachedEffort(effort, runtimeModel)
+                    }}
+                    title={`新会话使用 ${effort} (${EFFORT_LABEL[effort]})`}
                   >
                     {EFFORT_LABEL[effort]}
                   </button>
                 ))}
               </div>
+
+              {currentEffort === null && cachedEffort && effortLevels.includes(cachedEffort) && (
+                <div style={{ padding: '0 10px 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>上次使用：</span>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    style={{ fontSize: 11, color: 'var(--color-accent)', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}
+                    onClick={() => {
+                      patch({ effort: cachedEffort }, 'default')
+                      saveCachedEffort(cachedEffort, runtimeModel)
+                    }}
+                  >
+                    恢复「{EFFORT_LABEL[cachedEffort]}」档位
+                  </button>
+                </div>
+              )}
 
               {effortLevels.length > 0 && (
                 <button
@@ -398,10 +468,17 @@ export function ModelMenu({
 
               <MenuItem
                 disabled={defaultModel === saveTarget && defaultEffort === currentEffort}
-                description={saveTarget ? `新会话使用：${saveTarget}` : undefined}
+                description={
+                  saveTarget
+                    ? `新会话使用：${saveTarget}${currentEffort ? ` · 思考：${EFFORT_LABEL[currentEffort] ?? currentEffort}` : ''}`
+                    : currentEffort
+                      ? `新会话思考：${EFFORT_LABEL[currentEffort] ?? currentEffort}`
+                      : undefined
+                }
                 onClick={() => {
                   close()
                   patch({ model: saveTarget, effort: currentEffort }, 'default')
+                  saveCachedEffort(currentEffort, saveTarget ?? runtimeModel)
                 }}
               >
                 保存为默认模型
@@ -508,13 +585,22 @@ export function ModelMenu({
                           description={item.description}
                           onClick={() => {
                             close()
+                            const cachedForModel = getCachedEffort(item.value)
                             if (!isCurrentEndpoint) {
-                              patch({ endpointTemplate: endpoint.key, model: item.value }, 'default')
+                              patch({
+                                endpointTemplate: endpoint.key,
+                                model: item.value,
+                                ...(cachedForModel ? { effort: cachedForModel } : {}),
+                              }, 'default')
                               if (sessionId) {
-                                useStore.getState().setNotice(`已切换为连接「${endpoint.name}」，将在新建会话后生效。`)
+                                useStore.getState().setNotice(`已切换为连接「${endpoint.name}」模型「${itemTitle}」${cachedForModel ? `（已恢复缓存思考：${EFFORT_LABEL[cachedForModel]}）` : ''}，将在新建会话后生效。`)
                               }
                             } else {
                               patch({ model: item.value }, sessionScope)
+                              if (cachedForModel && currentEffort === null) {
+                                patch({ effort: cachedForModel }, 'default')
+                                useStore.getState().setNotice(`已切换模型，并恢复上次记录的思考档位「${EFFORT_LABEL[cachedForModel]}」。`)
+                              }
                             }
                           }}
                         >
@@ -586,10 +672,11 @@ export function ModelMenu({
                 selected={currentEffort === null}
                 onClick={() => {
                   patch({ effort: null }, 'default')
+                  saveCachedEffort(null, runtimeModel)
                   setView('root')
                 }}
               >
-                默认 (Default)
+                默认 (Default) - 由服务端或模型决定
               </MenuItem>
 
               {effortLevels.map((effort) => (
@@ -598,6 +685,7 @@ export function ModelMenu({
                   selected={currentEffort === effort}
                   onClick={() => {
                     patch({ effort }, 'default')
+                    saveCachedEffort(effort, runtimeModel)
                     setView('root')
                   }}
                 >

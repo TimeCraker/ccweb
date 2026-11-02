@@ -7,6 +7,7 @@ import { SectionIcon, IconSearch, IconPlus, IconX, IconCheck, IconWarn } from '.
 import { Modal } from './ui/Menu'
 import DiffView from './DiffView'
 import { baseName } from '../lib/path'
+import { getCachedEffort, saveCachedEffort } from './RunMenus'
 
 type Kind = 'skill' | 'command' | 'rule' | 'mcp' | 'hooks' | 'permissions'
 export type SettingsTab = 'general' | 'connection' | 'permission' | Kind | 'about'
@@ -476,13 +477,12 @@ export default function SettingsCenter({
   const effortModel = settings?.model ?? settings?.active?.model ?? runtimeAlias ?? currentModel ?? (settings?.endpointTemplate ? settings.endpoints.find((item) => item.key === settings.endpointTemplate)?.model ?? null : null)
   const effortInfo = availableModels.find((item) => item.value === effortModel || item.resolvedModel === effortModel)
   const effortLevels: Array<'low' | 'medium' | 'high' | 'xhigh' | 'max'> =
-    !effortInfo || effortInfo.supportsEffort === false
+    effortInfo?.supportsEffort === false
       ? []
-      : effortInfo.supportedEffortLevels?.length
+      : effortInfo?.supportedEffortLevels && effortInfo.supportedEffortLevels.length > 0
         ? effortInfo.supportedEffortLevels
-        : effortInfo.supportsEffort
-          ? ['low', 'medium', 'high', 'xhigh', 'max']
-          : []
+        : ['low', 'medium', 'high', 'xhigh', 'max']
+  const cachedEffort = getCachedEffort(effortModel)
   const EFFORT_LABELS: Record<string, string> = { low: '低', medium: '中', high: '高', xhigh: '很高', max: '最大' }
 
   function startCreate() {
@@ -1264,22 +1264,48 @@ export default function SettingsCenter({
 
                 <h3>默认思考力度</h3>
                 <div className="segmented" role="group" aria-label="默认思考力度">
-                  <button aria-pressed={!settings?.effort} onClick={() => patch({ effort: null })}>
+                  <button
+                    aria-pressed={!settings?.effort}
+                    onClick={() => {
+                      patch({ effort: null })
+                      saveCachedEffort(null, effortModel)
+                    }}
+                  >
                     默认
                   </button>
                   {effortLevels.map((effort) => (
-                    <button key={effort} aria-pressed={settings?.effort === effort} onClick={() => patch({ effort })}>
+                    <button
+                      key={effort}
+                      aria-pressed={settings?.effort === effort}
+                      onClick={() => {
+                        patch({ effort })
+                        saveCachedEffort(effort, effortModel)
+                      }}
+                    >
                       {EFFORT_LABELS[effort]}
                     </button>
                   ))}
                 </div>
-                <span className="hint" style={{ fontSize: 11.5 }}>
-                  {effortLevels.length === 0
-                    ? effortInfo?.supportsEffort === false
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4, flexWrap: 'wrap', gap: 6 }}>
+                  <span className="hint" style={{ fontSize: 11.5 }}>
+                    {effortLevels.length === 0
                       ? '当前模型声明不支持思考档位，只保留“默认”。'
-                      : '运行时尚未报告这个模型的思考档位，暂时只保留“默认”；发现模型后再选择。'
-                    : `只显示运行时为该模型声明的档位${settings?.effort && !effortLevels.includes(settings.effort as (typeof effortLevels)[number]) ? `；当前保存的 ${settings.effort} 不在支持范围，新会话可能被拒绝` : ''}。`}
-                </span>
+                      : `新会话生效；未特别指定时由模型服务端决定思考预算${settings?.effort && !effortLevels.includes(settings.effort as (typeof effortLevels)[number]) ? `；当前保存的 ${settings.effort} 不在支持范围` : ''}。`}
+                  </span>
+                  {cachedEffort && !settings?.effort && effortLevels.includes(cachedEffort) && (
+                    <button
+                      type="button"
+                      className="link-btn"
+                      style={{ fontSize: 11.5, color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      onClick={() => {
+                        patch({ effort: cachedEffort })
+                        saveCachedEffort(cachedEffort, effortModel)
+                      }}
+                    >
+                      应用缓存档位「{EFFORT_LABELS[cachedEffort]}」为默认
+                    </button>
+                  )}
+                </div>
 
                 <div className="row-actions" style={{ marginTop: 12 }}>
                   <button className="btn" onClick={() => changeTab('permissions')}>
