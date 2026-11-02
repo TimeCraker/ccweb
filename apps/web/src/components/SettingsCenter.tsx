@@ -1219,11 +1219,11 @@ export default function SettingsCenter({
                 <div className="mode-list">
                   {(
                     [
-                      ['default', '默认模式', '需要授权时先询问你。推荐。'],
-                      ['plan', '计划模式', '只读规划，你采纳后再开始修改。'],
-                      ['auto', '智能自主', '由运行时判断哪些操作可以自动执行；不支持时明确报错。'],
-                      ['acceptEdits', '自动编辑', '文件编辑自动允许，其他操作仍按规则处理。'],
-                      ['bypassPermissions', '跳过确认', '跳过常规权限确认，风险最高，仅在明确知情时使用。'],
+                      ['default', '默认模式 (default)', '需要授权时先询问你。推荐。'],
+                      ['plan', '计划模式 (plan)', '只读规划设计方案，采纳确认后再开始修改。'],
+                      ['auto', '自动模式 (auto)', '运行时接入风险分类器，安全操作全自动放行，高危操作拦截询问。'],
+                      ['acceptEdits', '自动编辑 (accept-edits)', '仅放行文件改动免确认，系统命令行等仍需人工审核。'],
+                      ['bypassPermissions', '跳过确认 (bypass)', '跳过常规权限确认，风险最高，仅在明确知情时使用。'],
                     ] as const
                   ).map(([value, label, desc]) => {
                     const active = (settings?.permissionMode ?? 'default') === value

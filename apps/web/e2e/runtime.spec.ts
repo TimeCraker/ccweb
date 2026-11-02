@@ -70,9 +70,9 @@ test('plan adoption, question answer and unsupported native mode receipt', async
   await page.getByRole('button', { name: '提交', exact: true }).click()
   await completed(page, 'QUESTION choice')
   // 运行时拒绝自动模式:回执错误可见,界面保持原值(不回显"已切换")
-  await setMode(page, '智能自主')
+  await setMode(page, '自动模式')
   await expect(page.getByText(/auto unavailable/)).toBeVisible()
-  await expect(page.locator('.composer-bar .chip-btn').first()).not.toContainText('智能自主')
+  await expect(page.locator('.composer-bar .chip-btn').first()).not.toContainText('自动模式')
 })
 
 test('interrupt holds queue until explicit resume and crash allows a fresh request', async ({ page }) => {

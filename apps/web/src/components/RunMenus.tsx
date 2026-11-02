@@ -8,11 +8,11 @@ type Send = (message: Record<string, unknown>) => void
 type Scope = 'session' | 'default' | 'both'
 
 const MODE_META = [
-  { value: 'default', label: 'mode.default', desc: 'mode.default.desc' },
-  { value: 'plan', label: 'mode.plan', desc: 'mode.plan.desc' },
-  { value: 'auto', label: 'mode.auto', desc: 'mode.auto.desc' },
-  { value: 'acceptEdits', label: 'mode.acceptEdits', desc: 'mode.acceptEdits.desc' },
-  { value: 'bypassPermissions', label: 'mode.bypass', desc: 'mode.bypass.desc' },
+  { value: 'default', label: 'mode.default', chipLabel: 'mode.default.chip', desc: 'mode.default.desc' },
+  { value: 'plan', label: 'mode.plan', chipLabel: 'mode.plan.chip', desc: 'mode.plan.desc' },
+  { value: 'auto', label: 'mode.auto', chipLabel: 'mode.auto.chip', desc: 'mode.auto.desc' },
+  { value: 'acceptEdits', label: 'mode.acceptEdits', chipLabel: 'mode.acceptEdits.chip', desc: 'mode.acceptEdits.desc' },
+  { value: 'bypassPermissions', label: 'mode.bypass', chipLabel: 'mode.bypass.chip', desc: 'mode.bypass.desc' },
 ] as const
 
 const ADVANCED = new Set(['acceptEdits', 'bypassPermissions'])
@@ -76,6 +76,11 @@ export function saveCachedEffort(effort: string | null, modelName?: string | nul
 export function modeLabel(value: string | null | undefined): string {
   const found = MODE_META.find((item) => item.value === value)
   return found ? t(found.label) : t('mode.default')
+}
+
+export function modeChipLabel(value: string | null | undefined): string {
+  const found = MODE_META.find((item) => item.value === value)
+  return found ? t(found.chipLabel) : t('mode.default.chip')
 }
 
 /** 当前连接名:优先端点模板名,其次主机名;没有配置时返回 null */
@@ -147,7 +152,7 @@ export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean })
           style={pending ? { opacity: 0.7 } : undefined}
         >
           <span className={`mode-dot mode-dot-${effective}`} aria-hidden="true" />
-          <span className="chip-label">{modeLabel(effective)}</span>{pending && <span className="dot live accent" aria-hidden="true" />}
+          <span className="chip-label">{modeChipLabel(effective)}</span>{pending && <span className="dot live accent" aria-hidden="true" />}
           <IconChevron width={12} height={12} />
         </button>
       )}
