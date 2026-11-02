@@ -346,12 +346,29 @@ configApi.post('/sessions/restore', async c => {
 
 async function pickFolderNative(): Promise<string | null> {
   if (process.platform === 'win32') {
-    const script = 'Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = "选择项目目录"; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }';
+    // 必须使用 -STA 并且移除 -NonInteractive，使用置顶隐藏 Form 作为 Owner 确保对话框置顶到最前
+    const script = [
+      'Add-Type -AssemblyName System.Windows.Forms',
+      '$form = New-Object System.Windows.Forms.Form',
+      '$form.TopMost = $true',
+      '$form.StartPosition = "CenterScreen"',
+      '$form.Width = 0',
+      '$form.Height = 0',
+      '$form.Show()',
+      '$form.Activate()',
+      '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
+      '$dialog.AutoUpgradeEnabled = $true',
+      '$dialog.Description = "请选择项目目录"',
+      '$dialog.ShowNewFolderButton = $true',
+      '$res = $dialog.ShowDialog($form)',
+      '$form.Close()',
+      'if ($res -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }',
+    ].join('; ');
     try {
       const { stdout } = await promisify(execFile)(
         'powershell.exe',
-        ['-NoProfile', '-NonInteractive', '-Command', script],
-        { timeout: 60_000, windowsHide: false },
+        ['-STA', '-NoProfile', '-Command', script],
+        { timeout: 120_000, windowsHide: false },
       );
       const selected = stdout.trim();
       return selected && existsSync(selected) ? selected : null;
@@ -363,7 +380,7 @@ async function pickFolderNative(): Promise<string | null> {
       const { stdout } = await promisify(execFile)(
         'osascript',
         ['-e', 'POSIX path of (choose folder with prompt "选择项目目录")'],
-        { timeout: 60_000 },
+        { timeout: 120_000 },
       );
       const selected = stdout.trim();
       return selected && existsSync(selected) ? selected : null;

@@ -281,19 +281,31 @@ export default function Sidebar({
 
       <Menu
         label={t('sb.project.recent')}
-        width={318}
+        width={330}
         trigger={({ open }) => (
-          <button className="workspace-trigger" aria-expanded={open} title={settings?.workspace ?? ''}>
-            <WorkspaceGlyph />
-            <span className="ws-name">
-              {settings?.workspace ? baseName(settings.workspace) : t('ws.title')}
+          <button
+            className={`workspace-trigger ${open ? 'is-open' : ''}`}
+            aria-expanded={open}
+            title={settings?.workspace ?? ''}
+          >
+            <span className="ws-badge">
+              <WorkspaceGlyph />
             </span>
-            <IconChevron
-              width={13}
-              height={13}
-              className="chev"
-              style={{ transform: open ? 'rotate(180deg)' : undefined }}
-            />
+            <span className="ws-text-group">
+              <span className="ws-name">
+                {settings?.workspace ? baseName(settings.workspace) : t('ws.title')}
+              </span>
+              <span className="ws-sub">
+                {settings?.workspace ? compactPath(settings.workspace, 24) : '点击切换项目'}
+              </span>
+            </span>
+            <span className="ws-indicator">
+              <IconChevron
+                width={12}
+                height={12}
+                className="chev"
+              />
+            </span>
           </button>
         )}
       >
@@ -452,6 +464,8 @@ function WorkspaceMenu({
 
   const [discovered, setDiscovered] = useState<Array<{ name: string; path: string; isGit: boolean }>>([])
   const [picking, setPicking] = useState(false)
+  const [pickError, setPickError] = useState<string | null>(null)
+  const abortCtrlRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!adding) return
@@ -463,19 +477,33 @@ function WorkspaceMenu({
       .catch(() => {})
   }, [adding])
 
+  const cancelPick = () => {
+    if (abortCtrlRef.current) {
+      abortCtrlRef.current.abort()
+      abortCtrlRef.current = null
+    }
+    setPicking(false)
+  }
+
   const pickNative = async () => {
     setPicking(true)
+    setPickError(null)
+    const ctrl = new AbortController()
+    abortCtrlRef.current = ctrl
     try {
-      const res = await fetch('/api/dialog/pick-folder', { method: 'POST' })
+      const res = await fetch('/api/dialog/pick-folder', { method: 'POST', signal: ctrl.signal })
       const data = (await res.json()) as { path: string | null }
       if (data?.path) {
         if (hidden.includes(data.path)) restore()
         onPick(data.path)
       }
-    } catch {
-      // 忽略
+    } catch (err: unknown) {
+      if ((err as Error)?.name !== 'AbortError') {
+        setPickError('未能打开系统选择器，请直接输入路径或点击下方推荐项目')
+      }
     } finally {
       setPicking(false)
+      abortCtrlRef.current = null
     }
   }
 
@@ -483,7 +511,7 @@ function WorkspaceMenu({
     const absolute = /^[a-zA-Z]:[\\/]/.test(path.trim()) || path.trim().startsWith('\\\\') || path.trim().startsWith('/')
     return (
       <form
-        className="p-1"
+        className="p-1.5"
         onSubmit={(e) => {
           e.preventDefault()
           const dir = path.trim()
@@ -492,13 +520,14 @@ function WorkspaceMenu({
           onPick(dir)
         }}
       >
-        <div className="menu-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span>{t('sb.project.add')}</span>
+        <div className="menu-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontWeight: 600, fontSize: 12 }}>{t('sb.project.add')}</span>
           <button
             type="button"
             className="icon-btn"
             style={{ width: 22, height: 22 }}
             onClick={() => {
+              cancelPick()
               setAdding(false)
               setPath('')
             }}
@@ -511,38 +540,93 @@ function WorkspaceMenu({
           </button>
         </div>
 
+        {/* 现代动作卡片：打开本地文件夹 */}
         <button
           type="button"
-          className="btn btn-primary"
-          style={{
-            width: '100%',
-            padding: '8px 12px',
-            marginBottom: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 7,
-            fontWeight: 500,
-            fontSize: 12.5,
-          }}
-          onClick={pickNative}
-          disabled={picking}
+          className={`ws-pick-card ${picking ? 'is-picking' : ''}`}
+          onClick={picking ? cancelPick : pickNative}
+          title="调起 Windows 资源管理器选择文件夹"
         >
-          <IconFolder width={15} height={15} />
-          <span>{picking ? '正在打开文件夹窗口…' : '选择本地文件夹…'}</span>
+          <div className="ws-pick-icon">
+            {picking ? (
+              <span className="ws-spinner" />
+            ) : (
+              <IconFolder width={17} height={17} />
+            )}
+          </div>
+          <div className="ws-pick-text">
+            <div className="ws-pick-title">
+              {picking ? '正在等待系统窗口选择…' : '打开本地文件夹…'}
+            </div>
+            <div className="ws-pick-desc">
+              {picking ? '点击可取消当前等待' : '在系统资源管理器中直接选定项目目录'}
+            </div>
+          </div>
+          <div className="ws-pick-action">
+            {picking ? (
+              <span style={{ fontSize: 11, color: 'var(--color-accent)' }}>取消</span>
+            ) : (
+              <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>浏览 →</span>
+            )}
+          </div>
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0', color: 'var(--color-text-faint)', fontSize: 11 }}>
+        {pickError && (
+          <div style={{ fontSize: 11, color: 'var(--color-danger)', marginBottom: 8, padding: '4px 6px', background: 'color-mix(in srgb, var(--color-danger) 10%, transparent)', borderRadius: 5 }}>
+            {pickError}
+          </div>
+        )}
+
+        {/* 智能检测到的候选项目 */}
+        {discovered.length > 0 && (
+          <div style={{ margin: '8px 0', borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
+            <div className="menu-label" style={{ padding: '0 0 6px', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
+              <span>检测到同级与子项目</span>
+              <span style={{ fontWeight: 400, color: 'var(--color-text-faint)' }}>{discovered.length} 个</span>
+            </div>
+            <div style={{ maxHeight: 150, overflowY: 'auto', paddingRight: 2 }}>
+              {discovered.map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  className="ws-discover-card"
+                  onClick={() => {
+                    if (hidden.includes(item.path)) restore()
+                    onPick(item.path)
+                  }}
+                  title={item.path}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--color-text)' }}>{item.name}</span>
+                      {item.isGit && (
+                        <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 4, background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)', color: 'var(--color-accent)', fontWeight: 500 }}>
+                          git
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: 'var(--color-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                      {compactPath(item.path, 34)}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-faint)', marginLeft: 6 }}>打开</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 手动输入路径 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0 6px', color: 'var(--color-text-faint)', fontSize: 11 }}>
           <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
-          <span>或手动输入</span>
+          <span>或手动输入路径</span>
           <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
         </div>
 
         <input
           ref={inputRef}
-          autoFocus
           className="input"
-          style={{ height: 34, fontSize: 12.5 }}
+          style={{ height: 32, fontSize: 12 }}
           value={path}
           onChange={(e) => setPath(e.target.value)}
           placeholder={t('sb.project.pathHint')}
@@ -551,9 +635,9 @@ function WorkspaceMenu({
         />
         <p
           style={{
-            padding: '6px 2px 8px',
-            fontSize: 11,
-            lineHeight: 1.55,
+            padding: '4px 2px 8px',
+            fontSize: 10.5,
+            lineHeight: 1.5,
             color: path.trim() && !absolute ? 'var(--color-danger)' : 'var(--color-text-faint)',
           }}
         >
@@ -564,6 +648,7 @@ function WorkspaceMenu({
             type="button"
             className="btn btn-sm btn-ghost"
             onClick={() => {
+              cancelPick()
               setAdding(false)
               setPath('')
             }}
@@ -574,39 +659,6 @@ function WorkspaceMenu({
             {t('sb.project.open')}
           </button>
         </div>
-
-        {discovered.length > 0 && (
-          <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
-            <div className="menu-label" style={{ padding: '0 0 6px', fontSize: 11 }}>同级与子目录推荐</div>
-            <div style={{ maxHeight: 160, overflowY: 'auto' }}>
-              {discovered.map((item) => (
-                <button
-                  key={item.path}
-                  type="button"
-                  className="menu-item"
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, marginBottom: 3, display: 'block', textAlign: 'left' }}
-                  onClick={() => {
-                    if (hidden.includes(item.path)) restore()
-                    onPick(item.path)
-                  }}
-                  title={item.path}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 550, fontSize: 12, color: 'var(--color-text)' }}>{item.name}</span>
-                    {item.isGit && (
-                      <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: 'var(--color-panel-2)', color: 'var(--color-text-dim)' }}>
-                        git
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--color-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-                    {item.path}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </form>
     )
   }
