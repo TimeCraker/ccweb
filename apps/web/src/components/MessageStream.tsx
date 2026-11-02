@@ -249,7 +249,7 @@ function TurnView({
   return (
     <div className="msg-assistant group/turn">
       {turn.blocks.map((b, i) => (
-        <BlockView key={i} block={b} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
+        <BlockView key={i} block={b} turnDone={turn.done} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
       ))}
       <div className="turn-tail">
         {turn.tail && (
@@ -272,11 +272,11 @@ function TurnView({
   )
 }
 
-function BlockView({ block, isLastText }: { block: Block; isLastText: boolean }) {
+function BlockView({ block, turnDone, isLastText }: { block: Block; turnDone?: boolean; isLastText: boolean }) {
   const [copied, setCopied] = useState(false)
   useLocale()
   if (block.kind === 'thinking') return <ThinkingBlock block={block} />
-  if (block.kind === 'tool') return <ToolCard block={block} />
+  if (block.kind === 'tool') return <ToolCard block={block} turnDone={turnDone} />
   return (
     <div className={`group relative ${isLastText ? 'stream-caret' : ''}`}>
       <Markdown text={block.text || '…'} />

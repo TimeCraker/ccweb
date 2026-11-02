@@ -138,7 +138,7 @@ export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean })
       width={308}
       trigger={({ open }) => (
         <button
-          className="chip-btn"
+          className={`chip-btn mode-chip mode-${effective}`}
           aria-expanded={open}
           aria-busy={pending}
           aria-label={t('cp.mode')}
@@ -146,6 +146,7 @@ export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean })
           disabled={disabled}
           style={pending ? { opacity: 0.7 } : undefined}
         >
+          <span className={`mode-dot mode-dot-${effective}`} aria-hidden="true" />
           <span className="chip-label">{modeLabel(effective)}</span>{pending && <span className="dot live accent" aria-hidden="true" />}
           <IconChevron width={12} height={12} />
         </button>
@@ -158,6 +159,7 @@ export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean })
             <MenuItem
               key={item.value}
               selected={effective === item.value}
+              icon={<span className={`mode-dot mode-dot-${item.value}`} style={{ marginTop: 5 }} aria-hidden="true" />}
               description={t(item.desc)}
               onClick={() => {
                 close()
@@ -173,6 +175,7 @@ export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean })
             <MenuItem
               key={item.value}
               selected={effective === item.value}
+              icon={<span className={`mode-dot mode-dot-${item.value}`} style={{ marginTop: 5 }} aria-hidden="true" />}
               description={t(item.desc)}
               onClick={() => {
                 if (item.value === 'bypassPermissions' && !window.confirm(t('mode.confirmBypass'))) return

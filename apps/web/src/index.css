@@ -1304,6 +1304,68 @@ html.dark .ws-item:hover {
   color: var(--color-warn);
 }
 
+/* 运行模式标识圆点与色彩体系 */
+.mode-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background-color: var(--color-text-faint);
+  transition: background-color var(--dur-fast) var(--ease-soft), box-shadow var(--dur-fast) var(--ease-soft);
+}
+.mode-dot.mode-dot-default {
+  background-color: #94a3b8;
+}
+/* 计划模式：科技青蓝 / 天蓝（绝不用紫色） */
+.mode-dot.mode-dot-plan {
+  background-color: #0ea5e9;
+  box-shadow: 0 0 6px rgba(14, 165, 233, 0.5);
+}
+/* 智能自主：经典智能蓝 */
+.mode-dot.mode-dot-auto {
+  background-color: #3b82f6;
+  box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+}
+/* 自动编辑：琥珀警示暖橙 */
+.mode-dot.mode-dot-acceptEdits {
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+/* 跳过确认：高危红 */
+.mode-dot.mode-dot-bypassPermissions {
+  background-color: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+}
+
+.chip-btn.mode-chip {
+  gap: 6px;
+}
+.chip-btn.mode-plan {
+  color: #0284c7;
+}
+:root[data-theme='dark'] .chip-btn.mode-plan {
+  color: #38bdf8;
+}
+.chip-btn.mode-auto {
+  color: #2563eb;
+}
+:root[data-theme='dark'] .chip-btn.mode-auto {
+  color: #60a5fa;
+}
+.chip-btn.mode-acceptEdits {
+  color: #d97706;
+}
+:root[data-theme='dark'] .chip-btn.mode-acceptEdits {
+  color: #fbbf24;
+}
+.chip-btn.mode-bypassPermissions {
+  color: #dc2626;
+}
+:root[data-theme='dark'] .chip-btn.mode-bypassPermissions {
+  color: #f87171;
+}
+
 /* 模型与推理等级多级弹层 (对标 DeepSeek Harness) */
 .model-menu-root {
   display: flex;

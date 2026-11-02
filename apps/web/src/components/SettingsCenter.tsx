@@ -1219,9 +1219,9 @@ export default function SettingsCenter({
                 <div className="mode-list">
                   {(
                     [
-                      ['default', '逐步确认', '需要授权时先询问你。推荐。'],
-                      ['plan', '先做计划', '只读规划，你采纳后再开始修改。'],
-                      ['auto', '自动处理', '由运行时判断哪些操作可以自动执行；不支持时明确报错。'],
+                      ['default', '默认模式', '需要授权时先询问你。推荐。'],
+                      ['plan', '计划模式', '只读规划，你采纳后再开始修改。'],
+                      ['auto', '智能自主', '由运行时判断哪些操作可以自动执行；不支持时明确报错。'],
                       ['acceptEdits', '自动编辑', '文件编辑自动允许，其他操作仍按规则处理。'],
                       ['bypassPermissions', '跳过确认', '跳过常规权限确认，风险最高，仅在明确知情时使用。'],
                     ] as const
@@ -1239,7 +1239,7 @@ export default function SettingsCenter({
                       >
                         <span className="mode-radio" aria-hidden="true">{active ? <IconCheck width={11} height={11} /> : null}</span>
                         <span className="mode-copy">
-                          <strong>{label}</strong>
+                          <strong><span className={`mode-dot mode-dot-${value}`} aria-hidden="true" style={{ display: 'inline-block', marginRight: 6, verticalAlign: 'middle' }} />{label}</strong>
                           <small>{desc}</small>
                         </span>
                       </button>

@@ -241,7 +241,24 @@ export const useStore = create<AppState>((set) => ({
   setQueue: (queue) => set({ queue }),
   appendUser: (text, nativeUuid, images) =>
     set((s) => ({
-      entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text, nativeUuid, images }],
+      entries: [
+        ...s.entries.map((e) =>
+          e.type === 'turn' && !e.done
+            ? {
+                ...e,
+                done: true,
+                blocks: e.blocks.map((b) =>
+                  b.kind === 'tool' && (b.status === 'running' || b.status === 'streaming')
+                    ? { ...b, status: 'done' as const }
+                    : b.kind !== 'tool' && b.streaming
+                      ? { ...b, streaming: false }
+                      : b,
+                ),
+              }
+            : e,
+        ),
+        { type: 'user' as const, id: nextEntryId(), text, nativeUuid, images },
+      ],
       busy: true,
       turnStartedAt: Date.now(),
       lastTurnStats: null,
@@ -273,7 +290,18 @@ export const useStore = create<AppState>((set) => ({
       if (!t) return { busy: false, turnStartedAt: null, lastTurnStats: stats }
       const entries = s.entries.map((e) =>
         e.type === 'turn' && e.id === (t as TurnEntry).id
-          ? { ...e, done: true, tail: s.turnStartedAt ? stats : undefined }
+          ? {
+              ...e,
+              done: true,
+              tail: s.turnStartedAt ? stats : e.tail,
+              blocks: e.blocks.map((b) =>
+                b.kind === 'tool' && (b.status === 'running' || b.status === 'streaming')
+                  ? { ...b, status: 'done' as const }
+                  : b.kind !== 'tool' && b.streaming
+                    ? { ...b, streaming: false }
+                    : b,
+              ),
+            }
           : e,
       )
       return { entries, busy: false, turnStartedAt: null, lastTurnStats: stats }

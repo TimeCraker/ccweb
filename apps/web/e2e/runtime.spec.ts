@@ -60,8 +60,8 @@ test('approval survives reload, preserves draft and stays isolated from another 
 
 test('plan adoption, question answer and unsupported native mode receipt', async ({ page }) => {
   await ready(page)
-  await setMode(page, '先做计划')
-  await expect(page.locator('.composer-bar .chip-btn').first()).toContainText('先做计划')
+  await setMode(page, '计划模式')
+  await expect(page.locator('.composer-bar .chip-btn').first()).toContainText('计划模式')
   await send(page, 'PLAN review')
   await page.getByRole('button', { name: '采纳并开始执行', exact: true }).click()
   await completed(page, 'PLAN review')
@@ -70,9 +70,9 @@ test('plan adoption, question answer and unsupported native mode receipt', async
   await page.getByRole('button', { name: '提交', exact: true }).click()
   await completed(page, 'QUESTION choice')
   // 运行时拒绝自动模式:回执错误可见,界面保持原值(不回显"已切换")
-  await setMode(page, '自动处理')
+  await setMode(page, '智能自主')
   await expect(page.getByText(/auto unavailable/)).toBeVisible()
-  await expect(page.locator('.composer-bar .chip-btn').first()).not.toContainText('自动处理')
+  await expect(page.locator('.composer-bar .chip-btn').first()).not.toContainText('智能自主')
 })
 
 test('interrupt holds queue until explicit resume and crash allows a fresh request', async ({ page }) => {

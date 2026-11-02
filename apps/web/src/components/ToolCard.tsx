@@ -47,19 +47,20 @@ const STATUS = {
   error: { text: 'tl.error', color: 'var(--color-danger)' },
 } as const
 
-export default function ToolCard({ block }: { block: ToolBlock }) {
+export default function ToolCard({ block, turnDone }: { block: ToolBlock; turnDone?: boolean }) {
   // Bash 完成后自动展开一次;用户手动操作后完全交还控制权
   const [userTouched, setUserTouched] = useState(false)
   const [autoOpen, setAutoOpen] = useState(false)
   const [open, setOpen] = useState(false)
   useLocale()
-  const isBashDone = block.toolName === 'Bash' && (block.status === 'done' || block.status === 'error')
+  const effectiveStatus = turnDone && (block.status === 'running' || block.status === 'streaming') ? 'done' : block.status
+  const isBashDone = block.toolName === 'Bash' && (effectiveStatus === 'done' || effectiveStatus === 'error')
   // 失败的工具保持展开,避免异常被折叠成一行状态字
-  if ((isBashDone || block.status === 'error') && !autoOpen) setAutoOpen(true)
+  if ((isBashDone || effectiveStatus === 'error') && !autoOpen) setAutoOpen(true)
   const effectiveOpen = userTouched ? open : open || autoOpen
-  const elapsed = useElapsed(block.status === 'running' || block.status === 'streaming')
+  const elapsed = useElapsed(effectiveStatus === 'running' || effectiveStatus === 'streaming')
   const meta = TOOL_META[block.toolName]
-  const status = STATUS[block.status]
+  const status = STATUS[effectiveStatus]
   const summary = useMemo(() => {
     const input = block.input ?? tryParse(block.inputRaw)
     if (input && meta) return meta.label(input)
@@ -100,7 +101,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
         <span className="tool-summary" title={summary}>
           {summary}
         </span>
-        {block.status === 'running' && (
+        {effectiveStatus === 'running' && (
           <span
             aria-hidden="true"
             style={{
@@ -138,7 +139,7 @@ export default function ToolCard({ block }: { block: ToolBlock }) {
           {result != null && (
             <div className="tool-block">
               <p className="label">{t('tl.result')}</p>
-              <pre className={`tool-pre ${block.status === 'error' ? 'error' : ''}`}>
+              <pre className={`tool-pre ${effectiveStatus === 'error' ? 'error' : ''}`}>
                 {hasAnsi
                   ? ansiToSegments(display).map((segment, index) => (
                       <span key={index} style={segment.fg ? { color: segment.fg } : undefined} className={segment.bold ? 'font-bold' : undefined}>
