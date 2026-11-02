@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t } from '../i18n'
 import { IconArrowUp, IconStop, IconFile, IconWarn } from './Icon'
@@ -223,9 +223,31 @@ export default function Composer({
     taRef.current?.focus()
   }
 
+  // 文本行数与字数检测，用于自适应行宽档位
+  const lineCount = useMemo(() => {
+    if (!text) return 1
+    return text.split('\n').length
+  }, [text])
+
+  const composerWidthClass = useMemo(() => {
+    if (lineCount >= 3 || text.length > 80) return 'composer-wide-max'
+    if (lineCount === 2 || text.length > 35) return 'composer-wide-mid'
+    return 'composer-wide-base'
+  }, [lineCount, text.length])
+
+  // 高度自适应：单行起步，最多自适应到三行（约 86px），超出三行开启平滑垂直滚动
+  useLayoutEffect(() => {
+    const el = taRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const targetH = Math.min(Math.max(el.scrollHeight, 38), 86)
+    el.style.height = `${targetH}px`
+    el.style.overflowY = el.scrollHeight > 86 ? 'auto' : 'hidden'
+  }, [text])
+
   return (
     <div
-      className={`composer ${hero ? 'composer-hero' : ''} ${dragging ? 'is-drag' : ''}`}
+      className={`composer ${composerWidthClass} ${hero ? 'composer-hero' : ''} ${dragging ? 'is-drag' : ''}`}
       style={{ position: 'relative' }}
     >
       <input

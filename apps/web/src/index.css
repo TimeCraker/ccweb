@@ -1144,22 +1144,29 @@ html.dark .ws-item:hover {
 }
 .dock-inner {
   width: 100%;
-  max-width: var(--content-w);
+  max-width: var(--composer-dock-w, 980px);
   margin: 0 auto;
-  padding: 0 28px;
+  padding: 0 24px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  align-items: center;
+}
+.dock-inner > * {
+  width: 100%;
 }
 
 /* ---------------- 输入框 ---------------- */
 
 .composer {
+  width: 100%;
+  margin: 0 auto;
   border: 1px solid var(--color-border-strong);
   border-radius: 14px;
   background: var(--color-panel);
   box-shadow: var(--shadow-card);
   transition:
+    max-width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
     border-color var(--dur-mid) var(--ease-soft),
     box-shadow var(--dur-mid) var(--ease-soft);
 }
@@ -1173,22 +1180,43 @@ html.dark .ws-item:hover {
   border-color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 4%, var(--color-panel));
 }
+
+/* 动态自适应行宽：单行紧凑聚焦，行数增多时自适应平滑加宽，且受页面上限约束（不能太宽） */
+.composer.composer-wide-base {
+  max-width: min(720px, 100%);
+}
+.composer.composer-wide-mid {
+  max-width: min(840px, 100%);
+}
+.composer.composer-wide-max {
+  max-width: min(var(--composer-max-w, 980px), 100%);
+}
+
 .composer-main {
-  padding: 11px 13px 0;
+  padding: 8px 12px 0;
 }
 .composer textarea {
   display: block;
   width: 100%;
-  min-height: 52px;
-  max-height: 220px;
-  padding: 2px 2px 8px;
+  min-height: 38px;
+  max-height: 86px;
+  padding: 6px 2px 6px;
   border: 0;
   background: transparent;
   color: var(--color-text);
   font-size: 15px;
-  line-height: 1.65;
+  line-height: 1.6;
   resize: none;
   outline: none;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+}
+.composer textarea::-webkit-scrollbar {
+  width: 5px;
+}
+.composer textarea::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 3px;
 }
 .composer textarea::placeholder {
   color: var(--color-text-faint);
