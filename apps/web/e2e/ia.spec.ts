@@ -99,6 +99,8 @@ test('IA04: connection search matches connections and keeps groups', async ({ pa
   const trigger = page.getByRole('button', { name: '模型', exact: true })
   await trigger.click()
   const menu = page.getByRole('menu', { name: '模型', exact: true })
+  const navBtn = menu.getByRole('button', { name: /全部模型|切换模型/ }).first()
+  if (await navBtn.isVisible()) await navBtn.click()
   const search = menu.getByRole('textbox', { name: '模型', exact: true })
   await search.fill('AuditConnection')
   await expect(menu.getByText('已配置连接')).toBeVisible()

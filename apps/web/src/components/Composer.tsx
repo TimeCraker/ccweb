@@ -388,7 +388,7 @@ export default function Composer({
             <ModelMenu
               send={sendControl ?? (() => undefined)}
               onAddConnection={() => onAddConnection?.()}
-              onNewSession={onNewSession}
+              _onNewSession={onNewSession}
             />
             {isStopMode ? (
               <button

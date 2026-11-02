@@ -161,15 +161,15 @@ export function ModeMenu({ send, disabled }: { send: Send; disabled?: boolean })
   )
 }
 
-/** 模型菜单:模型/思考力度分层,连接切换需新会话生效 */
+/** 模型菜单:多级视图架构(对标 DeepSeek Harness)，清晰分离模型与推理等级 */
 export function ModelMenu({
   send,
   onAddConnection,
-  onNewSession,
+  _onNewSession,
 }: {
   send: Send
   onAddConnection: () => void
-  onNewSession?: () => void
+  _onNewSession?: () => void
 }) {
   const settings = useStore((s) => s.settings)
   const liveModel = useStore((s) => s.model)
@@ -185,6 +185,7 @@ export function ModelMenu({
     : undefined
   const model = currentModelOf(settings, liveModel, liveProvider)
   const defaultModel = settings?.model ?? null
+  const [view, setView] = useState<'root' | 'models' | 'effort'>('root')
   const [query, setQuery] = useState('')
   const [custom, setCustom] = useState('')
   const { sessionId, pending, patch, sessionScope } = useSettingsPatch(send)
@@ -231,215 +232,384 @@ export function ModelMenu({
       : []),
     ...availableModels,
   ].filter((item, index, list) => list.findIndex((other) => other.value === item.value) === index)
+
   const normalizedQuery = query.trim().toLowerCase()
-  const visibleEndpoints = normalizedQuery
-    ? endpoints.filter((endpoint) =>
-        [endpoint.name, endpoint.baseUrl ?? '', endpoint.model ?? ''].some((value) =>
-          value.toLowerCase().includes(normalizedQuery),
-        ),
-      )
-    : endpoints
-  const visibleModels = models.filter(
-    (item) =>
-      !normalizedQuery ||
-      item.value.toLowerCase().includes(normalizedQuery) ||
-      item.displayName.toLowerCase().includes(normalizedQuery),
-  )
   const disabled = conn !== 'open' || !settings
 
-  const triggerLabel = model
-    ? `${connectionName ? `${connectionName} · ` : ''}${model}`
-    : connectionName
-      ? `${connectionName} · 默认模型`
-      : '选择模型'
+  // 解析模型名与可选 badge (例如 "glm-5.3[1m]" -> name="glm-5.3", badge="1m")
+  const rawModelName = model ?? (connectionName ? '使用连接默认模型' : '选择模型')
+  const badgeMatch = /^(.*?)\s*\[(.*?)\]$/.exec(rawModelName)
+  const displayModelName = badgeMatch ? badgeMatch[1] : rawModelName
+  const displayBadge = badgeMatch ? badgeMatch[2] : null
+  const displayEffort = currentModelInfo?.supportsEffort === false
+    ? '无思考'
+    : currentEffort
+      ? (EFFORT_LABEL[currentEffort] ?? currentEffort)
+      : '默认'
+
+  const fullChipTitle = `${connectionName ? `${connectionName} · ` : ''}${displayModelName}`
 
   return (
     <Menu
       label={t('cp.model')}
-      width={340}
+      width={320}
       align="end"
+      onOpen={() => {
+        setView('root')
+        setQuery('')
+      }}
       trigger={({ open }) => (
         <button
           className={`chip-btn model-chip ${model ? '' : 'warn'}`}
           aria-expanded={open}
           aria-busy={pending}
           aria-label={t('cp.model')}
-          title={`${model ?? (connectionName ? '使用连接默认模型' : t('cp.needConnection'))}${pending ? ' · 确认中' : ''}`}
+          title={`${rawModelName} · 推理等级: ${displayEffort}${pending ? ' · 确认中' : ''}`}
           disabled={disabled && !open}
           style={pending ? { opacity: 0.7 } : undefined}
         >
-          <span className="chip-label">{triggerLabel}</span>{pending && <span className="dot live accent" aria-hidden="true" />}
+          <span className="chip-model-name">{fullChipTitle}</span>
+          {displayBadge && <span className="chip-badge">{displayBadge}</span>}
+          <span className="chip-effort">{displayEffort}</span>
+          {pending && <span className="dot live accent" aria-hidden="true" />}
           <IconChevron width={12} height={12} />
         </button>
       )}
     >
       {(close) => (
         <>
-          <div className="menu-search">
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索模型或连接…"
-              aria-label={t('cp.model')}
-            />
-          </div>
-
-          {(normalizedQuery === '' || visibleEndpoints.length > 0) && (
-            <>
-              <div className="menu-label">
-                已配置连接
-                {sessionId && activeTemplate === null ? '（当前继承本机配置）' : ''}
+          {view === 'root' && (
+            <div className="model-menu-root">
+              <div className="menu-label row">
+                <span>当前模型</span>
+                <button
+                  type="button"
+                  className="link-btn"
+                  style={{ fontSize: 11, color: 'var(--color-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  onClick={() => setView('models')}
+                >
+                  全部模型与连接 ›
+                </button>
               </div>
-              {endpoints.length === 0 && normalizedQuery === '' && <p className="menu-empty">尚无已配置连接</p>}
-              {visibleEndpoints.map((endpoint) => (
+
+              {currentSelection && !availableModels.some((item) => item.value === currentSelection) && (
                 <MenuItem
-                  key={endpoint.key}
-                  selected={templates === endpoint.key}
-                  aside={activeTemplate === endpoint.key ? '当前' : templates === endpoint.key ? '新默认' : undefined}
-                  description={`${endpoint.baseUrl ?? '地址未记录'}${endpoint.model ? ` · 默认 ${endpoint.model}` : ''}`}
+                  selected={true}
+                  description={sessionId && sessionOverride ? '当前会话覆盖' : '已选择模型'}
                   onClick={() => {
                     close()
-                    patch({ endpointTemplate: endpoint.key, model: null }, 'default')
-                    if (sessionId && onNewSession) {
-                      const apply = window.confirm('连接切换需要新会话才会生效。现在新建会话并应用？当前会话会保留在列表里。')
-                      if (apply) setTimeout(() => onNewSession(), 0)
-                    }
+                    patch({ model: currentSelection }, sessionScope)
                   }}
                 >
-                  {endpoint.name}
-                </MenuItem>
-              ))}
-              {normalizedQuery === '' && (
-                <MenuItem
-                  icon={<IconPlus width={14} height={14} style={{ marginTop: 2, color: 'var(--color-accent)' }} />}
-                  onClick={() => {
-                    close()
-                    onAddConnection()
-                  }}
-                  description="填写接口地址与 API Key"
-                >
-                  添加模型连接
+                  {currentSelection}
                 </MenuItem>
               )}
-              <div className="menu-sep" />
-            </>
-          )}
 
-          <div className="menu-label">{sessionId ? '当前会话的模型' : '新会话默认模型'}</div>
-          <MenuItem
-            selected={currentSelection === null}
-            description={
-              activeConnection?.model ? `由连接决定：${activeConnection.model}` : '由连接决定，切换连接时恢复'
-            }
-            onClick={() => {
-              close()
-              patch({ model: null }, sessionScope)
-            }}
-          >
-            使用连接默认
-          </MenuItem>
-          {visibleModels.length === 0 && (
-            <p className="menu-empty">
-              {normalizedQuery
-                ? visibleEndpoints.length > 0
-                  ? '没有匹配的模型，上方连接仍可选'
-                  : '没有匹配的模型或连接'
-                : '使用连接默认模型即可；运行一次任务后也会自动发现可用模型。'}
-            </p>
-          )}
-          {visibleModels.map((item) => (
-            <MenuItem
-              key={item.value}
-              selected={currentSelection === item.value}
-              description={
-                item.providerModel && item.providerModel !== item.value
-                  ? `运行时 ID：${item.value}${item.description ? ` · ${item.description}` : ''}`
-                  : item.description || item.displayName
-              }
-              onClick={() => {
-                close()
-                patch({ model: item.value }, sessionScope)
-              }}
-            >
-              {item.providerModel ?? item.value}
-            </MenuItem>
-          ))}
-          {availableModels.length > 0 && (
-            <p className="menu-foot-note">
-              这里只显示运行时发现的模型清单；是否可用仍取决于服务商账号权限与额度。
-            </p>
-          )}
-
-          <div className="menu-sep" />
-          <MenuItem
-            disabled={defaultModel === saveTarget}
-            description={`新会话使用：${saveTarget ?? '连接默认模型'}`}
-            onClick={() => {
-              close()
-              patch({ model: saveTarget }, 'default')
-            }}
-          >
-            保存为默认模型
-          </MenuItem>
-
-          <div className="menu-sep" />
-          <div className="menu-label">
-            思考力度
-            <span style={{ marginLeft: 6, fontWeight: 400 }}>新会话生效</span>
-          </div>
-          <div className="effort-row">
-            <button
-              className={`effort-pill ${currentEffort == null ? 'is-active' : ''}`}
-              onClick={() => patch({ effort: null }, 'default')}
-              title="使用运行时默认"
-            >
-              默认
-            </button>
-            {effortLevels.map((effort) => (
-              <button
-                key={effort}
-                className={`effort-pill ${currentEffort === effort ? 'is-active' : ''}`}
-                onClick={() => patch({ effort }, 'default')}
-                title={`新会话使用 ${effort}`}
+              <MenuItem
+                selected={currentSelection === null}
+                description={
+                  activeConnection?.model ? `由连接决定：${activeConnection.model}` : '由连接决定，切换连接时恢复'
+                }
+                onClick={() => {
+                  close()
+                  patch({ model: null }, sessionScope)
+                }}
               >
-                {EFFORT_LABEL[effort]}
-              </button>
-            ))}
-          </div>
-          <p className="menu-foot-note">
-            {effortLevels.length === 0
-              ? currentModelInfo?.supportsEffort === false
-                ? '当前模型声明不支持思考档位，保持「默认」。'
-                : '运行时没有报告当前模型的思考档位，保持「默认」；发现模型可用后再查看支持范围。'
-              : currentEffort && !effortLevels.includes(currentEffort as (typeof EFFORTS)[number])
-                ? `当前设置「${EFFORT_LABEL[currentEffort] ?? currentEffort}」不在该模型声明的支持范围内，运行时可能拒绝；选择下方档位会覆盖。`
-                : currentEffort === defaultEffort
-                  ? '思考力度只影响新会话；模型/服务商不支持时会被拒绝，运行时确认后保持原值。'
-                  : `当前会话尚未切换；新会话将使用「${currentEffort ? EFFORT_LABEL[currentEffort] ?? currentEffort : '默认'}」。`}
-          </p>
+                使用连接默认
+              </MenuItem>
 
-          <div className="menu-sep" />
-          <form
-            className="custom-model"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!custom.trim()) return
-              close()
-              patch({ model: custom.trim() }, sessionScope)
-            }}
-          >
-            <input
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              placeholder="自定义模型 ID"
-              aria-label="自定义模型 ID"
-            />
-            <button type="submit" className="btn btn-sm" disabled={!custom.trim()}>
-              应用
-            </button>
-          </form>
-          {busy && <p className="menu-foot-note">生成中修改由运行时确认；不支持时保持原值。</p>}
-          <PendingHint pending={pending} />
+              {availableModels.map((item) => (
+                <MenuItem
+                  key={item.value}
+                  selected={currentSelection === item.value}
+                  description={
+                    item.providerModel && item.providerModel !== item.value
+                      ? `运行时 ID：${item.value}${item.description ? ` · ${item.description}` : ''}`
+                      : item.description || item.displayName
+                  }
+                  onClick={() => {
+                    close()
+                    patch({ model: item.value }, sessionScope)
+                  }}
+                >
+                  {item.providerModel ?? item.value}
+                </MenuItem>
+              ))}
+
+              <button
+                type="button"
+                className="model-nav-row"
+                onClick={() => setView('models')}
+                style={{ marginTop: 4 }}
+              >
+                <span className="model-nav-title">切换连接商 / 全部模型</span>
+                <span className="model-nav-right">
+                  <span className="model-nav-value" title={rawModelName}>
+                    {displayModelName}
+                  </span>
+                  {displayBadge && <span className="model-badge">{displayBadge}</span>}
+                  <IconChevron width={12} height={12} style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-faint)' }} />
+                </span>
+              </button>
+
+              <div className="menu-sep" />
+
+              <div className="menu-label row">
+                <span>推理等级</span>
+                <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>新会话生效</span>
+              </div>
+
+              <div className="effort-row">
+                <button
+                  className={`effort-pill ${currentEffort == null ? 'is-active' : ''}`}
+                  onClick={() => patch({ effort: null }, 'default')}
+                  title="使用运行时默认"
+                >
+                  默认
+                </button>
+                {effortLevels.map((effort) => (
+                  <button
+                    key={effort}
+                    className={`effort-pill ${currentEffort === effort ? 'is-active' : ''}`}
+                    onClick={() => patch({ effort }, 'default')}
+                    title={`新会话使用 ${effort}`}
+                  >
+                    {EFFORT_LABEL[effort]}
+                  </button>
+                ))}
+              </div>
+
+              {effortLevels.length > 0 && (
+                <button
+                  type="button"
+                  className="model-nav-row"
+                  onClick={() => setView('effort')}
+                  style={{ padding: '4px 10px 6px' }}
+                >
+                  <span style={{ fontSize: 11.5, color: 'var(--color-text-dim)' }}>详细档位说明</span>
+                  <span className="model-nav-right">
+                    <span className="model-nav-value">{displayEffort}</span>
+                    <IconChevron width={12} height={12} style={{ transform: 'rotate(-90deg)', color: 'var(--color-text-faint)' }} />
+                  </span>
+                </button>
+              )}
+
+              <div className="menu-sep" />
+
+              <MenuItem
+                disabled={defaultModel === saveTarget && defaultEffort === currentEffort}
+                description={saveTarget ? `新会话使用：${saveTarget}` : undefined}
+                onClick={() => {
+                  close()
+                  patch({ model: saveTarget, effort: currentEffort }, 'default')
+                }}
+              >
+                保存为默认模型
+              </MenuItem>
+
+              <form
+                className="custom-model"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  if (!custom.trim()) return
+                  close()
+                  patch({ model: custom.trim() }, sessionScope)
+                }}
+              >
+                <input
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value)}
+                  placeholder="自定义模型 ID"
+                  aria-label="自定义模型 ID"
+                />
+                <button type="submit" className="btn btn-sm" disabled={!custom.trim()}>
+                  应用
+                </button>
+              </form>
+
+              {busy && <p className="menu-foot-note">生成中修改由运行时确认；不支持时保持原值。</p>}
+              <PendingHint pending={pending} />
+            </div>
+          )}
+
+          {view === 'models' && (
+            <div className="model-select-view">
+              <div className="model-sub-header">
+                <button
+                  type="button"
+                  className="model-back-btn"
+                  onClick={() => setView('root')}
+                  aria-label="返回"
+                >
+                  <IconChevron width={13} height={13} style={{ transform: 'rotate(90deg)' }} />
+                  <span>返回</span>
+                </button>
+                <div className="menu-search" style={{ flex: 1, padding: 0 }}>
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="搜索模型或连接…"
+                    aria-label={t('cp.model')}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="menu-label">已配置连接</div>
+
+              {/* 分组列表：按已配置连接 endpoints 进行分组展现 */}
+              {endpoints.map((endpoint) => {
+                const isCurrentEndpoint = (activeTemplate === endpoint.key) || (!activeTemplate && endpoint.key === templates)
+                const epNameLower = endpoint.name.toLowerCase()
+                const matchesEndpointName = epNameLower.includes(normalizedQuery)
+                
+                // 该连接下的候选模型
+                const candidateModels = isCurrentEndpoint
+                  ? models
+                  : (endpoint.model ? [{ value: endpoint.model, displayName: endpoint.model, providerModel: null, description: '连接默认模型' }] : [])
+
+                const matchedModels = candidateModels.filter((m) =>
+                  !normalizedQuery || matchesEndpointName || m.value.toLowerCase().includes(normalizedQuery) || m.displayName.toLowerCase().includes(normalizedQuery)
+                )
+
+                if (normalizedQuery && !matchesEndpointName && matchedModels.length === 0) {
+                  return null
+                }
+
+                return (
+                  <div key={endpoint.key} className="model-group" style={{ marginBottom: 6 }}>
+                    <MenuItem
+                      selected={templates === endpoint.key}
+                      aside={isCurrentEndpoint ? '当前连接' : undefined}
+                      description={endpoint.model ? `默认模型: ${endpoint.model}` : undefined}
+                      onClick={() => {
+                        close()
+                        if (!isCurrentEndpoint) {
+                          patch({ endpointTemplate: endpoint.key, model: null }, 'default')
+                          if (sessionId) {
+                            useStore.getState().setNotice(`已切换为连接「${endpoint.name}」，将在新建会话后生效。`)
+                          }
+                        }
+                      }}
+                    >
+                      {endpoint.name}
+                    </MenuItem>
+
+                    {matchedModels.map((item) => {
+                      const isSelected = currentSelection === item.value || (!currentSelection && isCurrentEndpoint && activeConnection?.model === item.value)
+                      const itemBadgeMatch = /^(.*?)\s*\[(.*?)\]$/.exec(item.providerModel ?? item.value)
+                      const itemTitle = itemBadgeMatch ? itemBadgeMatch[1] : (item.providerModel ?? item.value)
+                      const itemBadge = itemBadgeMatch ? itemBadgeMatch[2] : null
+
+                      return (
+                        <MenuItem
+                          key={item.value}
+                          selected={isSelected}
+                          description={item.description}
+                          onClick={() => {
+                            close()
+                            if (!isCurrentEndpoint) {
+                              patch({ endpointTemplate: endpoint.key, model: item.value }, 'default')
+                              if (sessionId) {
+                                useStore.getState().setNotice(`已切换为连接「${endpoint.name}」，将在新建会话后生效。`)
+                              }
+                            } else {
+                              patch({ model: item.value }, sessionScope)
+                            }
+                          }}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            {itemTitle}
+                            {itemBadge && <span className="model-badge">{itemBadge}</span>}
+                          </span>
+                        </MenuItem>
+                      )
+                    })}
+
+                    {matchedModels.length === 0 && (
+                      <MenuItem
+                        selected={isCurrentEndpoint && currentSelection === null}
+                        description="使用该连接声明的默认模型"
+                        onClick={() => {
+                          close()
+                          if (!isCurrentEndpoint) {
+                            patch({ endpointTemplate: endpoint.key, model: null }, 'default')
+                            if (sessionId) {
+                              useStore.getState().setNotice(`已切换为连接「${endpoint.name}」，将在新建会话后生效。`)
+                            }
+                          } else {
+                            patch({ model: null }, sessionScope)
+                          }
+                        }}
+                      >
+                        默认模型
+                      </MenuItem>
+                    )}
+                  </div>
+                )
+              })}
+
+              {endpoints.length === 0 && (
+                <p className="menu-empty">尚无已配置连接</p>
+              )}
+
+              <div className="menu-sep" />
+              <MenuItem
+                icon={<IconPlus width={14} height={14} style={{ color: 'var(--color-accent)' }} />}
+                onClick={() => {
+                  close()
+                  onAddConnection()
+                }}
+                description="填写接口地址与 API Key"
+              >
+                添加模型连接
+              </MenuItem>
+            </div>
+          )}
+
+          {view === 'effort' && (
+            <div className="model-effort-view">
+              <div className="model-sub-header">
+                <button
+                  type="button"
+                  className="model-back-btn"
+                  onClick={() => setView('root')}
+                  aria-label="返回"
+                >
+                  <IconChevron width={13} height={13} style={{ transform: 'rotate(90deg)' }} />
+                  <span>返回</span>
+                </button>
+                <span className="model-sub-title">推理等级</span>
+              </div>
+
+              <MenuItem
+                selected={currentEffort === null}
+                onClick={() => {
+                  patch({ effort: null }, 'default')
+                  setView('root')
+                }}
+              >
+                默认 (Default)
+              </MenuItem>
+
+              {effortLevels.map((effort) => (
+                <MenuItem
+                  key={effort}
+                  selected={currentEffort === effort}
+                  onClick={() => {
+                    patch({ effort }, 'default')
+                    setView('root')
+                  }}
+                >
+                  {EFFORT_LABEL[effort]} ({effort.toUpperCase()})
+                </MenuItem>
+              ))}
+
+              {effortLevels.length === 0 && (
+                <p className="menu-empty">当前模型声明不支持推理等级档位调整。</p>
+              )}
+            </div>
+          )}
         </>
       )}
     </Menu>
