@@ -38,6 +38,10 @@ interface Props {
 const ORDER_KEY = 'ccweb.sessionOrder'
 const HIDDEN_KEY = 'ccweb.hiddenWorkspaces'
 const PINNED_KEY = 'ccweb.pinnedWorkspaces'
+const SIDEBAR_W_KEY = 'ccweb.sidebarWidth'
+const MIN_SIDEBAR_W = 200
+const MAX_SIDEBAR_W = 500
+const DEFAULT_SIDEBAR_W = 268
 
 function readList(key: string): string[] {
   try {
@@ -157,6 +161,55 @@ export default function Sidebar({
   const [addDrawerOpen, setAddDrawerOpen] = useState(false)
   const currentWorkspace = settings?.workspace ?? null
   const [expandedWs, setExpandedWs] = useState<string[]>(() => (currentWorkspace ? [currentWorkspace] : []))
+
+  const [sidebarW, setSidebarW] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_W_KEY)
+      if (saved) {
+        const val = parseInt(saved, 10)
+        if (val >= MIN_SIDEBAR_W && val <= MAX_SIDEBAR_W) return val
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_SIDEBAR_W
+  })
+
+  useEffect(() => {
+    if (!collapsed) {
+      document.documentElement.style.setProperty('--sidebar-w', `${sidebarW}px`)
+    }
+  }, [sidebarW, collapsed])
+
+  const startResizing = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarW
+    let currentW = startW
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const maxAllowed = Math.min(MAX_SIDEBAR_W, window.innerWidth * 0.45)
+      const newW = Math.min(Math.max(startW + (moveEvent.clientX - startX), MIN_SIDEBAR_W), maxAllowed)
+      currentW = newW
+      setSidebarW(newW)
+      document.documentElement.style.setProperty('--sidebar-w', `${newW}px`)
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+      document.body.classList.remove('is-resizing-sidebar')
+      try {
+        localStorage.setItem(SIDEBAR_W_KEY, String(currentW))
+      } catch {
+        // ignore
+      }
+    }
+
+    document.body.classList.add('is-resizing-sidebar')
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
 
   useEffect(() => {
     if (currentWorkspace && !expandedWs.includes(currentWorkspace)) {
@@ -575,6 +628,14 @@ export default function Sidebar({
           </button>
         </div>
       </footer>
+      {!collapsed && (
+        <div
+          className="sidebar-resizer"
+          onMouseDown={startResizing}
+          onDoubleClick={() => setSidebarW(DEFAULT_SIDEBAR_W)}
+          title="拖动调整侧栏宽度 (双击恢复默认)"
+        />
+      )}
     </aside>
   )
 }
@@ -588,6 +649,7 @@ function WorkspaceAddDrawer({
 }) {
   const [discovered, setDiscovered] = useState<Array<{ name: string; path: string; isGit: boolean }>>([])
   const [picking, setPicking] = useState(false)
+  const [resolving, setResolving] = useState(false)
   const [manualPath, setManualPath] = useState('')
   const [pickError, setPickError] = useState<string | null>(null)
   const abortCtrlRef = useRef<AbortController | null>(null)
@@ -609,29 +671,48 @@ function WorkspaceAddDrawer({
     setPicking(false)
   }
 
-  // 优先调起浏览器原生 showDirectoryPicker (Chromium 原生，100% 弹窗成功置顶且不卡死)
+  // 核心路径解析：支持纯目录名、相对路径、绝对路径智能解析定位
+  const handleResolveAndOpen = async (targetNameOrPath: string) => {
+    const raw = targetNameOrPath.trim()
+    if (!raw) return
+    setResolving(true)
+    setPickError(null)
+    try {
+      const res = await fetch('/api/workspaces/resolve-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: raw }),
+      })
+      const data = (await res.json()) as { ok: boolean; path?: string; error?: string }
+      if (data.ok && data.path) {
+        onPick(data.path)
+        onClose()
+      } else {
+        setPickError(data.error || `未能定位到目录 "${raw}"，请输入包含盘符的完整绝对路径`)
+      }
+    } catch {
+      setPickError('解析目录发生网络错误，请稍后重试')
+    } finally {
+      setResolving(false)
+    }
+  }
+
+  // 打开系统文件夹选择
   const pickFolder = async () => {
     setPicking(true)
     setPickError(null)
 
-    // 1. 如果浏览器支持 showDirectoryPicker，直接在前端唤起系统窗口！
+    // 1. 优先调用浏览器原生 showDirectoryPicker (Chromium 原生，100% 弹窗成功置顶且不卡死)
     if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
       try {
         const handle = await (
           window as unknown as { showDirectoryPicker: () => Promise<{ name: string }> }
         ).showDirectoryPicker()
         if (handle?.name) {
-          // 在已发现的项目或已知项目中匹配
-          const matched = discovered.find(
-            (d) => d.name.toLowerCase() === handle.name.toLowerCase(),
-          )
-          if (matched) {
-            onPick(matched.path)
-            onClose()
-            return
-          }
-          // 如果不在同级发现列表中，自动填入名称引导确认
-          setManualPath(handle.name)
+          setPicking(false)
+          // 拿到选择的目录名，立即通过后端进行全路径精准解析并自动打开！
+          await handleResolveAndOpen(handle.name)
+          return
         }
       } catch (e: unknown) {
         if ((e as Error)?.name === 'AbortError') {
@@ -654,7 +735,7 @@ function WorkspaceAddDrawer({
       }
     } catch (err: unknown) {
       if ((err as Error)?.name !== 'AbortError') {
-        setPickError('未能打开系统选择器，请直接点击下方候选项目或输入路径')
+        setPickError('未能自动唤醒系统选择器，请直接在下方输入目录名称或点击候选项目')
       }
     } finally {
       setPicking(false)
@@ -662,10 +743,15 @@ function WorkspaceAddDrawer({
     }
   }
 
-  const isAbsolute =
-    /^[a-zA-Z]:[\\/]/.test(manualPath.trim()) ||
-    manualPath.trim().startsWith('\\\\') ||
-    manualPath.trim().startsWith('/')
+  // 模糊匹配候选项目
+  const trimmed = manualPath.trim().toLowerCase()
+  const filteredDiscovered = trimmed
+    ? discovered.filter(
+        (d) =>
+          d.name.toLowerCase().includes(trimmed) ||
+          d.path.toLowerCase().includes(trimmed),
+      )
+    : discovered
 
   return (
     <div className="ws-add-drawer animate-slide-down">
@@ -699,14 +785,14 @@ function WorkspaceAddDrawer({
 
       {pickError && <div className="ws-pick-error">{pickError}</div>}
 
-      {discovered.length > 0 && (
+      {filteredDiscovered.length > 0 && (
         <div className="ws-discover-section">
           <div className="ws-discover-header">
             <span>本地已检测到的项目</span>
-            <span className="ws-discover-tag">{discovered.length}</span>
+            <span className="ws-discover-tag">{filteredDiscovered.length}</span>
           </div>
           <div className="ws-discover-list">
-            {discovered.map((d) => (
+            {filteredDiscovered.map((d) => (
               <button
                 key={d.path}
                 type="button"
@@ -729,29 +815,23 @@ function WorkspaceAddDrawer({
       <div className="ws-manual-input-row">
         <input
           className="input ws-manual-input"
-          placeholder="输入目录绝对路径，如 C:\Projects\app"
+          placeholder="输入文件夹名或绝对路径，如 助学金申请表 或 C:\Projects\app"
           value={manualPath}
           onChange={(e) => setManualPath(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && isAbsolute) {
+            if (e.key === 'Enter' && manualPath.trim()) {
               e.preventDefault()
-              onPick(manualPath.trim())
-              onClose()
+              handleResolveAndOpen(manualPath)
             }
           }}
         />
         <button
           type="button"
           className="btn btn-sm btn-primary"
-          disabled={!isAbsolute}
-          onClick={() => {
-            if (isAbsolute) {
-              onPick(manualPath.trim())
-              onClose()
-            }
-          }}
+          disabled={!manualPath.trim() || resolving}
+          onClick={() => handleResolveAndOpen(manualPath)}
         >
-          打开
+          {resolving ? '打开中…' : '打开'}
         </button>
       </div>
     </div>

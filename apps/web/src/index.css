@@ -656,6 +656,7 @@ textarea:focus-visible,
 /* ---------------- 侧栏 ---------------- */
 
 .sidebar {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: var(--sidebar-w);
@@ -664,6 +665,28 @@ textarea:focus-visible,
   padding: 12px 12px 10px;
   background: color-mix(in srgb, var(--color-panel-2) 62%, var(--color-bg));
   border-right: 1px solid var(--color-border);
+}
+
+.sidebar-resizer {
+  position: absolute;
+  right: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 50;
+  transition: background var(--dur-fast);
+}
+.sidebar-resizer:hover,
+body.is-resizing-sidebar .sidebar-resizer {
+  background: var(--color-accent);
+}
+body.is-resizing-sidebar {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+body.is-resizing-sidebar * {
+  user-select: none !important;
 }
 
 .sidebar.is-rail {

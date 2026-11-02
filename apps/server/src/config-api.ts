@@ -7,7 +7,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { promisify } from 'node:util'
 import { createRequire } from 'node:module'
 import { parseDocument } from 'yaml'
-import { APP_DIR, CC_DIR, runtimeSettings, effectiveEnv, listEndpointTemplates } from './settings.js'
+import { APP_DIR, CC_DIR, runtimeSettings, effectiveEnv, listEndpointTemplates, listWorkspaces } from './settings.js'
 import { listConnections, removeConnection, saveConnection, testConnection, templateKeyOf } from './connections.js'
 import { listDeletedSessions, restoreDeletedSession } from './session-backup.js'
 
@@ -452,39 +452,93 @@ configApi.post('/dialog/pick-folder', async (c) => {
   return c.json({ path: chosen });
 });
 
-// 扫描当前工作区同级与子目录候选项目
+// 智能路径与项目名称解析 (支持绝对路径、相对路径、纯目录名模糊匹配)
+configApi.post('/workspaces/resolve-path', async (c) => {
+  const body = await c.req.json<{ input?: string }>();
+  const raw = (body.input || '').trim().replace(/^["']|["']$/g, '');
+  if (!raw) return c.json({ ok: false, error: '请输入项目目录路径或名称' });
+
+  // 1. 如果已是完整绝对路径且真实存在
+  if (isAbsolute(raw) && existsSync(raw) && statSync(raw).isDirectory()) {
+    return c.json({ ok: true, path: resolve(raw) });
+  }
+
+  // 2. 依次在常用基准目录中搜寻
+  const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
+  const parent = dirname(current);
+  const home = homedir();
+  const desktop = join(home, 'Desktop');
+  const searchRoots = [desktop, parent, current, home, join(home, 'Projects')];
+
+  for (const root of searchRoots) {
+    if (!existsSync(root)) continue;
+    const directTarget = join(root, raw);
+    if (existsSync(directTarget) && statSync(directTarget).isDirectory()) {
+      return c.json({ ok: true, path: resolve(directTarget) });
+    }
+    // 忽略大小写匹配目录名
+    try {
+      for (const entry of readdirSync(root, { withFileTypes: true })) {
+        if (entry.isDirectory() && entry.name.toLowerCase() === raw.toLowerCase()) {
+          return c.json({ ok: true, path: join(root, entry.name) });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 3. 从已知工作区列表中根据名字匹配
+  try {
+    const known = listWorkspaces();
+    const matched = known.find((w) => basename(w.dir).toLowerCase() === raw.toLowerCase());
+    if (matched && existsSync(matched.dir)) {
+      return c.json({ ok: true, path: matched.dir });
+    }
+  } catch {
+    // ignore
+  }
+
+  return c.json({
+    ok: false,
+    error: `未在桌面或工作区附近找到目录 "${raw}"，请输入完整绝对路径（如 C:\\Projects\\app）`,
+  });
+});
+
+// 扫描当前工作区同级、桌面与子目录候选项目
 configApi.get('/workspaces/discover', async (c) => {
   const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
   const parent = dirname(current);
+  const home = homedir();
+  const desktop = join(home, 'Desktop');
   const discovered: Array<{ name: string; path: string; isGit: boolean }> = [];
+  const visited = new Set<string>();
   const IGNORED = new Set(['node_modules', '.git', 'dist', '$RECYCLE.BIN', 'System Volume Information', 'tmp']);
-  try {
-    if (existsSync(parent) && statSync(parent).isDirectory()) {
-      for (const entry of readdirSync(parent, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.name.startsWith('.') || IGNORED.has(entry.name)) continue;
-        const full = join(parent, entry.name);
-        if (full === current) continue;
-        const isGit = existsSync(join(full, '.git'));
-        discovered.push({ name: entry.name, path: full, isGit });
+
+  const scanDir = (dir: string) => {
+    try {
+      if (existsSync(dir) && statSync(dir).isDirectory()) {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          if (!entry.isDirectory() || entry.name.startsWith('.') || IGNORED.has(entry.name)) continue;
+          const full = join(dir, entry.name);
+          if (visited.has(full) || full === current) continue;
+          visited.add(full);
+          const isGit = existsSync(join(full, '.git'));
+          discovered.push({ name: entry.name, path: full, isGit });
+        }
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
-  }
-  try {
-    if (existsSync(current) && statSync(current).isDirectory()) {
-      for (const entry of readdirSync(current, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.name.startsWith('.') || IGNORED.has(entry.name)) continue;
-        const full = join(current, entry.name);
-        const isGit = existsSync(join(full, '.git'));
-        discovered.push({ name: entry.name, path: full, isGit });
-      }
-    }
-  } catch {
-    // ignore
-  }
+  };
+
+  // 优先扫描桌面、父目录、当前目录内部子目录
+  scanDir(desktop);
+  scanDir(parent);
+  scanDir(current);
+
   return c.json({
     current,
-    discovered: discovered.slice(0, 20),
+    discovered: discovered.slice(0, 60),
   });
 });
