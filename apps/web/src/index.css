@@ -1283,6 +1283,10 @@ html.dark .ws-item:hover {
   background: var(--color-text);
   color: var(--color-panel);
 }
+.send-btn.stop:hover:not(:disabled) {
+  background: var(--color-text);
+  opacity: 0.88;
+}
 
 .composer-note {
   display: flex;

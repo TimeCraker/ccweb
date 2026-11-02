@@ -44,7 +44,7 @@ test('approval survives reload, preserves draft and stays isolated from another 
   await page.reload()
   await expect(page.locator('.permission-card')).toBeVisible()
   await expect(page.getByRole('textbox', { name: '任务输入', exact: true })).toHaveValue('【E2E】保留草稿')
-  await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '排队发送', exact: true })).toBeVisible()
   await page.screenshot({ path: info.outputPath('approval.png') })
   await card.getByRole('button', { name: '允许', exact: true }).click()
   await completed(page, 'APPROVAL reconnect')

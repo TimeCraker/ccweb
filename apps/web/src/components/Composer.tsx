@@ -176,6 +176,8 @@ export default function Composer({
   }, [text])
 
   const canSend = Boolean(text.trim() || images.length)
+  const isBusyOrWaiting = busy || waiting
+  const isStopMode = isBusyOrWaiting && !canSend
   const blocked = !settingsReady || !!pending || conn !== 'open' || waiting || !canSend
 
   const submit = () => {
@@ -371,7 +373,7 @@ export default function Composer({
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               submit()
-            } else if (e.key === 'Escape' && busy) {
+            } else if (e.key === 'Escape' && isBusyOrWaiting) {
               e.preventDefault()
               onInterrupt()
             }
@@ -383,31 +385,31 @@ export default function Composer({
           <AttachMenu onPickImage={() => fileRef.current?.click()} onReferenceFile={referenceFile} />
           {sendControl && <ModeMenu send={sendControl} disabled={conn !== 'open' || !settings} />}
           <div className="composer-right">
-            {(busy || waiting) && (
-              <button
-                className="icon-btn"
-                onClick={onInterrupt}
-                aria-label={t('cp.stop')}
-                title={`${t('cp.stop')} (Esc)`}
-                style={{ color: 'var(--color-danger)' }}
-              >
-                <IconStop width={15} height={15} />
-              </button>
-            )}
             <ModelMenu
               send={sendControl ?? (() => undefined)}
               onAddConnection={() => onAddConnection?.()}
               onNewSession={onNewSession}
             />
-            <button
-              className="send-btn"
-              onClick={submit}
-              disabled={blocked}
-              aria-label={busy ? t('cp.queueSend') : t('cp.send')}
-              title={busy ? t('cp.queueSend') : `${t('cp.send')} (Enter)`}
-            >
-              <IconArrowUp width={17} height={17} />
-            </button>
+            {isStopMode ? (
+              <button
+                className="send-btn stop"
+                onClick={onInterrupt}
+                aria-label={t('cp.stop')}
+                title={`${t('cp.stop')} (Esc)`}
+              >
+                <IconStop width={15} height={15} />
+              </button>
+            ) : (
+              <button
+                className="send-btn"
+                onClick={submit}
+                disabled={blocked}
+                aria-label={busy ? t('cp.queueSend') : t('cp.send')}
+                title={busy ? t('cp.queueSend') : `${t('cp.send')} (Enter)`}
+              >
+                <IconArrowUp width={17} height={17} />
+              </button>
+            )}
           </div>
         </div>
       </div>
