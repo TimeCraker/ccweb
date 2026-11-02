@@ -43,6 +43,7 @@ export interface EndpointTemplate {
   baseUrl: string | null
   /** 模板/连接声明的默认模型;仅用于界面显示"使用默认"的具体值 */
   model: string | null
+  models?: string[]
 }
 
 export { CC_DIR, APP_DIR } from './dirs.js'
@@ -91,13 +92,45 @@ export function listEndpointTemplates(): EndpointTemplate[] {
     const key = f.slice('settings.'.length, -'.json'.length)
     try {
       const json = JSON.parse(readFileSync(join(dir, f), 'utf8')) as {
+        model?: string
+        modelOverrides?: Record<string, string>
         env?: Record<string, string>
       }
+      const rawModels: string[] = []
+      if (json.modelOverrides && typeof json.modelOverrides === 'object') {
+        for (const target of Object.values(json.modelOverrides)) {
+          if (typeof target === 'string' && target.trim()) rawModels.push(target.trim())
+        }
+      }
+      if (json.env && typeof json.env === 'object') {
+        for (const k of [
+          'ANTHROPIC_MODEL',
+          'ANTHROPIC_DEFAULT_SONNET_MODEL',
+          'ANTHROPIC_DEFAULT_OPUS_MODEL',
+          'ANTHROPIC_DEFAULT_FABLE_MODEL',
+          'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+          'ANTHROPIC_SMALL_FAST_MODEL',
+          'ANTHROPIC_CUSTOM_MODEL_OPTION',
+        ]) {
+          const val = json.env[k]
+          if (typeof val === 'string' && val.trim()) rawModels.push(val.trim())
+        }
+      }
+      if (typeof json.model === 'string' && json.model.trim()) {
+        rawModels.push(json.model.trim())
+      }
+      const uniqueModels = [...new Set(rawModels)]
+      const defaultModel =
+        json.env?.ANTHROPIC_MODEL ??
+        json.env?.ANTHROPIC_DEFAULT_SONNET_MODEL ??
+        json.env?.ANTHROPIC_DEFAULT_OPUS_MODEL ??
+        (uniqueModels[0] || null)
       out.push({
         key,
         name: key,
         baseUrl: json.env?.ANTHROPIC_BASE_URL ?? null,
-        model: json.env?.ANTHROPIC_MODEL ?? null,
+        model: defaultModel,
+        models: uniqueModels,
       })
     } catch {
       // 跳过坏模板
@@ -109,6 +142,7 @@ export function listEndpointTemplates(): EndpointTemplate[] {
       name: connection.name,
       baseUrl: connection.baseUrl,
       model: connection.model,
+      models: connection.model ? [connection.model] : [],
     })
   }
   return out

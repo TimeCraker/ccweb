@@ -170,7 +170,7 @@ export interface SettingsSnapshot {
   currentEndpoint: string | null
   /** 真实生效模型(settings.json env.ANTHROPIC_MODEL) */
   currentModel: string | null
-  endpoints: Array<{ key: string; name: string; baseUrl: string | null; model: string | null }>
+  endpoints: Array<{ key: string; name: string; baseUrl: string | null; model: string | null; models?: string[] }>
   workspaces: Array<{ dir: string; sessions: number; lastModified: string | null }>
   workspace: string | null
   skills: Array<{ name: string; description: string }>

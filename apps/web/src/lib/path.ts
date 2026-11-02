@@ -14,7 +14,10 @@ export function isTempPath(dir: string): boolean {
 export function compactPath(dir: string, max = 44): string {
   if (dir.length <= max) return dir
   const parts = dir.split(/[\\/]/).filter(Boolean)
+  if (parts.length <= 2) return dir
+  const head = parts[0]
   const tail = parts.slice(-2).join('\\')
-  if (tail.length + 2 <= max) return `…\\${tail}`
-  return `…${dir.slice(-(max - 1))}`
+  const candidate = `${head}\\…\\${tail}`
+  if (candidate.length <= max) return candidate
+  return `${head}\\…\\${parts[parts.length - 1]}`
 }

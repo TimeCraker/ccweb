@@ -13,6 +13,7 @@ import {
   IconPlus,
   IconChevron,
   SectionIcon,
+  IconFolder,
 } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 import { baseName, compactPath, isTempPath } from '../lib/path'
@@ -449,6 +450,35 @@ function WorkspaceMenu({
       Number(isTempPath(a.dir)) - Number(isTempPath(b.dir)),
   )
 
+  const [discovered, setDiscovered] = useState<Array<{ name: string; path: string; isGit: boolean }>>([])
+  const [picking, setPicking] = useState(false)
+
+  useEffect(() => {
+    if (!adding) return
+    fetch('/api/workspaces/discover')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { discovered?: Array<{ name: string; path: string; isGit: boolean }> } | null) => {
+        if (data?.discovered) setDiscovered(data.discovered)
+      })
+      .catch(() => {})
+  }, [adding])
+
+  const pickNative = async () => {
+    setPicking(true)
+    try {
+      const res = await fetch('/api/dialog/pick-folder', { method: 'POST' })
+      const data = (await res.json()) as { path: string | null }
+      if (data?.path) {
+        if (hidden.includes(data.path)) restore()
+        onPick(data.path)
+      }
+    } catch {
+      // 忽略
+    } finally {
+      setPicking(false)
+    }
+  }
+
   if (adding) {
     const absolute = /^[a-zA-Z]:[\\/]/.test(path.trim()) || path.trim().startsWith('\\\\') || path.trim().startsWith('/')
     return (
@@ -462,7 +492,7 @@ function WorkspaceMenu({
           onPick(dir)
         }}
       >
-        <div className="menu-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="menu-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span>{t('sb.project.add')}</span>
           <button
             type="button"
@@ -480,6 +510,34 @@ function WorkspaceMenu({
             </svg>
           </button>
         </div>
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{
+            width: '100%',
+            padding: '8px 12px',
+            marginBottom: 10,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            fontWeight: 500,
+            fontSize: 12.5,
+          }}
+          onClick={pickNative}
+          disabled={picking}
+        >
+          <IconFolder width={15} height={15} />
+          <span>{picking ? '正在打开文件夹窗口…' : '选择本地文件夹…'}</span>
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0', color: 'var(--color-text-faint)', fontSize: 11 }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+          <span>或手动输入</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
+        </div>
+
         <input
           ref={inputRef}
           autoFocus
@@ -516,6 +574,39 @@ function WorkspaceMenu({
             {t('sb.project.open')}
           </button>
         </div>
+
+        {discovered.length > 0 && (
+          <div style={{ marginTop: 12, borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
+            <div className="menu-label" style={{ padding: '0 0 6px', fontSize: 11 }}>同级与子目录推荐</div>
+            <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+              {discovered.map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  className="menu-item"
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, marginBottom: 3, display: 'block', textAlign: 'left' }}
+                  onClick={() => {
+                    if (hidden.includes(item.path)) restore()
+                    onPick(item.path)
+                  }}
+                  title={item.path}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: 550, fontSize: 12, color: 'var(--color-text)' }}>{item.name}</span>
+                    {item.isGit && (
+                      <span style={{ fontSize: 9.5, padding: '1px 4px', borderRadius: 3, background: 'var(--color-panel-2)', color: 'var(--color-text-dim)' }}>
+                        git
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--color-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
+                    {item.path}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </form>
     )
   }

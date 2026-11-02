@@ -542,6 +542,166 @@ export function ModelMenu({
 
               <div className="menu-label">已配置连接</div>
 
+              {/* 分组列表：按已配置连接 endpoints 进行分组展现 (对标 DeepSeek Harness) */}
+              {endpoints.map((endpoint) => {
+                const isCurrentEndpoint = (activeTemplate === endpoint.key) || (!activeTemplate && endpoint.key === templates)
+                const epNameLower = endpoint.name.toLowerCase()
+                const matchesEndpointName = epNameLower.includes(normalizedQuery)
+
+                // 提取该连接下的真实可用模型列表
+                const rawModelList: string[] = []
+                if (endpoint.model) rawModelList.push(endpoint.model)
+                if (Array.isArray(endpoint.models)) {
+                  for (const m of endpoint.models) {
+                    if (m && typeof m === 'string') rawModelList.push(m)
+                  }
+                }
+                if (isCurrentEndpoint) {
+                  for (const m of models) {
+                    if (m?.value) rawModelList.push(m.value)
+                  }
+                }
+                const uniqueModelList = [...new Set(rawModelList)]
+
+                const modelItems = uniqueModelList.map((val) => ({
+                  value: val,
+                  isDefault: val === endpoint.model || (!endpoint.model && val === uniqueModelList[0]),
+                }))
+
+                const matchedModels = modelItems.filter((m) =>
+                  !normalizedQuery || matchesEndpointName || m.value.toLowerCase().includes(normalizedQuery)
+                )
+
+                if (normalizedQuery && !matchesEndpointName && matchedModels.length === 0) {
+                  return null
+                }
+
+                return (
+                  <div key={endpoint.key} className="model-group" style={{ marginBottom: 10 }}>
+                    <div
+                      className="menu-label"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '6px 10px 3px',
+                        fontSize: 11,
+                        color: 'var(--color-text-dim)',
+                        fontWeight: 600,
+                        borderBottom: '1px solid var(--color-border)',
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span style={{ textTransform: 'capitalize' }}>{endpoint.name}</span>
+                      {isCurrentEndpoint && (
+                        <span style={{ fontSize: 10, color: 'var(--color-accent)', fontWeight: 500 }}>
+                          当前生效
+                        </span>
+                      )}
+                    </div>
+
+                    {matchedModels.map((item) => {
+                      const isSelected = isCurrentEndpoint && (currentSelection === item.value || (!currentSelection && activeConnection?.model === item.value))
+                      const itemBadgeMatch = /^(.*?)s*\[(.*?)\]$/.exec(item.value)
+                      const itemTitle = itemBadgeMatch ? itemBadgeMatch[1] : item.value
+                      const itemBadge = itemBadgeMatch ? itemBadgeMatch[2] : null
+
+                      return (
+                        <MenuItem
+                          key={item.value}
+                          selected={isSelected}
+                          onClick={() => {
+                            close()
+                            const cachedForModel = getCachedEffort(item.value)
+                            if (!isCurrentEndpoint) {
+                              patch({
+                                endpointTemplate: endpoint.key,
+                                model: item.value,
+                                ...(cachedForModel ? { effort: cachedForModel } : {}),
+                              }, 'default')
+                              if (sessionId) {
+                                useStore.getState().setNotice(`已切换为连接「${endpoint.name}」模型「${itemTitle}」${cachedForModel ? `（已恢复缓存思考：${EFFORT_LABEL[cachedForModel]}）` : ''}，新会话生效。`)
+                              }
+                            } else {
+                              patch({ model: item.value }, sessionScope)
+                              if (cachedForModel && currentEffort === null) {
+                                patch({ effort: cachedForModel }, 'default')
+                                useStore.getState().setNotice(`已切换模型，并恢复上次记录的思考档位「${EFFORT_LABEL[cachedForModel]}」。`)
+                              }
+                            }
+                          }}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span>{itemTitle}</span>
+                            {itemBadge && <span className="model-badge">{itemBadge}</span>}
+                            {item.isDefault && (
+                              <span
+                                className="model-badge"
+                                style={{
+                                  background: 'color-mix(in srgb, var(--color-text-dim) 15%, transparent)',
+                                  color: 'var(--color-text-dim)',
+                                  fontSize: 10,
+                                }}
+                              >
+                                默认
+                              </span>
+                            )}
+                          </span>
+                        </MenuItem>
+                      )
+                    })}
+
+                    {matchedModels.length === 0 && (
+                      <MenuItem
+                        selected={isCurrentEndpoint && currentSelection === null}
+                        onClick={() => {
+                          close()
+                          if (!isCurrentEndpoint) {
+                            patch({ endpointTemplate: endpoint.key, model: null }, 'default')
+                            if (sessionId) {
+                              useStore.getState().setNotice(`已切换为连接「${endpoint.name}」，将在新建会话后生效。`)
+                            }
+                          } else {
+                            patch({ model: null }, sessionScope)
+                          }
+                        }}
+                      >
+                        <span style={{ color: 'var(--color-text-dim)', fontSize: 12 }}>使用连接默认设置</span>
+                      </MenuItem>
+                    )}
+                  </div>
+                )
+              })}
+              {busy && <p className="menu-foot-note">生成中修改由运行时确认；不支持时保持原值。</p>}
+              <PendingHint pending={pending} />
+            </div>
+          )}
+
+          {view === 'models' && (
+            <div className="model-select-view">
+              <div className="model-sub-header">
+                <button
+                  type="button"
+                  className="model-back-btn"
+                  onClick={() => setView('root')}
+                  aria-label="返回"
+                >
+                  <IconChevron width={13} height={13} style={{ transform: 'rotate(90deg)' }} />
+                  <span>返回</span>
+                </button>
+                <div className="menu-search" style={{ flex: 1, padding: 0 }}>
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="搜索模型或连接…"
+                    aria-label={t('cp.model')}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="menu-label">已配置连接</div>
+
               {/* 分组列表：按已配置连接 endpoints 进行分组展现 */}
               {endpoints.map((endpoint) => {
                 const isCurrentEndpoint = (activeTemplate === endpoint.key) || (!activeTemplate && endpoint.key === templates)

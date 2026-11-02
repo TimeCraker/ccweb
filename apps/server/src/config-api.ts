@@ -343,3 +343,76 @@ configApi.post('/sessions/restore', async c => {
   if (!sessionId) throw new Error('备份不存在、已恢复，或目标会话仍然存在')
   return c.json({ ok: true, sessionId })
 })
+
+async function pickFolderNative(): Promise<string | null> {
+  if (process.platform === 'win32') {
+    const script = 'Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = "选择项目目录"; $d.ShowNewFolderButton = $true; if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $d.SelectedPath }';
+    try {
+      const { stdout } = await promisify(execFile)(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-Command', script],
+        { timeout: 60_000, windowsHide: false },
+      );
+      const selected = stdout.trim();
+      return selected && existsSync(selected) ? selected : null;
+    } catch {
+      return null;
+    }
+  } else if (process.platform === 'darwin') {
+    try {
+      const { stdout } = await promisify(execFile)(
+        'osascript',
+        ['-e', 'POSIX path of (choose folder with prompt "选择项目目录")'],
+        { timeout: 60_000 },
+      );
+      const selected = stdout.trim();
+      return selected && existsSync(selected) ? selected : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// 原生系统文件夹选择器
+configApi.post('/dialog/pick-folder', async (c) => {
+  const chosen = await pickFolderNative();
+  return c.json({ path: chosen });
+});
+
+// 扫描当前工作区同级与子目录候选项目
+configApi.get('/workspaces/discover', async (c) => {
+  const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
+  const parent = dirname(current);
+  const discovered: Array<{ name: string; path: string; isGit: boolean }> = [];
+  const IGNORED = new Set(['node_modules', '.git', 'dist', '$RECYCLE.BIN', 'System Volume Information', 'tmp']);
+  try {
+    if (existsSync(parent) && statSync(parent).isDirectory()) {
+      for (const entry of readdirSync(parent, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name.startsWith('.') || IGNORED.has(entry.name)) continue;
+        const full = join(parent, entry.name);
+        if (full === current) continue;
+        const isGit = existsSync(join(full, '.git'));
+        discovered.push({ name: entry.name, path: full, isGit });
+      }
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    if (existsSync(current) && statSync(current).isDirectory()) {
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.name.startsWith('.') || IGNORED.has(entry.name)) continue;
+        const full = join(current, entry.name);
+        const isGit = existsSync(join(full, '.git'));
+        discovered.push({ name: entry.name, path: full, isGit });
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return c.json({
+    current,
+    discovered: discovered.slice(0, 20),
+  });
+});

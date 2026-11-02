@@ -35,15 +35,34 @@ export default function TopBar({
   const session = useStore((s) => s.sessions.find((item) => item.id === s.sessionId))
   const workspace = useStore((s) => s.settings?.workspace)
   const firstPrompt = useStore((s) => s.entries.find((entry) => entry.type === 'user'))
+  const effectiveSessionTitle =
+    session?.title && session.title !== t('sb.untitled') && session.title !== '(无标题)'
+      ? session.title
+      : undefined
+  const fallbackPromptTitle =
+    firstPrompt?.type === 'user'
+      ? firstPrompt.text.replace(/^[\s#*>`-]+/, '').split(/[\r\n。！？!?]/)[0]?.trim()?.slice(0, 40)
+      : undefined
   const title =
-    session?.title ??
-    (firstPrompt?.type === 'user' ? firstPrompt.text.split('\n')[0]!.slice(0, 80) : undefined) ??
+    effectiveSessionTitle ??
+    fallbackPromptTitle ??
     (sessionId ? t('sb.untitled') : t('hd.newSession'))
   const { mode } = useThemeMode()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(title)
   const inputRef = useRef<HTMLInputElement>(null)
   useLocale()
+
+  useEffect(() => {
+    if (!editing) setDraft(title)
+  }, [title, editing])
+
+  // 自动萃取持久化:当会话为 (无标题) 但已有首句提问时，自动通知后端固化标题
+  useEffect(() => {
+    if (sessionId && !effectiveSessionTitle && fallbackPromptTitle) {
+      onRename(sessionId, fallbackPromptTitle)
+    }
+  }, [sessionId, effectiveSessionTitle, fallbackPromptTitle, onRename])
 
   useEffect(() => {
     if (editing) inputRef.current?.select()
