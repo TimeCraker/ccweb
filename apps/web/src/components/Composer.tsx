@@ -235,14 +235,14 @@ export default function Composer({
     return 'composer-wide-base'
   }, [lineCount, text.length])
 
-  // 高度自适应：单行起步，最多自适应到三行（约 86px），超出三行开启平滑垂直滚动
+  // 高度自适应：单行起步，最多自适应到六行（约 156px），超出六行开启平滑垂直滚动
   useLayoutEffect(() => {
     const el = taRef.current
     if (!el) return
     el.style.height = 'auto'
-    const targetH = Math.min(Math.max(el.scrollHeight, 38), 86)
+    const targetH = Math.min(Math.max(el.scrollHeight, 38), 156)
     el.style.height = `${targetH}px`
-    el.style.overflowY = el.scrollHeight > 86 ? 'auto' : 'hidden'
+    el.style.overflowY = el.scrollHeight > 156 ? 'auto' : 'hidden'
   }, [text])
 
   return (

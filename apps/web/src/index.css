@@ -1199,7 +1199,7 @@ html.dark .ws-item:hover {
   display: block;
   width: 100%;
   min-height: 38px;
-  max-height: 86px;
+  max-height: 156px;
   padding: 6px 2px 6px;
   border: 0;
   background: transparent;
@@ -1210,6 +1210,7 @@ html.dark .ws-item:hover {
   outline: none;
   box-sizing: border-box;
   scrollbar-width: thin;
+  transition: height var(--dur-fast) var(--ease-soft);
 }
 .composer textarea::-webkit-scrollbar {
   width: 5px;
