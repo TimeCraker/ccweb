@@ -11,6 +11,34 @@ interface LastSendState {
   acknowledged: boolean
 }
 
+const PROMPT_HISTORY_KEY = 'ccweb.promptHistory'
+const MAX_PROMPT_HISTORY = 50
+
+function loadPromptHistory(): string[] {
+  try {
+    const raw = localStorage.getItem(PROMPT_HISTORY_KEY)
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) return arr.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+    }
+  } catch {
+    // ignore
+  }
+  return []
+}
+
+function appendPromptHistory(item: string) {
+  const trimmed = item.trim()
+  if (!trimmed) return
+  try {
+    const current = loadPromptHistory()
+    const next = [trimmed, ...current.filter((x) => x !== trimmed)].slice(0, MAX_PROMPT_HISTORY)
+    localStorage.setItem(PROMPT_HISTORY_KEY, JSON.stringify(next))
+  } catch {
+    // ignore
+  }
+}
+
 /** 最近一次成功发送:放在模块级,避免空态→对话态切换导致 Composer 重挂载后丢失 */
 let lastSend: LastSendState | null = null
 
@@ -44,6 +72,9 @@ export default function Composer({
   const key = `ccweb.draft:${workspace ?? 'launch'}:${sessionId ?? 'new'}`
   const [text, setText] = useState(() => localStorage.getItem(key) ?? '')
   const draftKey = useRef(key)
+  const [historyIdx, setHistoryIdx] = useState(-1)
+  const draftBeforeHistory = useRef('')
+
   useEffect(() => {
     if (draftKey.current === key) return
     const previous = draftKey.current
@@ -55,10 +86,15 @@ export default function Composer({
       localStorage.removeItem(previous)
       setText(launchDraft)
     } else setText(saved ?? '')
+    setHistoryIdx(-1)
   }, [key])
-  const updateText = (value: string) => {
+
+  const updateText = (value: string, fromHistory = false) => {
     setText(value)
     localStorage.setItem(key, value)
+    if (!fromHistory) {
+      setHistoryIdx(-1)
+    }
   }
   const [images, setImages] = useState<string[]>([])
   useEffect(() => {
@@ -196,9 +232,13 @@ export default function Composer({
     }
     const request = onSend(trimmed || t('cp.imageOnly'), images.length ? images : undefined)
     if (request === 'local') {
+      appendPromptHistory(trimmed)
+      setHistoryIdx(-1)
       updateText('')
       setImages([])
     } else if (request) {
+      appendPromptHistory(trimmed)
+      setHistoryIdx(-1)
       lastSend = { signature, at: Date.now(), acknowledged: false }
       setPending(request)
     }
@@ -389,6 +429,50 @@ export default function Composer({
               if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
                 e.preventDefault()
                 pickFile(fileMatches[fileSel] ?? fileMatches[0] ?? '')
+                return
+              }
+            } else {
+              // 提示词历史回溯 (Prompt History): 输入框为空或光标在开头时按 ↑/↓ 翻阅
+              if (e.key === 'ArrowUp') {
+                const isCursorAtStart = taRef.current
+                  ? taRef.current.selectionStart === 0 && taRef.current.selectionEnd === 0
+                  : true
+                if (text === '' || historyIdx >= 0 || isCursorAtStart) {
+                  const history = loadPromptHistory()
+                  if (history.length > 0) {
+                    e.preventDefault()
+                    if (historyIdx === -1) {
+                      draftBeforeHistory.current = text
+                    }
+                    const nextIdx = Math.min(historyIdx + 1, history.length - 1)
+                    setHistoryIdx(nextIdx)
+                    const val = history[nextIdx] ?? ''
+                    updateText(val, true)
+                    setTimeout(() => {
+                      if (taRef.current) {
+                        taRef.current.selectionStart = taRef.current.selectionEnd = val.length
+                      }
+                    }, 0)
+                    return
+                  }
+                }
+              } else if (e.key === 'ArrowDown' && historyIdx >= 0) {
+                e.preventDefault()
+                const history = loadPromptHistory()
+                const nextIdx = historyIdx - 1
+                setHistoryIdx(nextIdx)
+                if (nextIdx >= 0) {
+                  const val = history[nextIdx] ?? ''
+                  updateText(val, true)
+                  setTimeout(() => {
+                    if (taRef.current) {
+                      taRef.current.selectionStart = taRef.current.selectionEnd = val.length
+                    }
+                  }, 0)
+                } else {
+                  updateText(draftBeforeHistory.current, true)
+                  setHistoryIdx(-1)
+                }
                 return
               }
             }

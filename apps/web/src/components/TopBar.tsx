@@ -112,7 +112,32 @@ export default function TopBar({
             aria-label={t('hd.rename')}
           />
         ) : (
-          <h1 title={title}>{title}</h1>
+          <div
+            className="header-title-text-wrap"
+            onDoubleClick={() => {
+              if (sessionId) {
+                setDraft(title)
+                setEditing(true)
+              }
+            }}
+            title={sessionId ? '双击修改会话标题' : title}
+          >
+            <h1 title={title}>{title}</h1>
+            {sessionId && (
+              <button
+                type="button"
+                className="header-title-edit-btn"
+                onClick={() => {
+                  setDraft(title)
+                  setEditing(true)
+                }}
+                title="修改会话标题"
+                aria-label="修改会话标题"
+              >
+                <IconPencil width={11} height={11} />
+              </button>
+            )}
+          </div>
         )}
         {workspace && (
           <span className="header-project" title={workspace}>
