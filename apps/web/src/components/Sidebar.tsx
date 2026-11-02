@@ -14,9 +14,12 @@ import {
   IconChevron,
   SectionIcon,
   IconFolder,
+  IconFolderPlus,
+  IconSliders,
+  IconX,
 } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
-import { baseName, compactPath, isTempPath } from '../lib/path'
+import { baseName, compactPath } from '../lib/path'
 
 interface Props {
   onSetWorkspace: (dir: string) => void
@@ -132,6 +135,49 @@ export default function Sidebar({
   const [dragId, setDragId] = useState<string | null>(null)
   const dragIdRef = useRef<string | null>(null)
   useLocale()
+
+  const VIEW_MODE_KEY = 'ccweb.sidebarViewMode'
+  const [viewMode, setViewMode] = useState<'workspace' | 'flat'>(() => {
+    try {
+      return (localStorage.getItem(VIEW_MODE_KEY) as 'workspace' | 'flat') || 'workspace'
+    } catch {
+      return 'workspace'
+    }
+  })
+  const persistViewMode = (mode: 'workspace' | 'flat') => {
+    setViewMode(mode)
+    try {
+      localStorage.setItem(VIEW_MODE_KEY, mode)
+    } catch {
+      // ignore
+    }
+  }
+
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [addDrawerOpen, setAddDrawerOpen] = useState(false)
+  const currentWorkspace = settings?.workspace ?? null
+  const [expandedWs, setExpandedWs] = useState<string[]>(() => (currentWorkspace ? [currentWorkspace] : []))
+
+  useEffect(() => {
+    if (currentWorkspace && !expandedWs.includes(currentWorkspace)) {
+      setExpandedWs((prev) => [...prev, currentWorkspace])
+    }
+  }, [currentWorkspace])
+
+  const toggleExpandWs = (dir: string) => {
+    setExpandedWs((prev) => (prev.includes(dir) ? prev.filter((d) => d !== dir) : [...prev, dir]))
+  }
+
+  const workspaces = settings?.workspaces ?? []
+  const [hiddenWs, setHiddenWs] = useState<string[]>(() => readList(HIDDEN_KEY))
+  const [pinnedWs] = useState<string[]>(() => readList(PINNED_KEY))
+  const visibleWorkspaces = workspaces
+    .filter((w) => !hiddenWs.includes(w.dir))
+    .sort(
+      (a, b) =>
+        Number(pinnedWs.includes(b.dir)) - Number(pinnedWs.includes(a.dir)) ||
+        (a.dir === currentWorkspace ? -1 : b.dir === currentWorkspace ? 1 : 0),
+    )
 
   useEffect(() => {
     try {
@@ -279,58 +325,114 @@ export default function Sidebar({
         <kbd aria-hidden="true">Ctrl N</kbd>
       </button>
 
-      <Menu
-        label={t('sb.project.recent')}
-        width={330}
-        trigger={({ open }) => (
+      {/* 工作区标题与动作区 (对标 DeepSeek Harness 架构) */}
+      <div className="ws-section-header">
+        <div className="ws-section-title-wrap">
+          <span className="ws-section-title">工作区</span>
+          <span className="ws-section-count">{visibleWorkspaces.length}</span>
+        </div>
+        <div className="ws-section-actions">
           <button
-            className={`workspace-trigger ${open ? 'is-open' : ''}`}
-            aria-expanded={open}
-            title={settings?.workspace ?? ''}
+            type="button"
+            className={`ws-icon-btn ${searchOpen ? 'is-active' : ''}`}
+            onClick={() => setSearchOpen((v) => !v)}
+            title="搜索会话"
+            aria-label="搜索会话"
           >
-            <span className="ws-badge">
-              <WorkspaceGlyph />
-            </span>
-            <span className="ws-text-group">
-              <span className="ws-name">
-                {settings?.workspace ? baseName(settings.workspace) : t('ws.title')}
-              </span>
-              <span className="ws-sub">
-                {settings?.workspace ? compactPath(settings.workspace, 24) : '点击切换项目'}
-              </span>
-            </span>
-            <span className="ws-indicator">
-              <IconChevron
-                width={12}
-                height={12}
-                className="chev"
-              />
-            </span>
+            <IconSearch width={13} height={13} />
           </button>
-        )}
-      >
-        {(close) => (
-          <WorkspaceMenu
-            workspaces={settings?.workspaces ?? []}
-            current={settings?.workspace ?? null}
-            onPick={(dir) => {
-              close()
-              onSetWorkspace(dir)
-            }}
-          />
-        )}
-      </Menu>
+          <Menu
+            label="视图模式"
+            width={160}
+            trigger={({ open }) => (
+              <button
+                type="button"
+                className={`ws-icon-btn ${open ? 'is-active' : ''}`}
+                title="视图与分组模式"
+                aria-label="视图模式"
+              >
+                <IconSliders width={13} height={13} />
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="p-1">
+                <div className="menu-label">分组方式</div>
+                <MenuItem
+                  selected={viewMode === 'workspace'}
+                  onClick={() => {
+                    persistViewMode('workspace')
+                    close()
+                  }}
+                >
+                  按工作区
+                </MenuItem>
+                <MenuItem
+                  selected={viewMode === 'flat'}
+                  onClick={() => {
+                    persistViewMode('flat')
+                    close()
+                  }}
+                >
+                  单列表
+                </MenuItem>
+              </div>
+            )}
+          </Menu>
+          <button
+            type="button"
+            className={`ws-icon-btn ${addDrawerOpen ? 'is-active' : ''}`}
+            onClick={() => setAddDrawerOpen((v) => !v)}
+            title="打开新项目 / 添加工作区"
+            aria-label="打开新项目"
+          >
+            <IconFolderPlus width={14} height={14} />
+          </button>
+        </div>
+      </div>
 
-      {sessions.length > 6 && (
-        <div className="sidebar-search">
+      {/* 搜索展开框 (对标 DeepSeek Harness 截图 5) */}
+      {searchOpen && (
+        <div className="sidebar-search animate-slide-down">
           <IconSearch width={13} height={13} />
           <input
+            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('sb.search')}
+            placeholder="搜索会话名称..."
             aria-label={t('sb.search')}
           />
+          {query && (
+            <button
+              type="button"
+              className="icon-btn search-clear-btn"
+              onClick={() => setQuery('')}
+              title="清空搜索"
+            >
+              <IconX width={11} height={11} />
+            </button>
+          )}
         </div>
+      )}
+
+      {/* 极速添加工作区抽屉 (彻底解决弹窗卡死与打不开问题) */}
+      {addDrawerOpen && (
+        <WorkspaceAddDrawer
+          onPick={(dir) => {
+            if (hiddenWs.includes(dir)) {
+              const next = hiddenWs.filter((d) => d !== dir)
+              setHiddenWs(next)
+              try {
+                localStorage.setItem(HIDDEN_KEY, JSON.stringify(next))
+              } catch {
+                // ignore
+              }
+            }
+            onSetWorkspace(dir)
+            setAddDrawerOpen(false)
+          }}
+          onClose={() => setAddDrawerOpen(false)}
+        />
       )}
 
       <div
@@ -341,33 +443,113 @@ export default function Sidebar({
         }}
         onDrop={(e) => e.preventDefault()}
       >
-        {groups.map((group) => (
-          <div key={group.bucket}>
-            <p className="session-group-label">
-              <span>{BUCKET_LABEL[group.bucket]()}</span>
-            </p>
-            {group.items.map((s) => (
-              <SessionRow
-                key={s.id}
-                s={s}
-                active={s.id === activeId}
-                running={s.id === activeId && busy}
-                dragging={s.id === dragId}
-                onItemDragStart={handleItemDragStart}
-                onItemDragOver={handleItemDragOver}
-                onItemDragEnd={handleItemDragEnd}
-                onOpen={() => onOpenSession(s.id)}
-                onFork={() => onOpenSession(s.id, true)}
-                onRename={(title) => onRename(s.id, title)}
-                onDelete={() => onDelete(s.id)}
-              />
-            ))}
+        {viewMode === 'workspace' ? (
+          /* 按工作区分组的树形视图 (对标 DeepSeek Harness 截图 2) */
+          <div className="ws-tree-container">
+            {visibleWorkspaces.map((w) => {
+              const isActive = w.dir === currentWorkspace
+              const isExpanded = expandedWs.includes(w.dir)
+              return (
+                <div key={w.dir} className={`ws-tree-node ${isActive ? 'is-active' : ''}`}>
+                  <div
+                    className="ws-tree-header"
+                    onClick={() => {
+                      if (!isActive) onSetWorkspace(w.dir)
+                      toggleExpandWs(w.dir)
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="ws-tree-chevron-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleExpandWs(w.dir)
+                      }}
+                      title={isExpanded ? '折叠' : '展开'}
+                    >
+                      <IconChevron
+                        width={12}
+                        height={12}
+                        className={`chev ${isExpanded ? 'is-open' : ''}`}
+                      />
+                    </button>
+                    <span className="ws-tree-glyph">
+                      <IconFolder width={14} height={14} />
+                    </span>
+                    <span className="ws-tree-name" title={w.dir}>
+                      {baseName(w.dir)}
+                    </span>
+                    {isActive && <span className="ws-tree-active-pill">当前</span>}
+                    <span className="ws-tree-count">{w.sessions}</span>
+                  </div>
+
+                  {/* 展开的会话子树 */}
+                  {isExpanded && isActive && (
+                    <div className="ws-tree-children animate-slide-down">
+                      {filtered.map((s) => (
+                        <SessionRow
+                          key={s.id}
+                          s={s}
+                          active={s.id === activeId}
+                          running={s.id === activeId && busy}
+                          dragging={s.id === dragId}
+                          onItemDragStart={handleItemDragStart}
+                          onItemDragOver={handleItemDragOver}
+                          onItemDragEnd={handleItemDragEnd}
+                          onOpen={() => onOpenSession(s.id)}
+                          onFork={() => onOpenSession(s.id, true)}
+                          onRename={(title) => onRename(s.id, title)}
+                          onDelete={() => onDelete(s.id)}
+                        />
+                      ))}
+                      {filtered.length === 0 && (
+                        <p className="menu-empty" style={{ padding: '10px 14px', fontSize: 11.5 }}>
+                          {query ? t('sb.noMatch') : '暂无会话，点击上方新建'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {visibleWorkspaces.length === 0 && (
+              <p className="menu-empty" style={{ padding: '22px 10px' }}>
+                暂无工作区，点击右上角「+」添加
+              </p>
+            )}
           </div>
-        ))}
-        {filtered.length === 0 && (
-          <p className="menu-empty" style={{ padding: '22px 10px' }}>
-            {query ? t('sb.noMatch') : t('sb.none')}
-          </p>
+        ) : (
+          /* 单列表视图 */
+          <>
+            {groups.map((group) => (
+              <div key={group.bucket}>
+                <p className="session-group-label">
+                  <span>{BUCKET_LABEL[group.bucket]()}</span>
+                </p>
+                {group.items.map((s) => (
+                  <SessionRow
+                    key={s.id}
+                    s={s}
+                    active={s.id === activeId}
+                    running={s.id === activeId && busy}
+                    dragging={s.id === dragId}
+                    onItemDragStart={handleItemDragStart}
+                    onItemDragOver={handleItemDragOver}
+                    onItemDragEnd={handleItemDragEnd}
+                    onOpen={() => onOpenSession(s.id)}
+                    onFork={() => onOpenSession(s.id, true)}
+                    onRename={(title) => onRename(s.id, title)}
+                    onDelete={() => onDelete(s.id)}
+                  />
+                ))}
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <p className="menu-empty" style={{ padding: '22px 10px' }}>
+                {query ? t('sb.noMatch') : t('sb.none')}
+              </p>
+            )}
+          </>
         )}
       </div>
 
@@ -397,85 +579,27 @@ export default function Sidebar({
   )
 }
 
-function WorkspaceGlyph() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: '0 0 auto' }}>
-      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5Z" />
-    </svg>
-  )
-}
-
-function WorkspaceMenu({
-  workspaces,
-  current,
+function WorkspaceAddDrawer({
   onPick,
+  onClose,
 }: {
-  workspaces: Array<{ dir: string; sessions: number; lastModified: string | null }>
-  current: string | null
   onPick: (dir: string) => void
+  onClose: () => void
 }) {
-  const [query, setQuery] = useState('')
-  const [adding, setAdding] = useState(false)
-  const [path, setPath] = useState('')
-  const [hidden, setHidden] = useState<string[]>(() => readList(HIDDEN_KEY))
-  const [pinned, setPinned] = useState<string[]>(() => readList(PINNED_KEY))
-  const inputRef = useRef<HTMLInputElement>(null)
-  useLocale()
-
-  const persistPinned = (next: string[]) => {
-    setPinned(next)
-    try {
-      localStorage.setItem(PINNED_KEY, JSON.stringify(next))
-    } catch {
-      // 忽略写入失败
-    }
-  }
-  const togglePin = (dir: string) => {
-    persistPinned(pinned.includes(dir) ? pinned.filter((item) => item !== dir) : [...pinned, dir])
-  }
-
-  const hide = (dir: string) => {
-    const next = [...hidden, dir]
-    setHidden(next)
-    try {
-      localStorage.setItem(HIDDEN_KEY, JSON.stringify(next))
-    } catch {
-      // 忽略写入失败
-    }
-  }
-  const restore = () => {
-    setHidden([])
-    try {
-      localStorage.removeItem(HIDDEN_KEY)
-    } catch {
-      // 忽略
-    }
-  }
-
-  const visible = workspaces
-    .filter((w) => !hidden.includes(w.dir))
-    .filter((w) => !query || w.dir.toLowerCase().includes(query.toLowerCase()))
-  // 临时目录降权排后,但不隐藏
-  const sorted = [...visible].sort(
-    (a, b) =>
-      Number(pinned.includes(b.dir)) - Number(pinned.includes(a.dir)) ||
-      Number(isTempPath(a.dir)) - Number(isTempPath(b.dir)),
-  )
-
   const [discovered, setDiscovered] = useState<Array<{ name: string; path: string; isGit: boolean }>>([])
   const [picking, setPicking] = useState(false)
+  const [manualPath, setManualPath] = useState('')
   const [pickError, setPickError] = useState<string | null>(null)
   const abortCtrlRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    if (!adding) return
     fetch('/api/workspaces/discover')
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { discovered?: Array<{ name: string; path: string; isGit: boolean }> } | null) => {
         if (data?.discovered) setDiscovered(data.discovered)
       })
       .catch(() => {})
-  }, [adding])
+  }, [])
 
   const cancelPick = () => {
     if (abortCtrlRef.current) {
@@ -485,21 +609,52 @@ function WorkspaceMenu({
     setPicking(false)
   }
 
-  const pickNative = async () => {
+  // 优先调起浏览器原生 showDirectoryPicker (Chromium 原生，100% 弹窗成功置顶且不卡死)
+  const pickFolder = async () => {
     setPicking(true)
     setPickError(null)
+
+    // 1. 如果浏览器支持 showDirectoryPicker，直接在前端唤起系统窗口！
+    if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+      try {
+        const handle = await (
+          window as unknown as { showDirectoryPicker: () => Promise<{ name: string }> }
+        ).showDirectoryPicker()
+        if (handle?.name) {
+          // 在已发现的项目或已知项目中匹配
+          const matched = discovered.find(
+            (d) => d.name.toLowerCase() === handle.name.toLowerCase(),
+          )
+          if (matched) {
+            onPick(matched.path)
+            onClose()
+            return
+          }
+          // 如果不在同级发现列表中，自动填入名称引导确认
+          setManualPath(handle.name)
+        }
+      } catch (e: unknown) {
+        if ((e as Error)?.name === 'AbortError') {
+          // 用户主动关闭了浏览器原生对话框
+          setPicking(false)
+          return
+        }
+      }
+    }
+
+    // 2. 协同后端服务原生选择器
     const ctrl = new AbortController()
     abortCtrlRef.current = ctrl
     try {
       const res = await fetch('/api/dialog/pick-folder', { method: 'POST', signal: ctrl.signal })
       const data = (await res.json()) as { path: string | null }
       if (data?.path) {
-        if (hidden.includes(data.path)) restore()
         onPick(data.path)
+        onClose()
       }
     } catch (err: unknown) {
       if ((err as Error)?.name !== 'AbortError') {
-        setPickError('未能打开系统选择器，请直接输入路径或点击下方推荐项目')
+        setPickError('未能打开系统选择器，请直接点击下方候选项目或输入路径')
       }
     } finally {
       setPicking(false)
@@ -507,263 +662,99 @@ function WorkspaceMenu({
     }
   }
 
-  if (adding) {
-    const absolute = /^[a-zA-Z]:[\\/]/.test(path.trim()) || path.trim().startsWith('\\\\') || path.trim().startsWith('/')
-    return (
-      <form
-        className="p-1.5"
-        onSubmit={(e) => {
-          e.preventDefault()
-          const dir = path.trim()
-          if (!dir || !absolute) return
-          if (hidden.includes(dir)) restore()
-          onPick(dir)
-        }}
-      >
-        <div className="menu-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontWeight: 600, fontSize: 12 }}>{t('sb.project.add')}</span>
-          <button
-            type="button"
-            className="icon-btn"
-            style={{ width: 22, height: 22 }}
-            onClick={() => {
-              cancelPick()
-              setAdding(false)
-              setPath('')
-            }}
-            aria-label={t('sb.project.back')}
-            title={t('sb.project.back')}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* 现代动作卡片：打开本地文件夹 */}
-        <button
-          type="button"
-          className={`ws-pick-card ${picking ? 'is-picking' : ''}`}
-          onClick={picking ? cancelPick : pickNative}
-          title="调起 Windows 资源管理器选择文件夹"
-        >
-          <div className="ws-pick-icon">
-            {picking ? (
-              <span className="ws-spinner" />
-            ) : (
-              <IconFolder width={17} height={17} />
-            )}
-          </div>
-          <div className="ws-pick-text">
-            <div className="ws-pick-title">
-              {picking ? '正在等待系统窗口选择…' : '打开本地文件夹…'}
-            </div>
-            <div className="ws-pick-desc">
-              {picking ? '点击可取消当前等待' : '在系统资源管理器中直接选定项目目录'}
-            </div>
-          </div>
-          <div className="ws-pick-action">
-            {picking ? (
-              <span style={{ fontSize: 11, color: 'var(--color-accent)' }}>取消</span>
-            ) : (
-              <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>浏览 →</span>
-            )}
-          </div>
-        </button>
-
-        {pickError && (
-          <div style={{ fontSize: 11, color: 'var(--color-danger)', marginBottom: 8, padding: '4px 6px', background: 'color-mix(in srgb, var(--color-danger) 10%, transparent)', borderRadius: 5 }}>
-            {pickError}
-          </div>
-        )}
-
-        {/* 智能检测到的候选项目 */}
-        {discovered.length > 0 && (
-          <div style={{ margin: '8px 0', borderTop: '1px solid var(--color-border)', paddingTop: 8 }}>
-            <div className="menu-label" style={{ padding: '0 0 6px', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
-              <span>检测到同级与子项目</span>
-              <span style={{ fontWeight: 400, color: 'var(--color-text-faint)' }}>{discovered.length} 个</span>
-            </div>
-            <div style={{ maxHeight: 150, overflowY: 'auto', paddingRight: 2 }}>
-              {discovered.map((item) => (
-                <button
-                  key={item.path}
-                  type="button"
-                  className="ws-discover-card"
-                  onClick={() => {
-                    if (hidden.includes(item.path)) restore()
-                    onPick(item.path)
-                  }}
-                  title={item.path}
-                >
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--color-text)' }}>{item.name}</span>
-                      {item.isGit && (
-                        <span style={{ fontSize: 9.5, padding: '1px 5px', borderRadius: 4, background: 'color-mix(in srgb, var(--color-accent) 12%, transparent)', color: 'var(--color-accent)', fontWeight: 500 }}>
-                          git
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: 'var(--color-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-                      {compactPath(item.path, 34)}
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--color-text-faint)', marginLeft: 6 }}>打开</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 手动输入路径 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '10px 0 6px', color: 'var(--color-text-faint)', fontSize: 11 }}>
-          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
-          <span>或手动输入路径</span>
-          <div style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
-        </div>
-
-        <input
-          ref={inputRef}
-          className="input"
-          style={{ height: 32, fontSize: 12 }}
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
-          placeholder={t('sb.project.pathHint')}
-          aria-label={t('sb.project.path')}
-          spellCheck={false}
-        />
-        <p
-          style={{
-            padding: '4px 2px 8px',
-            fontSize: 10.5,
-            lineHeight: 1.5,
-            color: path.trim() && !absolute ? 'var(--color-danger)' : 'var(--color-text-faint)',
-          }}
-        >
-          {path.trim() && !absolute ? t('sb.project.absolute') : t('sb.project.existHint')}
-        </p>
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <button
-            type="button"
-            className="btn btn-sm btn-ghost"
-            onClick={() => {
-              cancelPick()
-              setAdding(false)
-              setPath('')
-            }}
-          >
-            {t('sb.project.back')}
-          </button>
-          <button type="submit" className="btn btn-sm btn-primary" disabled={!absolute}>
-            {t('sb.project.open')}
-          </button>
-        </div>
-      </form>
-    )
-  }
+  const isAbsolute =
+    /^[a-zA-Z]:[\\/]/.test(manualPath.trim()) ||
+    manualPath.trim().startsWith('\\\\') ||
+    manualPath.trim().startsWith('/')
 
   return (
-    <>
-      <div className="menu-search">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t('sb.project.search')}
-          aria-label={t('sb.project.search')}
-        />
+    <div className="ws-add-drawer animate-slide-down">
+      <div className="ws-add-drawer-header">
+        <span className="ws-add-title">打开新项目</span>
+        <button type="button" className="icon-btn" onClick={onClose} title="关闭">
+          <IconX width={12} height={12} />
+        </button>
       </div>
-      <div className="menu-label">{t('sb.project.recent')}</div>
-      {sorted.length === 0 && (
-        <p className="menu-empty">
-          {workspaces.length === 0 || hidden.length > 0 ? t('sb.project.none') : t('sb.noMatch')}
-        </p>
-      )}
-      {sorted.map((w) => {
-        const active = w.dir === current
-        const isPinned = pinned.includes(w.dir)
-        return (
-          <div key={w.dir} className={`ws-item ${active ? 'is-active' : ''}`}>
-            <button
-              type="button"
-              onClick={() => onPick(w.dir)}
-              className="ws-open"
-              role="menuitemradio"
-              aria-checked={active}
-              title={w.dir}
-            >
-              <span className="menu-body">
-                <strong>
-                  {baseName(w.dir)}
-                  {isTempPath(w.dir) && (
-                    <span className="badge" style={{ marginLeft: 6 }}>
-                      {t('sb.project.temp')}
-                    </span>
-                  )}
-                </strong>
-                <span className="ws-path">{compactPath(w.dir, 40)}</span>
-                <small>{tf('ws.sessions', w.sessions)}</small>
-              </span>
-              {active && (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginTop: 2 }}>
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              )}
-            </button>
-            <button
-              type="button"
-              className={`ws-pin ${isPinned ? 'is-pinned' : ''}`}
-              title={isPinned ? t('sb.project.unpin') : t('sb.project.pin')}
-              aria-label={`${isPinned ? t('sb.project.unpin') : t('sb.project.pin')}: ${baseName(w.dir)}`}
-              aria-pressed={isPinned}
-              onClick={() => togglePin(w.dir)}
-            >
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill={isPinned ? 'currentColor' : 'none'}
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9Z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="ws-remove"
-              title={t('sb.project.remove')}
-              aria-label={`${t('sb.project.remove')}: ${baseName(w.dir)}`}
-              onClick={() => hide(w.dir)}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" />
-              </svg>
-            </button>
+
+      <button
+        type="button"
+        className={`ws-pick-card ${picking ? 'is-picking' : ''}`}
+        onClick={picking ? cancelPick : pickFolder}
+      >
+        <div className="ws-pick-icon">
+          {picking ? <span className="ws-spinner" /> : <IconFolder width={17} height={17} />}
+        </div>
+        <div className="ws-pick-text">
+          <div className="ws-pick-title">{picking ? '正在等待选择目录…' : '打开本地文件夹…'}</div>
+          <div className="ws-pick-desc">{picking ? '点击可取消当前等待' : '调起系统文件窗口选定项目目录'}</div>
+        </div>
+        <div className="ws-pick-action">
+          {picking ? (
+            <span style={{ fontSize: 11, color: 'var(--color-accent)' }}>取消</span>
+          ) : (
+            <span style={{ fontSize: 11, color: 'var(--color-text-faint)' }}>浏览 →</span>
+          )}
+        </div>
+      </button>
+
+      {pickError && <div className="ws-pick-error">{pickError}</div>}
+
+      {discovered.length > 0 && (
+        <div className="ws-discover-section">
+          <div className="ws-discover-header">
+            <span>本地已检测到的项目</span>
+            <span className="ws-discover-tag">{discovered.length}</span>
           </div>
-        )
-      })}
-      <div className="menu-pin">
-        <MenuItem
-          onClick={() => setAdding(true)}
-          icon={<IconPlus width={14} height={14} style={{ marginTop: 2, color: 'var(--color-accent)' }} />}
-          description={t('sb.project.pathHint')}
+          <div className="ws-discover-list">
+            {discovered.map((d) => (
+              <button
+                key={d.path}
+                type="button"
+                className="ws-discover-item"
+                onClick={() => {
+                  onPick(d.path)
+                  onClose()
+                }}
+                title={d.path}
+              >
+                <span className="ws-discover-name">{d.name}</span>
+                {d.isGit && <span className="badge-git">git</span>}
+                <span className="ws-discover-path">{compactPath(d.path, 28)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="ws-manual-input-row">
+        <input
+          className="input ws-manual-input"
+          placeholder="输入目录绝对路径，如 C:\Projects\app"
+          value={manualPath}
+          onChange={(e) => setManualPath(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && isAbsolute) {
+              e.preventDefault()
+              onPick(manualPath.trim())
+              onClose()
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          disabled={!isAbsolute}
+          onClick={() => {
+            if (isAbsolute) {
+              onPick(manualPath.trim())
+              onClose()
+            }
+          }}
         >
-          {t('sb.project.add')}
-        </MenuItem>
-        {hidden.length > 0 && (
-          <MenuItem onClick={restore} description={`${hidden.length}`}>
-            {t('sb.project.restore')}
-          </MenuItem>
-        )}
-        <p className="menu-foot-note" style={{ padding: '6px 10px 2px' }}>
-          {t('sb.project.hidden')}
-        </p>
+          打开
+        </button>
       </div>
-    </>
+    </div>
   )
 }
 

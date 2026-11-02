@@ -346,29 +346,84 @@ configApi.post('/sessions/restore', async c => {
 
 async function pickFolderNative(): Promise<string | null> {
   if (process.platform === 'win32') {
-    // 必须使用 -STA 并且移除 -NonInteractive，使用置顶隐藏 Form 作为 Owner 确保对话框置顶到最前
-    const script = [
-      'Add-Type -AssemblyName System.Windows.Forms',
-      '$form = New-Object System.Windows.Forms.Form',
-      '$form.TopMost = $true',
-      '$form.StartPosition = "CenterScreen"',
-      '$form.Width = 0',
-      '$form.Height = 0',
-      '$form.Show()',
-      '$form.Activate()',
-      '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
-      '$dialog.AutoUpgradeEnabled = $true',
-      '$dialog.Description = "请选择项目目录"',
-      '$dialog.ShowNewFolderButton = $true',
-      '$res = $dialog.ShowDialog($form)',
-      '$form.Close()',
-      'if ($res -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $dialog.SelectedPath }',
-    ].join('; ');
+    // 使用 Windows 现代 IFileOpenDialog (FOS_PICKFOLDERS 0x20 | FOS_FORCEFILESYSTEM 0x40)，与系统资源管理器完全一致
+    const script = `
+$code = @"
+using System;
+using System.Runtime.InteropServices;
+
+public class NativeFolderPicker {
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [ComImport]
+    [Guid("D57C7288-D4AD-4768-BE02-9D969532D960")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IFileOpenDialog {
+        [PreserveSig] int Show(IntPtr parent);
+        void SetFileTypes();
+        void SetFileTypeIndex();
+        void GetFileTypeIndex();
+        void Advise();
+        void Unadvise();
+        void SetOptions(uint fos);
+        void GetOptions(out uint fos);
+        void SetDefaultFolder(IntPtr psi);
+        void SetFolder(IntPtr psi);
+        void GetFolder(out IntPtr ppsi);
+        void GetCurrentSelection(out IntPtr ppsi);
+        void SetFileName([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+        void GetFileName([MarshalAs(UnmanagedType.LPWStr)] out string pszName);
+        void SetTitle([MarshalAs(UnmanagedType.LPWStr)] string pszTitle);
+        void SetOkButtonLabel([MarshalAs(UnmanagedType.LPWStr)] string pszText);
+        void SetFileNameLabel([MarshalAs(UnmanagedType.LPWStr)] string pszLabel);
+        void GetResult(out IShellItem ppsi);
+    }
+
+    [ComImport]
+    [Guid("43826D1E-E718-42EE-BC55-A1E261C37BFE")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IShellItem {
+        void BindToHandler();
+        void GetParent();
+        void GetDisplayName(uint sigdnName, [MarshalAs(UnmanagedType.LPWStr)] out string ppszName);
+        void GetAttributes();
+        void Compare();
+    }
+
+    [ComImport]
+    [Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
+    [ClassInterface(ClassInterfaceType.None)]
+    private class FileOpenDialogRCW { }
+
+    public static string Pick() {
+        try {
+            var dialog = (IFileOpenDialog)new FileOpenDialogRCW();
+            dialog.SetOptions(0x20 | 0x40);
+            dialog.SetTitle("选择文件夹");
+            IntPtr hwnd = GetForegroundWindow();
+            int hr = dialog.Show(hwnd);
+            if (hr == 0) {
+                IShellItem item;
+                dialog.GetResult(out item);
+                string path;
+                item.GetDisplayName(0x80058000, out path);
+                return path;
+            }
+        } catch {}
+        return null;
+    }
+}
+"@
+Add-Type -TypeDefinition $code -Language CSharp
+$res = [NativeFolderPicker]::Pick()
+if ($res) { Write-Output $res }
+`;
     try {
       const { stdout } = await promisify(execFile)(
         'powershell.exe',
         ['-STA', '-NoProfile', '-Command', script],
-        { timeout: 120_000, windowsHide: false },
+        { timeout: 60_000, windowsHide: false },
       );
       const selected = stdout.trim();
       return selected && existsSync(selected) ? selected : null;
