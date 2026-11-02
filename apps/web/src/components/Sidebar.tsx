@@ -17,6 +17,9 @@ import {
   IconFolderPlus,
   IconSliders,
   IconX,
+  IconMore,
+  IconBroom,
+  IconCopy,
 } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 import { baseName, compactPath } from '../lib/path'
@@ -232,6 +235,41 @@ export default function Sidebar({
         (a.dir === currentWorkspace ? -1 : b.dir === currentWorkspace ? 1 : 0),
     )
 
+  const isTempWs = (dir: string) => {
+    const lower = dir.toLowerCase()
+    return (
+      lower.includes('\\temp\\') ||
+      lower.includes('/temp/') ||
+      lower.includes('modlens-work') ||
+      lower.includes('ccweb-real-task')
+    )
+  }
+
+  const hideWorkspace = (dir: string) => {
+    const next = Array.from(new Set([...hiddenWs, dir]))
+    setHiddenWs(next)
+    try {
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify(next))
+    } catch {
+      // ignore
+    }
+  }
+
+  const cleanTempWorkspaces = () => {
+    const targets = visibleWorkspaces.filter((w) => isTempWs(w.dir)).map((w) => w.dir)
+    if (targets.length > 0) {
+      const next = Array.from(new Set([...hiddenWs, ...targets]))
+      setHiddenWs(next)
+      try {
+        localStorage.setItem(HIDDEN_KEY, JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const tempCount = visibleWorkspaces.filter((w) => isTempWs(w.dir)).length
+
   useEffect(() => {
     try {
       localStorage.setItem(ORDER_KEY, JSON.stringify(order))
@@ -429,9 +467,34 @@ export default function Sidebar({
                 >
                   单列表
                 </MenuItem>
+                {tempCount > 0 && (
+                  <>
+                    <div className="menu-sep" />
+                    <MenuItem
+                      icon={<IconBroom width={13} height={13} />}
+                      onClick={() => {
+                        cleanTempWorkspaces()
+                        close()
+                      }}
+                    >
+                      清理 {tempCount} 个临时项目
+                    </MenuItem>
+                  </>
+                )}
               </div>
             )}
           </Menu>
+          {tempCount > 0 && (
+            <button
+              type="button"
+              className="ws-icon-btn ws-clean-temp-btn"
+              onClick={cleanTempWorkspaces}
+              title={`一键清理 ${tempCount} 个临时测试项目`}
+              aria-label="清理临时项目"
+            >
+              <IconBroom width={13} height={13} />
+            </button>
+          )}
           <button
             type="button"
             className={`ws-icon-btn ${addDrawerOpen ? 'is-active' : ''}`}
@@ -516,7 +579,12 @@ export default function Sidebar({
                       className="ws-tree-chevron-btn"
                       onClick={(e) => {
                         e.stopPropagation()
-                        toggleExpandWs(w.dir)
+                        if (!isActive) {
+                          onSetWorkspace(w.dir)
+                          if (!isExpanded) toggleExpandWs(w.dir)
+                        } else {
+                          toggleExpandWs(w.dir)
+                        }
                       }}
                       title={isExpanded ? '折叠' : '展开'}
                     >
@@ -534,6 +602,90 @@ export default function Sidebar({
                     </span>
                     {isActive && <span className="ws-tree-active-pill">当前</span>}
                     <span className="ws-tree-count">{w.sessions}</span>
+
+                    <div className="ws-tree-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="ws-action-btn"
+                        title="在此项目新建会话"
+                        onClick={() => {
+                          if (!isActive) onSetWorkspace(w.dir)
+                          onNewSession()
+                        }}
+                      >
+                        <IconPlus width={12} height={12} />
+                      </button>
+                      <Menu
+                        label="项目选项"
+                        width={180}
+                        align="end"
+                        trigger={({ open }) => (
+                          <button
+                            type="button"
+                            className={`ws-action-btn ${open ? 'is-active' : ''}`}
+                            aria-expanded={open}
+                            title="更多选项"
+                          >
+                            <IconMore width={13} height={13} />
+                          </button>
+                        )}
+                      >
+                        {(close) => (
+                          <div className="p-1">
+                            <MenuItem
+                              icon={<IconPlus width={13} height={13} />}
+                              onClick={() => {
+                                close()
+                                if (!isActive) onSetWorkspace(w.dir)
+                                onNewSession()
+                              }}
+                            >
+                              新建会话
+                            </MenuItem>
+                            <MenuItem
+                              icon={<IconCopy width={13} height={13} />}
+                              onClick={() => {
+                                close()
+                                try {
+                                  navigator.clipboard?.writeText(w.dir)
+                                } catch {
+                                  // ignore
+                                }
+                              }}
+                            >
+                              复制完整路径
+                            </MenuItem>
+                            <MenuItem
+                              icon={<IconFolder width={13} height={13} />}
+                              onClick={async () => {
+                                close()
+                                try {
+                                  await fetch('/api/workspaces/open-folder', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ path: w.dir }),
+                                  })
+                                } catch {
+                                  // ignore
+                                }
+                              }}
+                            >
+                              在资源管理器打开
+                            </MenuItem>
+                            <div className="menu-sep" />
+                            <MenuItem
+                              icon={<IconTrash width={13} height={13} style={{ color: 'var(--color-danger)' }} />}
+                              onClick={() => {
+                                close()
+                                hideWorkspace(w.dir)
+                              }}
+                            >
+                              <span style={{ color: 'var(--color-danger)' }}>从列表移除</span>
+                            </MenuItem>
+                          </div>
+                        )}
+                      </Menu>
+                    </div>
                   </div>
 
                   {/* 展开的会话子树 */}

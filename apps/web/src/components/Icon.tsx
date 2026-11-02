@@ -214,6 +214,22 @@ export const IconSliders = (p: P) => (
   </svg>
 )
 
+export const IconMore = (p: P) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" {...p}>
+    <circle cx="5" cy="12" r="1.8" />
+    <circle cx="12" cy="12" r="1.8" />
+    <circle cx="19" cy="12" r="1.8" />
+  </svg>
+)
+
+export const IconBroom = (p: P) => (
+  <svg {...base(p)}>
+    <path d="m18 3 3 3-9 9H9v-3l9-9Z" />
+    <path d="m3 21 6-6" />
+    <path d="m8 18 3 3" />
+  </svg>
+)
+
 /** Shared personal brand, copied unchanged from my-portfolio/public/brand. */
 export function BrandMark({ size = 32 }: { size?: number; uid?: string }) {
   return <span className="tc-brand-mark" style={{ width: size, height: size }}><img src="/brand/timecraker-mark-v1.svg" width={size} height={size} alt="TC" /></span>

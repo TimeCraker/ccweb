@@ -1145,6 +1145,45 @@ body.is-resizing-sidebar * {
   margin-left: 2px;
   flex: 0 0 auto;
 }
+.ws-tree-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.ws-tree-header:hover .ws-tree-actions,
+.ws-tree-node:hover .ws-tree-actions {
+  display: flex;
+}
+.ws-tree-header:hover .ws-tree-count,
+.ws-tree-node:hover .ws-tree-count {
+  display: none;
+}
+.ws-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-dim);
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--dur-fast);
+}
+.ws-action-btn:hover,
+.ws-action-btn.is-active {
+  background: var(--color-panel-3);
+  color: var(--color-text);
+}
+.ws-clean-temp-btn {
+  color: var(--color-accent) !important;
+}
+.ws-clean-temp-btn:hover {
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent) !important;
+}
 .ws-tree-children {
   margin-left: 14px;
   padding-left: 8px;

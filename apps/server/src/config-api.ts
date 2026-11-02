@@ -542,3 +542,26 @@ configApi.get('/workspaces/discover', async (c) => {
     discovered: discovered.slice(0, 60),
   });
 });
+
+// 打开系统本地文件夹资源管理器
+configApi.post('/workspaces/open-folder', async (c) => {
+  const body = await c.req.json<{ path?: string }>();
+  const target = (body.path || '').trim();
+  if (!target || !existsSync(target) || !statSync(target).isDirectory()) {
+    return c.json({ ok: false, error: '目录不存在或无效' }, 400);
+  }
+  try {
+    const isWindows = process.platform === 'win32';
+    const isMac = process.platform === 'darwin';
+    if (isWindows) {
+      execFile('explorer.exe', [target]);
+    } else if (isMac) {
+      execFile('open', [target]);
+    } else {
+      execFile('xdg-open', [target]);
+    }
+    return c.json({ ok: true });
+  } catch (err: unknown) {
+    return c.json({ ok: false, error: (err as Error)?.message || '无法打开文件夹' }, 500);
+  }
+});
