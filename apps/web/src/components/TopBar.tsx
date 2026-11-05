@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
-import { IconChevron, IconGear, IconPencil, IconPlus, IconSun, IconMoon, SectionIcon } from './Icon'
+import {
+  IconChevron,
+  IconGear,
+  IconPencil,
+  IconPlus,
+  IconSun,
+  IconMoon,
+  SectionIcon,
+  IconFolder,
+  IconCopy,
+} from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 import { cycleTheme, useThemeMode } from '../theme'
 import { baseName } from '../lib/path'
@@ -140,12 +150,74 @@ export default function TopBar({
           </div>
         )}
         {workspace && (
-          <span className="header-project" title={workspace}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5Z" />
-            </svg>
-            {baseName(workspace)}
-          </span>
+          <Menu
+            label="当前项目选项"
+            width={310}
+            trigger={({ open }) => (
+              <button
+                type="button"
+                className={`header-project-btn ${open ? 'is-active' : ''}`}
+                aria-expanded={open}
+                title={`当前工作区：${workspace} (点击查看详情与选项)`}
+              >
+                <IconFolder width={12} height={12} />
+                <span className="project-name">{baseName(workspace)}</span>
+                <IconChevron width={11} height={11} className="project-chevron" />
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="project-popover-content">
+                <div className="project-popover-header">
+                  <span className="project-popover-title">当前工作区</span>
+                  <span className="project-popover-tag">已激活</span>
+                </div>
+                <div className="project-popover-path" title={workspace}>
+                  <code>{workspace}</code>
+                </div>
+                <div className="menu-sep" />
+                <MenuItem
+                  icon={<IconCopy width={13} height={13} />}
+                  onClick={() => {
+                    close()
+                    try {
+                      navigator.clipboard?.writeText(workspace)
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                >
+                  复制物理绝对路径
+                </MenuItem>
+                <MenuItem
+                  icon={<IconFolder width={13} height={13} />}
+                  onClick={async () => {
+                    close()
+                    try {
+                      await fetch('/api/workspaces/open-folder', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: workspace }),
+                      })
+                    } catch {
+                      // ignore
+                    }
+                  }}
+                >
+                  在系统资源管理器打开
+                </MenuItem>
+                <MenuItem
+                  icon={<IconPlus width={13} height={13} />}
+                  onClick={() => {
+                    close()
+                    onNewSession()
+                  }}
+                >
+                  在此项目新建会话
+                </MenuItem>
+              </div>
+            )}
+          </Menu>
         )}
       </div>
 

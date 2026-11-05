@@ -96,6 +96,23 @@ export default function Composer({
       setHistoryIdx(-1)
     }
   }
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<string>
+      if (typeof customEvent.detail === 'string') {
+        updateText(customEvent.detail)
+        setTimeout(() => {
+          if (taRef.current) {
+            taRef.current.focus()
+            taRef.current.selectionStart = taRef.current.selectionEnd = customEvent.detail.length
+          }
+        }, 50)
+      }
+    }
+    window.addEventListener('ccweb:insert-prompt', handler)
+    return () => window.removeEventListener('ccweb:insert-prompt', handler)
+  }, [key])
   const [images, setImages] = useState<string[]>([])
   useEffect(() => {
     setImages([])

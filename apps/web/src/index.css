@@ -1604,6 +1604,76 @@ html.dark .ws-item:hover {
   color: var(--color-text-faint);
   white-space: nowrap;
 }
+.header-project-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 12px;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--dur-fast);
+}
+.header-project-btn:hover,
+.header-project-btn.is-active {
+  border-color: var(--color-border);
+  background: var(--color-panel-2);
+  color: var(--color-text);
+}
+.header-project-btn .project-name {
+  font-weight: 550;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.header-project-btn .project-chevron {
+  color: var(--color-text-faint);
+  transition: transform var(--dur-fast);
+}
+.header-project-btn.is-active .project-chevron {
+  transform: rotate(180deg);
+}
+
+.project-popover-content {
+  padding: 4px;
+}
+.project-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 2px;
+}
+.project-popover-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+}
+.project-popover-tag {
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.project-popover-path {
+  padding: 4px 8px 8px;
+}
+.project-popover-path code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-dim);
+  background: color-mix(in srgb, var(--color-panel-2) 60%, transparent);
+  padding: 4px 6px;
+  border-radius: 4px;
+  word-break: break-all;
+  border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+}
 .header .header-actions {
   margin-left: auto;
   display: flex;
@@ -1679,6 +1749,65 @@ html.dark .ws-item:hover {
   font-family: inherit;
   font-size: 10.5px;
   color: var(--color-text-dim);
+}
+
+/* 新会话工程动作建议卡片 (Starter Action Pills) */
+.starter-prompts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(200px, 260px));
+  gap: 10px;
+  margin-top: 22px;
+  max-width: 540px;
+  width: 100%;
+}
+.starter-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid var(--color-border);
+  background: var(--color-panel);
+  text-align: left;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-spring);
+}
+.starter-card:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 6%, var(--color-panel));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+.starter-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.starter-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.starter-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.starter-desc {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 输入区停靠 */
@@ -2574,29 +2703,104 @@ html.dark .ws-item:hover {
   overflow-wrap: anywhere;
 }
 
+/* 深度思考过程 (Thinking Block 升级) */
 .thinking {
-  border: 1px dashed var(--color-border-strong);
+  border: 1px solid var(--color-border);
   border-radius: 9px;
-  margin: 4px 0;
-  background: color-mix(in srgb, var(--color-panel-2) 50%, transparent);
+  margin: 6px 0;
+  background: color-mix(in srgb, var(--color-panel-2) 40%, transparent);
+  overflow: hidden;
+  transition: all var(--dur-fast);
 }
-.thinking summary {
-  cursor: pointer;
+.thinking.is-streaming {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-accent) 4%, var(--color-panel-2));
+}
+.thinking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 6px 10px;
+  cursor: pointer;
+  user-select: none;
   font-size: 12px;
-  color: var(--color-text-faint);
-  list-style: none;
+  color: var(--color-text-dim);
+  transition: background var(--dur-fast);
 }
-.thinking summary::-webkit-details-marker {
-  display: none;
+.thinking-header:hover {
+  background: var(--color-panel-2);
+}
+.thinking-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+.thinking-brain-icon {
+  color: var(--color-text-faint);
+  flex: 0 0 auto;
+}
+.thinking.is-streaming .thinking-brain-icon {
+  color: var(--color-accent);
+}
+.thinking-brain-icon.pulse {
+  animation: brain-pulse 1.8s ease-in-out infinite;
+}
+@keyframes brain-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 4px var(--color-accent)); }
+}
+.thinking-status {
+  font-weight: 500;
+  color: var(--color-text-dim);
+}
+.thinking.is-streaming .thinking-status {
+  color: var(--color-accent);
+  font-weight: 550;
+}
+.thinking-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.thinking-copy-btn,
+.thinking-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-faint);
+  cursor: pointer;
+  padding: 0;
+  transition: all var(--dur-fast);
+}
+.thinking-copy-btn:hover,
+.thinking-toggle-btn:hover {
+  background: var(--color-panel-3);
+  color: var(--color-text);
+}
+.thinking-toggle-btn .chev {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.thinking-toggle-btn .chev.is-open {
+  transform: rotate(90deg);
 }
 .thinking-body {
-  padding: 2px 12px 10px;
-  font-size: 12.5px;
-  line-height: 1.7;
+  padding: 6px 12px 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.65;
   color: var(--color-text-dim);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  max-height: 280px;
+  overflow-y: auto;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 60%, transparent);
 }
 
 .permission-card {
