@@ -248,6 +248,7 @@ function TurnView({
   canRegenerate?: boolean
   onRegenerate?: () => void
 }) {
+  const [copiedFull, setCopiedFull] = useState(false)
   useLocale()
   const lastTextStreaming = (() => {
     for (let i = turn.blocks.length - 1; i >= 0; i--) {
@@ -258,27 +259,68 @@ function TurnView({
     return false
   })()
 
+  const fullText = turn.blocks
+    .filter((b): b is Extract<Block, { kind: 'text' }> => b.kind === 'text' && typeof b.text === 'string')
+    .map((b) => b.text)
+    .join('\n\n')
+
   return (
-    <div className="msg-assistant group/turn">
+    <div className="msg-assistant group/turn relative">
       {turn.blocks.map((b, i) => (
         <BlockView key={i} block={b} turnDone={turn.done} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
       ))}
       <div className="turn-tail">
-        {turn.tail && (
-          <span className="tabular">
-            {turn.tail.totalS.toFixed(1)}s
-            {turn.tail.ttftMs != null && ` · 首字 ${(turn.tail.ttftMs / 1000).toFixed(2)}s`}
-            {turn.tail.tps != null && ` · ${turn.tail.tps.toFixed(0)} tok/s`}
-          </span>
-        )}
-        {canRegenerate && onRegenerate && (
-          <button onClick={onRegenerate}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
-            </svg>
-            {t('ms.regenerate')}
-          </button>
-        )}
+        <div className="turn-metrics">
+          {turn.tail && (
+            <span className="tabular">
+              {turn.tail.totalS.toFixed(1)}s
+              {turn.tail.ttftMs != null && ` · 首字 ${(turn.tail.ttftMs / 1000).toFixed(2)}s`}
+              {turn.tail.tps != null && ` · ${turn.tail.tps.toFixed(0)} tok/s`}
+            </span>
+          )}
+        </div>
+        <div className="turn-actions">
+          {turn.done && fullText.trim().length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                void copyText(fullText).then(() => {
+                  setCopiedFull(true)
+                  setTimeout(() => setCopiedFull(false), 1400)
+                })
+              }}
+              className={`turn-action-btn ${copiedFull ? 'is-copied' : ''}`}
+              title="复制本轮完整回答"
+              aria-label="复制全文"
+            >
+              {copiedFull ? (
+                <>
+                  <IconCheck width={12} height={12} style={{ color: 'var(--color-ok)' }} />
+                  <span>已复制全文</span>
+                </>
+              ) : (
+                <>
+                  <IconCopy width={12} height={12} />
+                  <span>复制全文</span>
+                </>
+              )}
+            </button>
+          )}
+          {canRegenerate && onRegenerate && (
+            <button
+              type="button"
+              className="turn-action-btn turn-regenerate-btn"
+              onClick={onRegenerate}
+              title="重新生成这一轮回答"
+              aria-label={t('ms.regenerate')}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8M21 3v5h-5" />
+              </svg>
+              <span>{t('ms.regenerate')}</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )

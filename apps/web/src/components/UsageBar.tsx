@@ -45,28 +45,47 @@ export default function UsageBar() {
     percentage != null ||
     (metrics?.inputTokens ?? 0) > 0 ||
     (metrics?.outputTokens ?? 0) > 0
-  if (!hasData) return null
+  if (!hasData) {
+    return (
+      <div className="usage usage-empty" aria-label={t('us.title')}>
+        <span className="usage-tip">Enter 发送 · Shift + Enter 换行</span>
+      </div>
+    )
+  }
 
   const failed = metrics?.terminalStatus === 'failed'
   const cancelled = metrics?.terminalStatus === 'cancelled'
-  // 输入/输出在运行时口径里是会话累计,始终按"本次对话"标注,不伪装成本轮
   const scope = t('us.session')
+  const cacheHitRate = metrics?.cacheHitRate != null ? metrics.cacheHitRate : null
 
   return (
-    <div className="usage" aria-label={t('us.title')}>
-      {speed != null && (
-        <span className="usage-item">
-          {metrics?.speedScope === 'turn' ? '本轮均速' : '最近请求'} <b>{num(speed)} tok/s</b>
+    <div className="usage usage-metric-strip" aria-label={t('us.title')}>
+      {duration != null && (
+        <span className="usage-item" title="当前耗时">
+          <span className="usage-icon">⏱</span>
+          <span className="usage-label">{failed ? '失败于' : cancelled ? '取消于' : '耗时'}</span>
+          <b>{num(duration, 's')}</b>
         </span>
       )}
-      {duration != null && (
-        <span className="usage-item">
-          {failed ? '本轮失败于' : cancelled ? '本轮已取消于' : t('us.elapsed')} <b>{num(duration, 's')}</b>
+      {speed != null && (
+        <span className="usage-item" title="生成速率">
+          <span className="usage-icon">⚡</span>
+          <span className="usage-label">{metrics?.speedScope === 'turn' ? '均速' : '速率'}</span>
+          <b>{num(speed)} tok/s</b>
         </span>
       )}
       {percentage != null && (
-        <span className="usage-item">
-          {t('us.context')} <b>{num(percentage, '%')}</b>
+        <span className={`usage-item ${percentage >= 85 ? 'is-danger' : percentage >= 70 ? 'is-warn' : ''}`} title="当前上下文占用比例">
+          <span className="usage-icon">📊</span>
+          <span className="usage-label">上下文</span>
+          <b>{num(percentage, '%')}</b>
+        </span>
+      )}
+      {cacheHitRate != null && cacheHitRate > 0 && (
+        <span className="usage-item" title="Prompt 缓存命中率">
+          <span className="usage-icon">🔥</span>
+          <span className="usage-label">缓存</span>
+          <b>{num(cacheHitRate * 100, '%')}</b>
         </span>
       )}
       <Menu
@@ -74,11 +93,11 @@ export default function UsageBar() {
         align="end"
         width={316}
         trigger={({ open }) => (
-          <button className="usage-trigger" aria-expanded={open}>
-            {t('us.title')}
+          <button className="usage-trigger" aria-expanded={open} title="查看详细用量与诊断">
+            <span style={{ fontSize: 10, marginRight: 2 }}>详情</span>
             <IconChevron
-              width={11}
-              height={11}
+              width={10}
+              height={10}
               style={{ transform: open ? 'rotate(180deg)' : undefined }}
             />
           </button>

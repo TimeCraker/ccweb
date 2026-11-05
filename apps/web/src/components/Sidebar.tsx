@@ -163,6 +163,26 @@ export default function Sidebar({
   }
 
   const [searchOpen, setSearchOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        const target = e.target as HTMLElement | null
+        if (target && (target.tagName === 'TEXTAREA' || (target.tagName === 'INPUT' && target !== searchInputRef.current))) {
+          return
+        }
+        e.preventDefault()
+        setSearchOpen(true)
+        setTimeout(() => searchInputRef.current?.focus(), 50)
+      } else if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false)
+        setQuery('')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [searchOpen])
   const [addDrawerOpen, setAddDrawerOpen] = useState(false)
   const currentWorkspace = settings?.workspace ?? null
   const [expandedWs, setExpandedWs] = useState<string[]>(() => (currentWorkspace ? [currentWorkspace] : []))
@@ -531,10 +551,18 @@ export default function Sidebar({
         <div className="sidebar-search animate-slide-down">
           <IconSearch width={13} height={13} />
           <input
+            ref={searchInputRef}
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索会话名称..."
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                setQuery('')
+                setSearchOpen(false)
+              }
+            }}
+            placeholder="搜索会话名称 (Esc 清空)..."
             aria-label={t('sb.search')}
           />
           {query && (
@@ -1120,9 +1148,13 @@ function SessionRow({
                 <span className="dot ok live" style={{ marginRight: 5 }} /> {t('dw.statusRunning')}
               </span>
             ) : (
-              timeAgo(s.lastModified)
+              <span className="session-time">{timeAgo(s.lastModified)}</span>
             )}
-            {s.gitBranch && <span style={{ marginLeft: 6, fontFamily: 'var(--font-mono)' }}>{s.gitBranch}</span>}
+            {s.gitBranch && (
+              <span className="session-branch-tag" title={`分支: ${s.gitBranch}`}>
+                {s.gitBranch}
+              </span>
+            )}
           </span>
         </span>
       )}
