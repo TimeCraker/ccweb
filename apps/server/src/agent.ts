@@ -1,6 +1,7 @@
 import { StreamMetrics } from './stream-metrics.js'
 import { assertVerifiedRuntime, assertNoNativeBackground, trackSdkProcess } from './runtime.js'
 import { atomicWrite } from './config-api.js'
+import { readWorkspaceSnapshot } from './files.js'
 import { APP_DIR } from './settings.js'
 import { mkdirSync, readFileSync, readdirSync, statSync, realpathSync } from 'node:fs'
 import { join, relative, resolve, sep } from 'node:path'
@@ -18,7 +19,7 @@ import { spawn, spawnSync } from 'node:child_process'
 type UserContentBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
-import type { ServerMessage } from './protocol.js'
+import type { FileBaseline, ServerMessage } from './protocol.js'
 import { computeMetrics, type MetricsAccumulator, newAccumulator } from './metrics.js'
 import { runtimeSettings, effectiveEnv, nativeAuthenticationEnv, providerModelName } from './settings.js'
 
@@ -167,7 +168,9 @@ export class AgentSession {
   private queueWaitMs = 0
   private retries: Array<{ id: string; attempt: number; delayMs: number; errorStatus: number | null }> = []
   private readonly baselinePaths = new Map<string, string>()
-  private readonly fileBaselines: Record<string, { content: string | null; existed: boolean | null; reason?: string }> = {}
+  private readonly fileBaselines: Record<string, FileBaseline> = {}
+  private readonly reviewBefore = new Map<string, { path: string; content: string | null }>()
+  private reviewedFiles = 0
   private readonly seenResults = new Set<string>()
   private nativeToolTimes = new Map<string, number>()
   private runId: string | null = null
@@ -263,6 +266,8 @@ export class AgentSession {
     this.runStartedAt = Date.now()
     for (const key of Object.keys(this.fileBaselines)) delete this.fileBaselines[key]
     this.baselinePaths.clear()
+    this.reviewBefore.clear()
+    this.reviewedFiles = 0
     this.queueWaitMs = Math.max(0, this.runStartedAt - next.queuedAt); this.retries = []
     this.completedAt = null
     this.terminalStatus = 'running'
@@ -440,6 +445,16 @@ export class AgentSession {
     return ok
   }
 
+  private saveFileBaseline(toolUseId: string, baseline: FileBaseline): void {
+    this.fileBaselines[toolUseId] = baseline
+    this.emit({ t: 'file.baseline', seq: 0, sessionId: this.sessionId ?? '', toolUseId, baseline })
+    if (this.runId && this.sessionId) {
+      try {
+        atomicWrite(join(APP_DIR, 'changes', this.sessionId, `${this.runId}.json`), JSON.stringify(this.fileBaselines))
+      } catch { /* Review evidence must not interrupt execution. */ }
+    }
+  }
+
   private async run(): Promise<void> {
     try {
       const settingSources = this.settings.contextScope === 'none' ? [] : this.settings.contextScope === 'project' ? ['project', 'local'] as const : ['user', 'project', 'local'] as const
@@ -477,6 +492,33 @@ export class AgentSession {
           ...(this.opts.cwd ? { cwd: this.opts.cwd } : {}),
           ...(this.initialized ? { resume: this.sessionId ?? undefined } : this.opts.resume ? { resume: this.opts.resume } : {}),
           ...(this.opts.resume && this.opts.fork ? { forkSession: true } : {}),
+          hooks: {
+            PreToolUse: [{ matcher: '^(Edit|Write|MultiEdit)$', hooks: [async (event, id) => {
+              if (event.hook_event_name !== 'PreToolUse' || !id || this.reviewBefore.size + this.reviewedFiles >= 32) return {}
+              const file = (event.tool_input as { file_path?: unknown } | null)?.file_path
+              if (typeof file !== 'string') return {}
+              const path = resolve(this.workspace, file)
+              const content = readWorkspaceSnapshot(this.workspace, path)
+              if (content !== undefined) this.reviewBefore.set(id, { path, content })
+              return {}
+            }] }],
+            PostToolUse: [{ matcher: '^(Edit|Write|MultiEdit)$', hooks: [async (event, id) => {
+              if (event.hook_event_name !== 'PostToolUse' || !id) return {}
+              const before = this.reviewBefore.get(id)
+              this.reviewBefore.delete(id)
+              const file = (event.tool_input as { file_path?: unknown } | null)?.file_path
+              if (!before || typeof file !== 'string' || resolve(this.workspace, file) !== before.path) return {}
+              const after = readWorkspaceSnapshot(this.workspace, before.path)
+              if (after !== undefined) {
+                this.reviewedFiles++
+                this.saveFileBaseline(id, {
+                  ...(this.fileBaselines[id] ?? { content: null, existed: null }),
+                  observed: { before: before.content, after },
+                })
+              }
+              return {}
+            }] }],
+          },
           canUseTool: async (
             toolName: string,
             input: Record<string, unknown>,
@@ -484,7 +526,7 @@ export class AgentSession {
           ): Promise<PermissionResult> => {
             const { toolUseID } = ctx
             if (toolName === 'Write' && typeof input.file_path === 'string') {
-              let baseline: { content: string | null; existed: boolean | null; reason?: string } = { content: null, existed: null, reason: '原文件不可读取或不在当前工作区' }
+              let baseline: FileBaseline = { content: null, existed: null, reason: '原文件不可读取或不在当前工作区' }
               try {
                 const file = resolve(this.workspace, input.file_path), root = realpathSync(this.workspace), rel = relative(root, file)
                 if (rel !== '..' && !rel.startsWith(`..${sep}`) && !rel.includes(':') && !rel.startsWith(sep)) {
@@ -495,9 +537,7 @@ export class AgentSession {
                 }
               } catch { /* No arbitrary path fallback. */ }
               this.baselinePaths.set(toolUseID, resolve(this.workspace, input.file_path))
-              this.fileBaselines[toolUseID] = baseline
-              this.emit({ t: 'file.baseline', seq: 0, sessionId: this.sessionId ?? '', toolUseId: toolUseID, baseline })
-              if (this.runId && this.sessionId) try { atomicWrite(join(APP_DIR, 'changes', this.sessionId, `${this.runId}.json`), JSON.stringify(this.fileBaselines)) } catch { /* Baseline persistence must not interrupt approval. */ }
+              this.saveFileBaseline(toolUseID, baseline)
             }
             return this.gate.wait(toolUseID, toolName, input, (id, name, inp) => {
               this.permissionWaits.set(id, Date.now())

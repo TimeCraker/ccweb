@@ -195,6 +195,10 @@ test('P5: an external edit while drafting opens a conflict and preserves the dra
 })
 
 test('P5: many file changes keep the drawer readable and scrollable', async ({ page }) => {
+  const renameCommands: string[] = []
+  page.on('websocket', socket => socket.on('framesent', ({ payload }) => {
+    if (String(payload).includes('"t":"session.rename"')) renameCommands.push(String(payload))
+  }))
   await ready(page)
   const box = page.getByRole('textbox', { name: '任务输入' })
   await box.fill('MANY_CHANGES')
@@ -209,7 +213,12 @@ test('P5: many file changes keep the drawer readable and scrollable', async ({ p
   const scroll = await drawer.locator('.drawer-body').evaluate((el) => ({ top: el.scrollTop, height: el.clientHeight, total: el.scrollHeight }))
   expect(scroll.total).toBeGreaterThan(scroll.height)
   await drawer.locator('.drawer-body').evaluate((el) => { el.scrollTop = el.scrollHeight })
-  await expect(drawer.getByText('fixture/file-119.ts', { exact: false })).toBeVisible()
+  const lastFile = drawer.locator('summary').filter({ hasText: 'fixture/file-119.ts' })
+  await expect(lastFile).toBeVisible()
+  await expect(lastFile).toContainText('请求预览')
+  await lastFile.press('Enter')
+  await expect(drawer.getByRole('group', { name: '变更预览' })).toBeVisible()
+  expect(renameCommands).toHaveLength(0)
 })
 
 test('P5: attachment draft survives a websocket reconnect', async ({ page }) => {

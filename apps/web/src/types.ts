@@ -1,5 +1,12 @@
 /** 与 server/src/protocol.ts 对应的前端侧类型(P0 子集) */
 
+export interface FileBaseline {
+  content: string | null
+  existed: boolean | null
+  reason?: string
+  observed?: { before: string | null; after: string | null }
+}
+
 export interface SessionMetrics {
   requests?: Array<{ requestId: string; role: 'main' | 'subagent'; parentToolUseId?: string; streamOpenedAt: number; firstContentAt: number | null; endedAt: number | null; outputTokens: number | null; outputDurationMs: number | null }>
   queueWaitMs?: number
@@ -57,7 +64,7 @@ export interface SettingsSnapshot {
 
 export interface ServerMessage {
   images?: string[]
-  baseline?: { content: string | null; existed: boolean | null; reason?: string }
+  baseline?: FileBaseline
   runId?: string
   preview?: boolean
   result?: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number }

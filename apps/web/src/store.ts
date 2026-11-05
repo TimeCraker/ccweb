@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { t } from './i18n'
-import type { SessionMetrics, SessionMeta, SettingsSnapshot } from './types'
+import type { FileBaseline, SessionMetrics, SessionMeta, SettingsSnapshot } from './types'
 import {
   type Entry,
   type TurnEntry,
@@ -133,7 +133,7 @@ interface AppState {
   /** 上一轮完成时的统计(turn 尾渲染) */
   lastTurnStats: { totalS: number; ttftMs: number | null; tps: number | null } | null
   settings: SettingsSnapshot | null
-  fileBaselines: Record<string, { content: string | null; existed: boolean | null; reason?: string }>
+  fileBaselines: Record<string, FileBaseline>
   nativeTasks: Array<{ id: string; runId?: string; status: string; description: string; summary?: string }>
   checkpoints: Array<{ id: string; text: string }>
   rewind: { preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } } | null

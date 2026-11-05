@@ -10,6 +10,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: Number(process.env.CCWEB_WEB_PORT ?? 5173),
+    strictPort: true,
     // 编辑器/工具原子写入产生的临时目录不要进入监听,避免 Windows EBUSY 直接崩掉 dev server
     watch: { ignored: ['**/*.tmpdir/**', '**/*.tmp'] },
     proxy: {

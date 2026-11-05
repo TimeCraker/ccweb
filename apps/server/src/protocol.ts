@@ -1,5 +1,12 @@
 import { z } from 'zod'
 
+export interface FileBaseline {
+  content: string | null
+  existed: boolean | null
+  reason?: string
+  observed?: { before: string | null; after: string | null }
+}
+
 /**
  * ccweb WebSocket 协议 v1(SPEC §4)
  * - 所有 S→C 消息带递增 seq,客户端重连后以 lastSeq 对账
@@ -123,7 +130,7 @@ export type ServerMessage =
   | { t: 'queue'; seq: number; items: Array<{ uuid: string; text: string }> }
   | { t: 'history'; seq: number; sessionId: string; messages: unknown[] }
   | { t: 'settings'; seq: number; settings: SettingsSnapshot }
-  | { t: 'file.baseline'; seq: number; sessionId: string; toolUseId: string; baseline: { content: string | null; existed: boolean | null; reason?: string } }
+  | { t: 'file.baseline'; seq: number; sessionId: string; toolUseId: string; baseline: FileBaseline }
   | { t: 'rewind'; seq: number; preview: boolean; result: { canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number; skippedLinks?: number } }
   | {
       t: 'models'

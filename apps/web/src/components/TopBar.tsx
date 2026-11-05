@@ -67,13 +67,6 @@ export default function TopBar({
     if (!editing) setDraft(title)
   }, [title, editing])
 
-  // 自动萃取持久化:当会话为 (无标题) 但已有首句提问时，自动通知后端固化标题
-  useEffect(() => {
-    if (sessionId && !effectiveSessionTitle && fallbackPromptTitle) {
-      onRename(sessionId, fallbackPromptTitle)
-    }
-  }, [sessionId, effectiveSessionTitle, fallbackPromptTitle, onRename])
-
   useEffect(() => {
     if (editing) inputRef.current?.select()
   }, [editing])

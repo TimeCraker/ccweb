@@ -54,7 +54,7 @@ export async function listSessionMetas(cwd?: string): Promise<SessionMeta[]> {
   return raw
     .map((s) => ({
       id: s.sessionId ?? s.id ?? s.session_id ?? '',
-      title: s.customTitle ?? s.summary ?? s.firstPrompt ?? '(无标题)',
+      title: s.customTitle || s.summary || s.firstPrompt?.replace(/^[\s#*>`-]+/, '').split(/[\r\n。！？!?]/)[0]?.trim().slice(0, 40) || '(无标题)',
       lastModified: toIso(s.lastModified),
       gitBranch: s.gitBranch ?? null,
     }))

@@ -1,9 +1,56 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
+import type { FileBaseline } from '../types'
+import { compactPath } from '../lib/path'
 import DiffView from './DiffView'
-import { IconCheck, IconWarn, IconX } from './Icon'
+import { IconCheck, IconChevron, IconWarn, IconX } from './Icon'
+
+function FileChange({ block, baseline }: { block: ToolBlock; baseline?: FileBaseline }) {
+  const [open, setOpen] = useState(false)
+  const file = String(block.input?.file_path ?? block.toolName)
+  const disk = block.status === 'done' ? baseline?.observed : undefined
+  const requested = block.toolName === 'MultiEdit' && Array.isArray(block.input?.edits)
+    ? block.input.edits : [block.input ?? {}]
+  return (
+    <details className="change-file" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary>
+        {block.status === 'error' ? (
+          <IconWarn width={13} height={13} style={{ color: 'var(--color-danger)', flex: '0 0 auto' }} />
+        ) : (
+          <IconCheck width={13} height={13} style={{ color: block.status === 'done' ? 'var(--color-ok)' : 'var(--color-text-faint)', flex: '0 0 auto' }} />
+        )}
+        <span className="path" title={file}>{compactPath(file, 30)}</span>
+        <span className="badge">{block.toolName}</span>
+        <span className="badge">{t(disk ? 'dw.diskDiff' : 'dw.requestPreview')}</span>
+        <IconChevron width={13} height={13} className="change-file-chevron" />
+      </summary>
+      {open && (
+        <div className="diff-wrap">
+          <p className="change-file-note">{t(disk ? 'dw.snapshotScope' : 'dw.noSnapshot')}</p>
+          {disk ? (
+            (disk.before ?? '') === (disk.after ?? '') ? (
+              <p className="menu-empty">{t(disk.before === disk.after ? 'dw.noDiskChange'
+                : disk.before === null ? 'dw.emptyFileCreated' : 'dw.emptyFileRemoved')}</p>
+            ) : (
+              <DiffView oldStr={disk.before ?? ''} newStr={disk.after ?? ''} disk />
+            )
+          ) : requested.map((edit: unknown, index: number) => {
+            const record = (edit ?? {}) as Record<string, unknown>
+            return (
+              <DiffView
+                key={index}
+                oldStr={block.toolName === 'Write' ? baseline?.content ?? '' : String(record.old_string ?? '')}
+                newStr={String(record.new_string ?? record.content ?? '')}
+              />
+            )
+          })}
+        </div>
+      )}
+    </details>
+  )
+}
 
 /** 右侧「本次改动」面板:仅展示可关联到工具调用的记录,保留主对话与滚动位置。 */
 export default function ChangesPanel({ onClose }: { onClose: () => void }) {
@@ -74,53 +121,7 @@ export default function ChangesPanel({ onClose }: { onClose: () => void }) {
         <section className="drawer-section">
           <h3>{t('dw.files')}</h3>
           {changes.length === 0 && <p className="menu-empty">{t('dw.noFiles')}</p>}
-          {changes.map((block) => {
-            const file = String(block.input?.file_path ?? block.toolName)
-            return (
-              <details className="change-file" key={block.toolUseId}>
-                <summary>
-                  {block.status === 'error' ? (
-                    <IconWarn width={13} height={13} style={{ color: 'var(--color-danger)', flex: '0 0 auto' }} />
-                  ) : (
-                    <IconCheck
-                      width={13}
-                      height={13}
-                      style={{ color: block.status === 'done' ? 'var(--color-ok)' : 'var(--color-text-faint)', flex: '0 0 auto' }}
-                    />
-                  )}
-                  <span className="path" title={file}>
-                    {file}
-                  </span>
-                  <span className="badge">{block.toolName}</span>
-                </summary>
-                <div className="diff-wrap">
-                  {block.status !== 'done' && (
-                    <p style={{ fontSize: 11.5, color: 'var(--color-text-faint)', marginBottom: 6 }}>
-                      此操作尚未确认成功，下面是请求的修改内容。
-                    </p>
-                  )}
-                  {block.toolName === 'Write' && baselines[block.toolUseId]?.content == null && (
-                    <p style={{ fontSize: 11.5, color: 'var(--color-text-faint)', marginBottom: 6 }}>
-                      未记录写入前的原文件内容，只展示待写入正文。
-                    </p>
-                  )}
-                  {(block.toolName === 'MultiEdit' && Array.isArray(block.input?.edits)
-                    ? block.input.edits
-                    : [block.input ?? {}]
-                  ).map((edit: unknown, index: number) => {
-                    const record = (edit ?? {}) as Record<string, unknown>
-                    return (
-                      <DiffView
-                        key={index}
-                        oldStr={block.toolName === 'Write' ? baselines[block.toolUseId]?.content ?? '' : String(record.old_string ?? '')}
-                        newStr={String(record.new_string ?? record.content ?? '')}
-                      />
-                    )
-                  })}
-                </div>
-              </details>
-            )
-          })}
+          {changes.map((block) => <FileChange key={block.toolUseId} block={block} baseline={baselines[block.toolUseId]} />)}
         </section>
 
         <section className="drawer-section">
@@ -145,7 +146,7 @@ export default function ChangesPanel({ onClose }: { onClose: () => void }) {
         </section>
 
         <p style={{ marginTop: 14, fontSize: 11, lineHeight: 1.6, color: 'var(--color-text-faint)' }}>
-          这里只是工具返回的证据，不代表已独立验证；工作区里原本存在的改动不会计入本次结果。
+          {t('dw.reviewScope')}
         </p>
       </div>
     </aside>

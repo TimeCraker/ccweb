@@ -27,7 +27,7 @@
     "runtime-baseline.json"
   ],
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "node --watch --import tsx src/index.ts",
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-web.mjs",
     "prepublishOnly": "cd ../web && pnpm build && cd ../server && pnpm build",
     "typecheck": "tsc -p tsconfig.json --noEmit",

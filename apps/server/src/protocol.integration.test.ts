@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { WebSocket } from 'ws'
 const port = 38000 + Math.floor(Math.random() * 2000)
+const devOrigin = 'http://localhost:45173'
 const profile = mkdtempSync(join(tmpdir(), 'ccweb-protocol-'))
 const workspace = join(profile, 'workspace')
 mkdirSync(workspace)
@@ -12,12 +13,12 @@ let child: ChildProcess
 const sockets: WebSocket[] = []
 type Frame = Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
 async function boot() {
- child = spawn(process.execPath, ['--import', 'tsx', 'test/fixture-server.mjs'], { cwd: process.cwd(), env: { ...process.env, CCWEB_FIXTURE_ENTRY: resolve('src/index.ts'), CCWEB_PORT: String(port), CCWEB_HOME: join(profile, 'app'), CLAUDE_CONFIG_DIR: join(profile, 'claude'), CCWEB_WORKSPACE: workspace }, stdio: 'ignore', windowsHide: true })
+ child = spawn(process.execPath, ['--import', 'tsx', 'test/fixture-server.mjs'], { cwd: process.cwd(), env: { ...process.env, CCWEB_FIXTURE_ENTRY: resolve('src/index.ts'), CCWEB_PORT: String(port), CCWEB_WEB_PORT: new URL(devOrigin).port, CCWEB_HOME: join(profile, 'app'), CLAUDE_CONFIG_DIR: join(profile, 'claude'), CCWEB_WORKSPACE: workspace }, stdio: 'ignore', windowsHide: true })
  for(let n=0;n<100;n++) { try { if((await fetch(`http://127.0.0.1:${port}/healthz`)).ok) return } catch { /* waiting for boot */ } await new Promise(r=>setTimeout(r,50)) }
  throw new Error('Fixture failed to boot')
 }
-async function client() {
- const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`); const frames: Frame[]=[]
+async function client(origin?: string) {
+ const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { origin }); const frames: Frame[]=[]
  ws.on('message',raw=>frames.push(JSON.parse(String(raw))))
  await new Promise<void>((resolve,reject)=>{ws.once('open',resolve);ws.once('error',reject)})
  sockets.push(ws)
@@ -25,6 +26,16 @@ async function client() {
 }
 beforeAll(boot,15000)
 afterAll(async()=>{for(const ws of sockets)ws.close();child?.kill();await new Promise(r=>setTimeout(r,200));rmSync(profile,{recursive:true,force:true})})
+it('allows the configured loopback dev origin for HTTP and WebSocket only', async () => {
+  const url = `http://127.0.0.1:${port}/api/resources`
+  expect((await fetch(url, { headers: { Origin: devOrigin } })).status).toBe(200)
+  expect((await fetch(url, { headers: { Origin: 'http://localhost:5173' } })).status).toBe(403)
+  expect((await fetch(url, { headers: { Origin: 'http://example.invalid:45173' } })).status).toBe(403)
+  const devClient = await client(devOrigin)
+  await devClient.wait(frame => frame.t === 'hello')
+  await expect(client('http://localhost:5173')).rejects.toThrow()
+  await expect(client('http://example.invalid:45173')).rejects.toThrow()
+})
 it('deduplicates mutations, isolates observers and rejects wrong workspace attachment',async()=>{
  const a=await client(), b=await client()
  const id=crypto.randomUUID()

@@ -23,6 +23,18 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
           const result = await options.canUseTool!('Write', { file_path: 'test.txt' }, { toolUseID: 'approval-test', requestId: 'approval-control', signal: new AbortController().signal })
           mock.order.push(result?.behavior ?? 'pending')
         }
+        if (mock.mode === 'disk-review') {
+          const toolId = message.uuid!
+          const signal = new AbortController().signal
+          const input = { file_path: 'review.txt', old_string: 'old', new_string: 'new' }
+          const hook = { session_id: message.session_id, cwd: options.cwd!, transcript_path: '', tool_name: 'Edit', tool_input: input, tool_use_id: toolId }
+          await options.hooks!.PreToolUse![0]!.hooks[0]!({ ...hook, hook_event_name: 'PreToolUse' }, toolId, { signal })
+          const permission = await options.canUseTool!('Edit', input, { toolUseID: toolId, requestId: toolId, signal })
+          if (permission.behavior === 'allow') {
+            writeFileSync(join(options.cwd!, input.file_path), 'local change\nnew\n')
+            await options.hooks!.PostToolUse![0]!.hooks[0]!({ ...hook, hook_event_name: 'PostToolUse', tool_response: {} }, toolId, { signal })
+          }
+        }
         yield { type: 'result', subtype: mock.mode.startsWith('failed') ? 'error_during_execution' : 'success', usage: {}, modelUsage: mock.mode === 'failed-usage' ? { test: {inputTokens: 10, outputTokens: 7} } : {}, total_cost_usd: mock.mode === 'failed-usage' ? 0.25 : 0, user_message_uuid: message.uuid }
       }
     })()
@@ -135,6 +147,48 @@ describe('AgentSession SDK adapter contracts (simulated SDK)', () => {
     await vi.waitFor(() => expect(mock.order).toContain('deny'))
     expect(events.some(e => e.t === 'error' && e.code === 'file_conflict')).toBe(true)
     expect(readFileSync(file, 'utf8')).toBe('external change')
+  })
+  it('captures successful disk edits around the tool and leaves denied edits as requests', async () => {
+    mock.mode = 'disk-review'
+    const events: ServerMessage[] = []
+    const agent = new Agent(event => events.push(event), { cwd: temporary })
+    agents.push(agent)
+    const file = join(temporary, 'review.txt')
+    writeFileSync(file, 'local change\nold\n')
+
+    agent.send('decline edit')
+    await vi.waitFor(() => expect(events.some(e => e.t === 'permission.ask')).toBe(true))
+    const rejected = events.find(e => e.t === 'permission.ask')!
+    await agent.resolvePermission(rejected.requestId, false)
+    await vi.waitFor(() => expect(events.some(e => e.t === 'metrics' && e.metrics.terminalStatus === 'completed')).toBe(true))
+    expect(events.some(e => e.t === 'file.baseline')).toBe(false)
+    expect(readFileSync(file, 'utf8')).toBe('local change\nold\n')
+
+    agent.send('allow edit')
+    await vi.waitFor(() => expect(events.filter(e => e.t === 'permission.ask')).toHaveLength(2))
+    const allowed = events.filter(e => e.t === 'permission.ask')[1]!
+    await agent.resolvePermission(allowed.requestId, true)
+    await vi.waitFor(() => expect(events.some(e => e.t === 'file.baseline' && e.baseline.observed)).toBe(true))
+    const baseline = events.find(e => e.t === 'file.baseline')!.baseline
+    expect(baseline.observed).toEqual({ before: 'local change\nold\n', after: 'local change\nnew\n' })
+    writeFileSync(file, 'later change\n')
+    const record = JSON.parse(readFileSync(join(temporary, 'app', 'changes', agent.sessionId!, `${allowed.requestId}.json`), 'utf8'))
+    expect(record[allowed.requestId]).toEqual(baseline)
+  })
+
+  it('reads bounded UTF-8 snapshots only inside the workspace', async () => {
+    const { readWorkspaceSnapshot } = await import('./files.js')
+    const workspace = join(temporary, 'snapshot-workspace')
+    mkdirSync(workspace)
+    writeFileSync(join(workspace, 'empty.txt'), '')
+    writeFileSync(join(workspace, 'invalid.txt'), Buffer.from([0xff]))
+    writeFileSync(join(workspace, 'large.txt'), 'a'.repeat(64 * 1024 + 1))
+    writeFileSync(join(temporary, 'outside.txt'), 'outside')
+    expect(readWorkspaceSnapshot(workspace, 'empty.txt')).toBe('')
+    expect(readWorkspaceSnapshot(workspace, 'missing.txt')).toBeNull()
+    expect(readWorkspaceSnapshot(workspace, 'invalid.txt')).toBeUndefined()
+    expect(readWorkspaceSnapshot(workspace, 'large.txt')).toBeUndefined()
+    expect(readWorkspaceSnapshot(workspace, '../outside.txt')).toBeUndefined()
   })
   it('rebuilds the query after a crash without resubmitting the failed prompt', async () => {
     mock.mode = 'crash'

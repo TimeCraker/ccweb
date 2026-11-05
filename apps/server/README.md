@@ -36,6 +36,7 @@
 |---|---|---|
 | 💬 | **完整对话 GUI** | markdown + 代码高亮、thinking 折叠、消息分叉（fork）、重新生成 |
 | 🔧 | **工具调用卡片** | Read/Grep 行号展示、Edit 行级 diff 预览（红删绿增）、Bash 输出 ANSI 着色、耗时统计 |
+| 🔍 | **改动审查** | 在「本次改动」展开文件，查看 Edit / Write / MultiEdit 执行前后的磁盘差异。每轮最多采集 32 次，限当前工作区内不超过 64 KiB 的 UTF-8 文件。快照保存在本地，缺少快照时展示请求预览 |
 | 🛡 | **可视化审批** | 允许、拒绝、停止，审批刷新后可继续；反问支持单选、多选和自由回答 |
 | 📬 | **消息队列** | 生成中发送自动排队：可见、可撤销、成功结束后继续；中断或失败暂停，用户明确恢复 |
 | 📊 | **实时指标** | 常驻 tok/s、首个输出、轮次耗时和原生上下文；按请求配对实际输出 Token 与输出阶段耗时，SDK 费用标为估算 |
@@ -71,6 +72,8 @@ pnpm install && pnpm build && node apps/server/bin/ccweb.mjs
 pnpm dev      # 并行起 server(3477) + web(5173, WS 代理)
 pnpm check    # lint + typecheck + test + build 质量门
 ```
+
+开发前端端口由 `CCWEB_WEB_PORT` 指定，默认 `5173`。用同一份环境启动前后端。若同时改了后端的 `CCWEB_PORT`，将 `CCWEB_API_TARGET` 指向对应的本机地址。
 </details>
 
 ## 键盘快捷键

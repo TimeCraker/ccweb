@@ -10,6 +10,7 @@ import { parseDocument } from 'yaml'
 import { APP_DIR, CC_DIR, runtimeSettings, effectiveEnv, listEndpointTemplates, listWorkspaces } from './settings.js'
 import { listConnections, removeConnection, saveConnection, testConnection, templateKeyOf } from './connections.js'
 import { listDeletedSessions, restoreDeletedSession } from './session-backup.js'
+import { isLoopbackOrigin } from './origin.js'
 
 type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp' | 'permissions'
 type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
@@ -233,7 +234,7 @@ export const configApi = new Hono()
 configApi.onError((error, c) => c.json({ error: error.message }, /已被其他/.test(error.message) ? 409 : 400))
 configApi.use('*', async (c, next) => {
   const origin = c.req.header('origin')
-  if (origin && origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)) return c.json({ error: 'Origin rejected' }, 403)
+  if (origin && origin !== new URL(c.req.url).origin && !isLoopbackOrigin(origin)) return c.json({ error: 'Origin rejected' }, 403)
   await next()
 })
 configApi.get('/resources', c => c.json(listResources(workspacePath(c.req.query('workspace')))))

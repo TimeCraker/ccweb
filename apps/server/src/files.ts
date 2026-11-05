@@ -1,5 +1,5 @@
-import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { closeSync, constants, fstatSync, openSync, readSync, readdirSync, realpathSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { runtimeSettings } from './settings.js'
 
 /**
@@ -11,6 +11,45 @@ import { runtimeSettings } from './settings.js'
 const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist'])
 const MAX_RESULTS = 15
 const MAX_DEPTH = 10
+const MAX_REVIEW_BYTES = 64 * 1024
+
+/** undefined 表示无法采集，null 表示文件尚不存在。 */
+export function readWorkspaceSnapshot(workspace: string, file: string): string | null | undefined {
+  const within = (root: string, target: string) => {
+    const rel = relative(root, target)
+    return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
+  }
+  try {
+    const root = realpathSync(workspace)
+    const target = resolve(workspace, file)
+    if (!within(workspace, target) && !within(root, target)) return undefined
+    let actual: string
+    try {
+      actual = realpathSync(target)
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'ENOENT' ? null : undefined
+    }
+    if (!within(root, actual)) return undefined
+    const fd = openSync(actual, constants.O_RDONLY | constants.O_NONBLOCK | (constants.O_NOFOLLOW ?? 0))
+    try {
+      const stat = fstatSync(fd)
+      if (!stat.isFile() || stat.size > MAX_REVIEW_BYTES) return undefined
+      const buffer = Buffer.alloc(stat.size + 1)
+      let length = 0
+      while (length < buffer.length) {
+        const n = readSync(fd, buffer, length, buffer.length - length, null)
+        if (n === 0) break
+        length += n
+      }
+      if (length !== stat.size || buffer.subarray(0, length).includes(0)) return undefined
+      return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, length))
+    } finally {
+      closeSync(fd)
+    }
+  } catch {
+    return undefined
+  }
+}
 
 export function searchWorkspaceFiles(query: string, workspace?: string): string[] {
   const root = workspace ?? runtimeSettings.workspace ?? process.env.CCWEB_WORKSPACE ?? process.cwd()

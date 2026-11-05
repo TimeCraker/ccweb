@@ -9,12 +9,13 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WebSocketServer } from 'ws'
-import { clientMessageSchema, type ServerMessage, type SettingsSnapshot } from './protocol.js'
+import { clientMessageSchema, type FileBaseline, type ServerMessage, type SettingsSnapshot } from './protocol.js'
 import { forkSession, query } from '@anthropic-ai/claude-agent-sdk'
 import { AgentSession, buildAgentEnv } from './agent.js'
 import { fetchHistory, listSessionMetas, renameSessionMeta, deleteSessionMeta } from './sessions.js'
 import { backupSession } from './session-backup.js'
 import { searchWorkspaceFiles } from './files.js'
+import { isLoopbackOrigin } from './origin.js'
 import {
   runtimeSettings,
   saveRuntimeSettings,
@@ -41,7 +42,7 @@ app.use(logger())
 app.route('/api', configApi)
 app.post('/api/connection/probe', async c => {
   const origin = c.req.header('origin')
-  if (origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin ?? '')) return c.json({ error: 'Origin rejected' }, 403)
+  if (origin !== new URL(c.req.url).origin && !isLoopbackOrigin(origin)) return c.json({ error: 'Origin rejected' }, 403)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30000)
   const began = Date.now()
@@ -72,7 +73,7 @@ app.post('/api/connection/probe', async c => {
 })
 app.post('/api/native/start', async c => {
   const origin = c.req.header('origin')
-  if (origin !== new URL(c.req.url).origin && !/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin ?? '')) return c.json({ error: 'Origin rejected' }, 403)
+  if (origin !== new URL(c.req.url).origin && !isLoopbackOrigin(origin)) return c.json({ error: 'Origin rejected' }, 403)
   try {
     const body = await c.req.json<{ workspace?: string; action: string; args?: string[]; stdin?: string; confirmed?: boolean }>()
     if (body.action === 'maintenance' && body.confirmed !== true) return c.json({ error: '安装独立 CLI 前需要明确确认；不会更换 ccweb 随包 SDK' }, 400)
@@ -134,7 +135,7 @@ let operationTail: Promise<void> = Promise.resolve()
 
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin
-  const allowed = !origin || (() => { try { const u = new URL(origin); return ['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname) && [String(PORT), '5173'].includes(u.port) } catch { return false } })()
+  const allowed = !origin || isLoopbackOrigin(origin, PORT) || isLoopbackOrigin(origin)
   if (req.url === '/native' && allowed && !!origin) {
     wss.handleUpgrade(req, socket, head, ws => {
       const timer = setTimeout(() => ws.close(1008), 5000)
@@ -354,22 +355,24 @@ wss.on('connection', (ws) => {
           for (const event of journal) emit(event)
         } else if (openId) {
           const history = await fetchHistory(openId, workspace)
-          const event: ServerMessage = { t: 'history', seq: 0, sessionId: openId, messages: history }
-          journals.set(agent, [event])
-          emit(event)
+          const replay: ServerMessage[] = [{ t: 'history', seq: 0, sessionId: openId, messages: history }]
+          try {
+            const baselineFiles = readdirSync(join(APP_DIR, 'changes', openId)).filter(name => /^[a-f0-9-]{36}\.json$/i.test(name))
+            for (const file of baselineFiles) {
+              try {
+                const baselines = JSON.parse(readFileSync(join(APP_DIR, 'changes', openId, file), 'utf8')) as Record<string, FileBaseline>
+                for (const [toolUseId, baseline] of Object.entries(baselines)) replay.push({ t: 'file.baseline', seq: 0, sessionId: openId, toolUseId, baseline })
+              } catch { /* Keep evidence from other runs if one record is unavailable. */ }
+            }
+          } catch { /* Older sessions have no captured file evidence. */ }
           try {
             const metricFiles = readdirSync(join(APP_DIR, 'metrics', openId)).filter(name => /^[a-f0-9-]{36}\.json$/i.test(name))
             const all = metricFiles.map(name => JSON.parse(readFileSync(join(APP_DIR, 'metrics', openId, name), 'utf8'))).sort((a, b) => b.runStartedAt - a.runStartedAt)
-            try {
-              const baselineFiles = readdirSync(join(APP_DIR, 'changes', openId)).filter(name => /^[a-f0-9-]{36}\.json$/i.test(name))
-              for (const file of baselineFiles) {
-                const baselines = JSON.parse(readFileSync(join(APP_DIR, 'changes', openId, file), 'utf8')) as Record<string, { content: string | null; existed: boolean | null; reason?: string }>
-                for (const [toolUseId, baseline] of Object.entries(baselines)) emit({ t: 'file.baseline', seq: 0, sessionId: openId, toolUseId, baseline })
-              }
-            } catch { /* Old histories have no captured Write baseline. */ }
-            if (all[0]?.completedAt) emit({ t: 'metrics', seq: 0, sessionId: openId, metrics: all[0] })
-            else if (all[0]) emit({ t: 'error', seq: 0, code: 'run_interrupted', message: '上次运行未记录终态，服务可能重启；不会自动重新执行。请检查文件和历史。' })
+            if (all[0]?.completedAt) replay.push({ t: 'metrics', seq: 0, sessionId: openId, metrics: all[0] })
+            else if (all[0]) replay.push({ t: 'error', seq: 0, code: 'run_interrupted', message: '上次运行未记录终态，服务可能重启；不会自动重新执行。请检查文件和历史。' })
           } catch { /* No saved metrics; show unrecorded. */ }
+          journals.set(agent, replay)
+          for (const event of replay) emit(event)
         }
 
         break
