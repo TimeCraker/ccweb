@@ -8,7 +8,7 @@ import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
 import { copyText } from '../clipboard'
-import { IconFork, IconWarn, IconCopy, IconCheck } from './Icon'
+import { IconFork, IconWarn, IconCopy, IconCheck, IconPencil } from './Icon'
 
 interface StreamProps {
   onRegenerate?: () => void
@@ -200,6 +200,18 @@ function UserRow({ text, onFork, images }: { text: string; onFork?: () => void; 
               <IconFork width={12} height={12} />
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: text }))
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+            }}
+            aria-label="编辑提问"
+            title="编辑并重新提问 (填入输入框)"
+            className="icon-btn"
+          >
+            <IconPencil width={12} height={12} />
+          </button>
           <CopyBtn text={text} />
         </div>
         <div className="bubble">

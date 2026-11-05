@@ -1376,6 +1376,19 @@ html.dark .session-row[aria-current='true'] {
   height: 30px;
   border-radius: 6px;
 }
+
+.session-pinned-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 5px;
+  color: var(--color-accent);
+  vertical-align: -1px;
+}
+.session-row .row-actions .icon-btn.is-pinned {
+  color: var(--color-accent);
+}
+
 .session-running {
   color: var(--color-accent);
   font-variant-numeric: tabular-nums;
@@ -4113,6 +4126,27 @@ html:not(.dark) .md pre code {
 .md .codeblock {
   background: var(--color-bg);
 }
+
+/* codeblock 折叠与展开 */
+.codeblock.is-collapsed pre {
+  overflow: hidden;
+}
+.codeblock-gradient-mask {
+  background: linear-gradient(to top, var(--color-panel), transparent);
+}
+html:not(.dark) .codeblock-gradient-mask {
+  background: linear-gradient(to top, #1b1d20, transparent);
+}
+html:not(.dark) .codeblock-expand-btn {
+  background: #24272b;
+  border-color: #33383d;
+  color: #b6bab2;
+}
+html:not(.dark) .codeblock-expand-btn:hover {
+  background: #2d3137;
+  color: #fff;
+}
+
 
 /* ---------------- 响应式 ---------------- */
 

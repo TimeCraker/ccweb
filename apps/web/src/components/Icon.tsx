@@ -230,6 +230,13 @@ export const IconBroom = (p: P) => (
   </svg>
 )
 
+export const IconPin = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M16 3 21 8l-4 4-1 6-4-4-5 5-2-2 5-5-4-4 6-1 4-4Z" />
+    <path d="m9 15-5 5" />
+  </svg>
+)
+
 /** Shared personal brand, copied unchanged from my-portfolio/public/brand. */
 export function BrandMark({ size = 32 }: { size?: number; uid?: string }) {
   return <span className="tc-brand-mark" style={{ width: size, height: size }}><img src="/brand/timecraker-mark-v1.svg" width={size} height={size} alt="TC" /></span>

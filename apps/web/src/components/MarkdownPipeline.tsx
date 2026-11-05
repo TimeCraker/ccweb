@@ -4,18 +4,16 @@ import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { t, useLocale } from '../i18n'
 import { copyText } from '../clipboard'
+import { IconChevron, IconCopy, IconCheck } from './Icon'
 
-/**
- * markdown 渲染管线(react-markdown + GFM + highlight.js)。
- * 独立 chunk 懒加载:高亮/解析器约占主包一半体积,拆出后首屏显著变轻;
- * 加载完成前由 Markdown.tsx 的 Suspense fallback 以纯文本渐进展示。
- */
+const COLLAPSE_LINE_THRESHOLD = 24
 
-/** 代码块:dsh 对齐 —— 语言标签 + 复制按钮(copy→1s 打勾) */
+/** 代码块: dsh 对齐 —— 语言标签 + 行数统计 + 复制按钮 + 超长折叠展开 */
 function CodeBlock({ children }: { children?: ReactNode }) {
   const [copied, setCopied] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   useLocale()
-  // react-markdown 传来的 <code className="language-xxx">
+
   let lang = ''
   let code = ''
   const child = Array.isArray(children) ? children[0] : children
@@ -27,28 +25,66 @@ function CodeBlock({ children }: { children?: ReactNode }) {
     code = extractText(children)
   }
 
+  const lines = code ? code.split('\n').length : 0
+  const isLong = lines > COLLAPSE_LINE_THRESHOLD
+  const shouldCollapse = isLong && !expanded
+
   return (
-    <div className="codeblock group/code relative my-2.5 overflow-hidden rounded-lg border border-border">
+    <div className={`codeblock group/code relative my-2.5 overflow-hidden rounded-lg border border-border ${shouldCollapse ? 'is-collapsed' : ''}`}>
       <div className="flex h-8 items-center justify-between border-b border-border bg-panel-2/60 px-3">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-text-faint">
-          {lang || 'text'}
+        <span className="font-mono text-[10.5px] uppercase tracking-wider text-text-faint flex items-center gap-1.5">
+          <span className="font-semibold text-text-dim">{lang || 'text'}</span>
+          {lines > 0 && <span>· {lines} 行</span>}
         </span>
         <button
           onClick={() => {
             void copyText(code).then(() => {
               setCopied(true)
-              setTimeout(() => setCopied(false), 1000)
+              setTimeout(() => setCopied(false), 1200)
             })
           }}
           aria-label={t('ms.copyCode')}
-          className={`rounded px-1.5 py-0.5 text-[10px] transition-colors ${
-            copied ? 'text-ok' : 'text-text-faint opacity-0 group-hover/code:opacity-100 focus-visible:opacity-100 hover:text-text-dim'
+          className={`flex items-center gap-1 rounded px-2 py-0.5 text-[10.5px] font-medium transition-colors ${
+            copied
+              ? 'text-ok bg-ok/10'
+              : 'text-text-faint hover:text-text hover:bg-panel-3'
           }`}
         >
-          {copied ? `✓ ${t('ms.copied')}` : t('ms.copyCode')}
+          {copied ? (
+            <>
+              <IconCheck width={11} height={11} style={{ color: 'var(--color-ok)' }} />
+              <span>{t('ms.copied')}</span>
+            </>
+          ) : (
+            <>
+              <IconCopy width={11} height={11} />
+              <span>{t('ms.copyCode')}</span>
+            </>
+          )}
         </button>
       </div>
-      <pre className="!m-0 !rounded-none !border-0">{child ?? children}</pre>
+
+      <div className={`codeblock-body relative ${shouldCollapse ? 'max-h-[380px] overflow-hidden' : ''}`}>
+        <pre className="!m-0 !rounded-none !border-0 font-mono text-[12px] leading-relaxed">{child ?? children}</pre>
+        {shouldCollapse && (
+          <div className="codeblock-gradient-mask pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-panel via-panel/75 to-transparent" />
+        )}
+      </div>
+
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="codeblock-expand-btn flex w-full items-center justify-center gap-1.5 border-t border-border bg-panel-2/70 py-1.5 text-[11px] font-medium text-text-dim hover:bg-panel-3 hover:text-text transition-colors"
+        >
+          <IconChevron
+            width={11}
+            height={11}
+            className={`transition-transform ${expanded ? 'rotate-180' : ''}`}
+          />
+          <span>{expanded ? '收起完整代码' : `展开完整代码 (共 ${lines} 行)`}</span>
+        </button>
+      )}
     </div>
   )
 }

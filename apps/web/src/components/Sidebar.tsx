@@ -20,6 +20,7 @@ import {
   IconMore,
   IconBroom,
   IconCopy,
+  IconPin,
 } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 import { baseName, compactPath } from '../lib/path'
@@ -41,6 +42,7 @@ interface Props {
 const ORDER_KEY = 'ccweb.sessionOrder'
 const HIDDEN_KEY = 'ccweb.hiddenWorkspaces'
 const PINNED_KEY = 'ccweb.pinnedWorkspaces'
+const PINNED_SESSIONS_KEY = 'ccweb.pinnedSessions'
 const SIDEBAR_W_KEY = 'ccweb.sidebarWidth'
 const MIN_SIDEBAR_W = 200
 const MAX_SIDEBAR_W = 500
@@ -227,6 +229,19 @@ export default function Sidebar({
   const workspaces = settings?.workspaces ?? []
   const [hiddenWs, setHiddenWs] = useState<string[]>(() => readList(HIDDEN_KEY))
   const [pinnedWs] = useState<string[]>(() => readList(PINNED_KEY))
+  const [pinnedSessions, setPinnedSessions] = useState<string[]>(() => readList(PINNED_SESSIONS_KEY))
+
+  const togglePinSession = (id: string) => {
+    setPinnedSessions((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]
+      try {
+        localStorage.setItem(PINNED_SESSIONS_KEY, JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
   const visibleWorkspaces = workspaces
     .filter((w) => !hiddenWs.includes(w.dir))
     .sort(
@@ -385,9 +400,13 @@ export default function Sidebar({
   }
 
   const ordered = applySessionOrder(sessions, order)
+  const sortedWithPin = [
+    ...ordered.filter((s) => pinnedSessions.includes(s.id)),
+    ...ordered.filter((s) => !pinnedSessions.includes(s.id)),
+  ]
   const filtered = query
-    ? ordered.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
-    : ordered
+    ? sortedWithPin.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
+    : sortedWithPin
   const groups = BUCKET_ORDER.map((bucket) => ({
     bucket,
     items: filtered.filter((s) => bucketOf(s.lastModified) === bucket),
@@ -705,6 +724,8 @@ export default function Sidebar({
                           onFork={() => onOpenSession(s.id, true)}
                           onRename={(title) => onRename(s.id, title)}
                           onDelete={() => onDelete(s.id)}
+                          isPinned={pinnedSessions.includes(s.id)}
+                          onTogglePin={() => togglePinSession(s.id)}
                         />
                       ))}
                       {filtered.length === 0 && (
@@ -745,6 +766,8 @@ export default function Sidebar({
                     onFork={() => onOpenSession(s.id, true)}
                     onRename={(title) => onRename(s.id, title)}
                     onDelete={() => onDelete(s.id)}
+                          isPinned={pinnedSessions.includes(s.id)}
+                          onTogglePin={() => togglePinSession(s.id)}
                   />
                 ))}
               </div>
@@ -1002,6 +1025,8 @@ function SessionRow({
   onFork,
   onRename,
   onDelete,
+  isPinned = false,
+  onTogglePin,
 }: {
   s: SessionMeta
   running?: boolean
@@ -1014,7 +1039,10 @@ function SessionRow({
   onFork: () => void
   onRename: (title: string) => void
   onDelete: (id: string) => void
+  isPinned?: boolean
+  onTogglePin?: (id: string) => void
 }) {
+
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(s.title)
   useLocale()
@@ -1069,8 +1097,23 @@ function SessionRow({
           aria-label={t('sb.rename')}
         />
       ) : (
-        <span style={{ minWidth: 0, flex: 1 }}>
-          <span className="title">{s.title || t('sb.untitled')}</span>
+        <span
+          style={{ minWidth: 0, flex: 1 }}
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            setDraft(s.title)
+            setEditing(true)
+          }}
+          title="双击重命名会话"
+        >
+          <span className="title">
+            {isPinned && (
+              <span className="session-pinned-icon" title="已置顶">
+                <IconPin width={11} height={11} />
+              </span>
+            )}
+            {s.title || t('sb.untitled')}
+          </span>
           <span className="meta">
             {running ? (
               <span className="session-running">
@@ -1085,6 +1128,17 @@ function SessionRow({
       )}
       {!editing && (
         <span className="row-actions">
+          <button
+            className={`icon-btn ${isPinned ? 'is-active is-pinned' : ''}`}
+            aria-label={isPinned ? '取消置顶' : '置顶会话'}
+            title={isPinned ? '取消置顶' : '置顶会话'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onTogglePin?.(s.id)
+            }}
+          >
+            <IconPin width={12} height={12} />
+          </button>
           <button
             className="icon-btn"
             aria-label={t('sb.rename')}
