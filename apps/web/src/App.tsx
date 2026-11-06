@@ -790,6 +790,24 @@ export default function App() {
         onSetWorkspace={setWorkspace}
         onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
         onExportSession={exportMarkdown}
+        onOpenDrawer={(tab) => {
+          if (tab === 'details') setDetailsTab('controls')
+          setDrawer(tab)
+        }}
+        onExecuteAction={(action) => {
+          if (action === 'clear') {
+            useStore.getState().clearView()
+            useStore.getState().setNotice('已清空当前对话屏幕')
+          } else if (action === 'plan') {
+            setDrawer('plan')
+            window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: '/plan ' }))
+          } else if (action === 'compact') {
+            send('/compact')
+          } else if (action === 'cost') {
+            setDetailsTab('context')
+            setDrawer('details')
+          }
+        }}
       />
       {settingsOpen && (
         <Suspense fallback={<div role="status">正在打开设置…</div>}>

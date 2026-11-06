@@ -21,6 +21,8 @@ interface Props {
   onSetWorkspace: (dir: string) => void
   onToggleSidebar?: () => void
   onExportSession?: () => void
+  onOpenDrawer?: (tab: 'changes' | 'files' | 'plan' | 'details') => void
+  onExecuteAction?: (action: 'clear' | 'plan' | 'compact' | 'cost') => void
 }
 
 const EMPTY_WORKSPACES: Array<{ dir: string; sessions: number; lastModified: string | null }> = []
@@ -35,6 +37,8 @@ export default function CommandPalette({
   onSetWorkspace,
   onToggleSidebar,
   onExportSession,
+  onOpenDrawer,
+  onExecuteAction,
 }: Props) {
   const sessions = useStore((s) => s.sessions)
   const settings = useStore((s) => s.settings)
@@ -72,6 +76,62 @@ export default function CommandPalette({
         run: () => onToggleSidebar?.(),
       },
       {
+        id: 'drawer-changes',
+        label: '打开伴侣抽屉: 代码改动审查 (Changes Diff)',
+        hint: 'Ctrl J',
+        group: 'commands',
+        run: () => onOpenDrawer?.('changes'),
+      },
+      {
+        id: 'drawer-files',
+        label: '打开伴侣抽屉: 工作区文件树 (Files Tree)',
+        hint: 'Files',
+        group: 'commands',
+        run: () => onOpenDrawer?.('files'),
+      },
+      {
+        id: 'drawer-plan',
+        label: '打开伴侣抽屉: 实施计划跟踪 (Plan Outline)',
+        hint: 'Plan',
+        group: 'commands',
+        run: () => onOpenDrawer?.('plan'),
+      },
+      {
+        id: 'drawer-details',
+        label: '打开伴侣抽屉: 任务与运行详情 (Tasks & Details)',
+        hint: 'Tasks',
+        group: 'commands',
+        run: () => onOpenDrawer?.('details'),
+      },
+      {
+        id: 'cmd-clear',
+        label: '清空当前对话屏幕 (/clear)',
+        hint: '/clear',
+        group: 'commands',
+        run: () => onExecuteAction?.('clear'),
+      },
+      {
+        id: 'cmd-plan',
+        label: '制定工程实施计划 (/plan)',
+        hint: '/plan',
+        group: 'commands',
+        run: () => onExecuteAction?.('plan'),
+      },
+      {
+        id: 'cmd-compact',
+        label: '精简会话上下文 (/compact)',
+        hint: '/compact',
+        group: 'commands',
+        run: () => onExecuteAction?.('compact'),
+      },
+      {
+        id: 'cmd-cost',
+        label: '查看 Token 消耗与成本 (/cost)',
+        hint: '/cost',
+        group: 'commands',
+        run: () => onExecuteAction?.('cost'),
+      },
+      {
         id: 'exportMd',
         label: '导出当前会话为 Markdown',
         group: 'commands',
@@ -103,7 +163,7 @@ export default function CommandPalette({
     if (!query) return all
     const needle = query.toLowerCase()
     return all.filter((item) => item.label.toLowerCase().includes(needle) || (item.hint ?? '').toLowerCase().includes(needle))
-  }, [query, locale, sessions, workspaces, onNewSession, onOpenSettings, onOpenSession, onSetWorkspace, mode])
+  }, [query, locale, sessions, workspaces, onNewSession, onOpenSettings, onOpenSession, onSetWorkspace, mode, onToggleSidebar, onExportSession, onOpenDrawer, onExecuteAction])
 
   if (!open) return null
 

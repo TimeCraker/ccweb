@@ -43,10 +43,12 @@ html.dark {
   --color-ok: #74bd8c;
   --color-warn: #d8b05c;
   --color-danger: #e08a82;
+  --color-panel-translucent: rgba(33, 36, 32, 0.85);
   color-scheme: dark;
 }
 
 :root {
+  --color-panel-translucent: rgba(255, 255, 255, 0.85);
   --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 140ms;
@@ -1538,7 +1540,9 @@ html.dark .ws-item:hover {
   flex: 0 0 auto;
   padding: 0 14px 0 16px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-panel);
+  background: var(--color-panel-translucent, var(--color-panel));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 .header .header-title {
   min-width: 0;
@@ -3062,6 +3066,12 @@ html.dark .ws-item:hover {
   flex: 0 0 auto;
   padding: 0 10px 0 16px;
   border-bottom: 1px solid var(--color-border);
+  background: var(--color-panel-translucent, var(--color-panel));
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 .drawer-head h2 {
   font-size: 14px;
@@ -5431,3 +5441,35 @@ body.is-resizing-drawer {
   flex-shrink: 0;
   box-shadow: 0 0 4px color-mix(in srgb, var(--color-warn) 50%, transparent);
 }
+
+/* Agent 运行中 Composer 呼吸微光律动 */
+@keyframes composer-busy-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent), 0 4px 18px -2px color-mix(in srgb, var(--color-accent) 15%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--color-accent) 80%, transparent), 0 4px 26px 0 color-mix(in srgb, var(--color-accent) 28%, transparent);
+  }
+}
+.composer.is-busy-glow {
+  animation: composer-busy-pulse 2.2s ease-in-out infinite;
+}
+
+/* 清空草稿微按钮 */
+.composer-btn-clear {
+  color: var(--color-text-faint);
+  transition: all var(--dur-fast) ease;
+}
+.composer-btn-clear:hover {
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+/* 代码块行号渲染 */
+.codeblock-line-numbers {
+  font-family: var(--font-mono);
+  user-select: none;
+  border-right: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
+  background: color-mix(in srgb, var(--color-panel-2) 35%, transparent);
+}
+

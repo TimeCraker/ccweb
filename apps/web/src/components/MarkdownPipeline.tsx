@@ -4,13 +4,14 @@ import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
 import { t, useLocale } from '../i18n'
 import { copyText } from '../clipboard'
-import { IconChevron, IconCopy, IconCheck } from './Icon'
+import { IconChevron, IconCopy, IconCheck, IconQuote } from './Icon'
 
 const COLLAPSE_LINE_THRESHOLD = 24
 
-/** 代码块: dsh 对齐 —— 语言标签 + 行数统计 + 复制按钮 + 超长折叠展开 */
+/** 代码块: 语言标签 + 行号 + 引用/复制按钮 + 超长折叠展开 */
 function CodeBlock({ children }: { children?: ReactNode }) {
   const [copied, setCopied] = useState(false)
+  const [quoted, setQuoted] = useState(false)
   const [expanded, setExpanded] = useState(false)
   useLocale()
 
@@ -29,6 +30,16 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   const isLong = lines > COLLAPSE_LINE_THRESHOLD
   const shouldCollapse = isLong && !expanded
 
+  const quoteCode = () => {
+    window.dispatchEvent(
+      new CustomEvent('ccweb:quote-code', {
+        detail: { lang, code },
+      })
+    )
+    setQuoted(true)
+    setTimeout(() => setQuoted(false), 1200)
+  }
+
   return (
     <div className={`codeblock group/code relative my-2.5 overflow-hidden rounded-lg border border-border ${shouldCollapse ? 'is-collapsed' : ''}`}>
       <div className="flex h-8 items-center justify-between border-b border-border bg-panel-2/60 px-3">
@@ -36,36 +47,74 @@ function CodeBlock({ children }: { children?: ReactNode }) {
           <span className="font-semibold text-text-dim">{lang || 'text'}</span>
           {lines > 0 && <span>· {lines} 行</span>}
         </span>
-        <button
-          onClick={() => {
-            void copyText(code).then(() => {
-              setCopied(true)
-              setTimeout(() => setCopied(false), 1200)
-            })
-          }}
-          aria-label={t('ms.copyCode')}
-          className={`flex items-center gap-1 rounded px-2 py-0.5 text-[10.5px] font-medium transition-colors ${
-            copied
-              ? 'text-ok bg-ok/10'
-              : 'text-text-faint hover:text-text hover:bg-panel-3'
-          }`}
-        >
-          {copied ? (
-            <>
-              <IconCheck width={11} height={11} style={{ color: 'var(--color-ok)' }} />
-              <span>{t('ms.copied')}</span>
-            </>
-          ) : (
-            <>
-              <IconCopy width={11} height={11} />
-              <span>{t('ms.copyCode')}</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={quoteCode}
+            aria-label="引用到输入框"
+            title="将代码以 Markdown 格式引用到提问输入框"
+            className={`flex items-center gap-1 rounded px-2 py-0.5 text-[10.5px] font-medium transition-colors ${
+              quoted
+                ? 'text-ok bg-ok/10'
+                : 'text-text-faint hover:text-text hover:bg-panel-3'
+            }`}
+          >
+            {quoted ? (
+              <>
+                <IconCheck width={11} height={11} style={{ color: 'var(--color-ok)' }} />
+                <span>已引用</span>
+              </>
+            ) : (
+              <>
+                <IconQuote width={11} height={11} />
+                <span>引用</span>
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void copyText(code).then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1200)
+              })
+            }}
+            aria-label={t('ms.copyCode')}
+            className={`flex items-center gap-1 rounded px-2 py-0.5 text-[10.5px] font-medium transition-colors ${
+              copied
+                ? 'text-ok bg-ok/10'
+                : 'text-text-faint hover:text-text hover:bg-panel-3'
+            }`}
+          >
+            {copied ? (
+              <>
+                <IconCheck width={11} height={11} style={{ color: 'var(--color-ok)' }} />
+                <span>{t('ms.copied')}</span>
+              </>
+            ) : (
+              <>
+                <IconCopy width={11} height={11} />
+                <span>{t('ms.copyCode')}</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      <div className={`codeblock-body relative ${shouldCollapse ? 'max-h-[380px] overflow-hidden' : ''}`}>
-        <pre className="!m-0 !rounded-none !border-0 font-mono text-[12px] leading-relaxed">{child ?? children}</pre>
+      <div className={`codeblock-body relative flex ${shouldCollapse ? 'max-h-[380px] overflow-hidden' : ''}`}>
+        {lines > 1 && (
+          <div
+            className="codeblock-line-numbers select-none py-2.5 pl-2.5 pr-2 font-mono text-[11px] leading-relaxed text-text-faint/45 border-r border-border/30 text-right min-w-[2.2rem]"
+            aria-hidden="true"
+          >
+            {Array.from({ length: lines }).map((_, i) => (
+              <div key={i}>{i + 1}</div>
+            ))}
+          </div>
+        )}
+        <div className="flex-1 min-w-0 overflow-x-auto">
+          <pre className="!m-0 !rounded-none !border-0 !p-2.5 font-mono text-[12px] leading-relaxed">{child ?? children}</pre>
+        </div>
         {shouldCollapse && (
           <div className="codeblock-gradient-mask pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-panel via-panel/75 to-transparent" />
         )}

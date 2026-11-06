@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t } from '../i18n'
-import { IconArrowUp, IconStop, IconFile, IconWarn, IconSparkle, IconX } from './Icon'
+import { IconArrowUp, IconStop, IconFile, IconWarn, IconSparkle, IconX, IconTrash } from './Icon'
 import { AttachMenu, ModelMenu, ModeMenu } from './RunMenus'
 import { Menu } from './ui/Menu'
 import Lightbox from './Lightbox'
@@ -296,8 +296,38 @@ export default function Composer({
         }, 50)
       }
     }
+
+    const quoteHandler = (e: Event) => {
+      const customEvent = e as CustomEvent<{ lang?: string; code?: string }>
+      if (customEvent.detail && typeof customEvent.detail.code === 'string') {
+        const { lang = '', code } = customEvent.detail
+        const formatted = `\`\`\`${lang}\n${code}\n\`\`\``
+        setText((curr) => {
+          let next = ''
+          if (!curr.trim()) {
+            next = formatted
+          } else {
+            next = `${curr.trimEnd()}\n\n${formatted}`
+          }
+          localStorage.setItem(key, next)
+          return next
+        })
+        useStore.getState().setNotice('已将代码片段引用至提问输入框')
+        setTimeout(() => {
+          if (taRef.current) {
+            taRef.current.focus()
+            taRef.current.scrollTop = taRef.current.scrollHeight
+          }
+        }, 50)
+      }
+    }
+
     window.addEventListener('ccweb:insert-prompt', handler)
-    return () => window.removeEventListener('ccweb:insert-prompt', handler)
+    window.addEventListener('ccweb:quote-code', quoteHandler)
+    return () => {
+      window.removeEventListener('ccweb:insert-prompt', handler)
+      window.removeEventListener('ccweb:quote-code', quoteHandler)
+    }
   }, [key])
   const [images, setImages] = useState<string[]>([])
   useEffect(() => {
@@ -502,7 +532,7 @@ export default function Composer({
 
   return (
     <div
-      className={`composer ${composerWidthClass} ${hero ? 'composer-hero' : ''} ${dragging ? 'is-drag' : ''}`}
+      className={`composer ${composerWidthClass} ${hero ? 'composer-hero' : ''} ${dragging ? 'is-drag' : ''} ${isBusyOrWaiting ? 'is-busy-glow' : ''}`}
       style={{ position: 'relative' }}
     >
       <input
@@ -731,8 +761,30 @@ export default function Composer({
               setTimeout(() => taRef.current?.focus(), 50)
             }}
           />
+          {text.trim().length > 0 && (
+            <button
+              type="button"
+              className="composer-btn composer-btn-clear"
+              onClick={() => {
+                updateText('')
+                taRef.current?.focus()
+              }}
+              title="清空当前输入草稿"
+              aria-label="清空当前输入草稿"
+            >
+              <IconTrash width={13} height={13} style={{ color: 'var(--color-text-faint)' }} />
+            </button>
+          )}
           {sendControl && <ModeMenu send={sendControl} disabled={conn !== 'open' || !settings} />}
           <div className="composer-right">
+            {text.trim().length > 15 && (
+              <span
+                className="composer-char-count font-mono text-[10.5px] select-none text-text-faint/60 px-1.5"
+                title={`${text.trim().length} 字符 · ${lineCount} 行`}
+              >
+                {text.trim().length} 字{lineCount > 1 ? ` · ${lineCount} 行` : ''}
+              </span>
+            )}
             <ModelMenu
               send={sendControl ?? (() => undefined)}
               onAddConnection={() => onAddConnection?.()}

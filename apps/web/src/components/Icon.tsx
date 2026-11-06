@@ -319,6 +319,13 @@ export const IconFileCode = (p: P) => (
   </svg>
 )
 
+export const IconQuote = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2H4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2 1 0 1 0 1 1 0 2-1.5 4-4 5v2Z" />
+    <path d="M15 21c3 0 7-1 7-8V5c0-1.25-.75-2-2-2h-4c-1.25 0-2 .75-2 2v6c0 1.25.75 2 2 2 1 0 1 0 1 1 0 2-1.5 4-4 5v2Z" />
+  </svg>
+)
+
 /** Shared personal brand, copied unchanged from my-portfolio/public/brand. */
 export function BrandMark({ size = 32 }: { size?: number; uid?: string }) {
   return <span className="tc-brand-mark" style={{ width: size, height: size }}><img src="/brand/timecraker-mark-v1.svg" width={size} height={size} alt="TC" /></span>
