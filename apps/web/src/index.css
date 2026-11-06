@@ -5344,3 +5344,90 @@ body.is-resizing-drawer {
   gap: 6px;
   background: color-mix(in srgb, var(--color-panel) 50%, transparent);
 }
+
+/* 常用 Prompt 模板浮层 (Snippets Menu) */
+.snippets-menu-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.snippets-menu-head {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-panel-2);
+}
+.snippets-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  gap: 2px;
+}
+.snippet-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+  width: 100%;
+}
+.snippet-item:hover {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.snippet-item.custom {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.snippet-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.4;
+}
+.snippet-desc {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+.snippet-del-btn {
+  opacity: 0;
+  transition: opacity var(--dur-fast) ease;
+}
+.snippet-item:hover .snippet-del-btn {
+  opacity: 1;
+}
+.snippets-divider {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  padding: 6px 10px 2px;
+  margin-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+.snippets-menu-foot {
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-panel-2);
+}
+
+/* 文件树 Git 状态小圆点 */
+.file-git-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warn);
+  margin-left: 6px;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px color-mix(in srgb, var(--color-warn) 50%, transparent);
+}

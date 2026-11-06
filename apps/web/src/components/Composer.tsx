@@ -1,9 +1,169 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t } from '../i18n'
-import { IconArrowUp, IconStop, IconFile, IconWarn } from './Icon'
+import { IconArrowUp, IconStop, IconFile, IconWarn, IconSparkle, IconX } from './Icon'
 import { AttachMenu, ModelMenu, ModeMenu } from './RunMenus'
+import { Menu } from './ui/Menu'
 import Lightbox from './Lightbox'
+
+const BUILTIN_SNIPPETS = [
+  {
+    title: '遵循规范提交',
+    description: '运行检查并遵循 Conventional Commits 双语规范提交改动',
+    prompt: '请先运行自动化检查确认通过，然后遵循 Conventional Commits 双语规范（如 feat(scope): 中文 / English）提交本次改动。',
+  },
+  {
+    title: '边界单测体检',
+    description: '为关键边界条件与异常分支补充单元测试并运行验证',
+    prompt: '请分析现有代码的关键逻辑与边界条件，补充必要的单元测试，并运行全量测试确认 100% 通过。',
+  },
+  {
+    title: '代码改动审查',
+    description: '全面审查近期代码变更，确认无越权与未捕获异常',
+    prompt: '请全面审查我们最近的代码变更，检查是否有未捕获的边界异常、内存/引用泄漏或越权操作，并给出客观评估。',
+  },
+  {
+    title: '精简汇报结论',
+    description: '汇报任务结论、关键动作、验证结果与剩余风险',
+    prompt: '请优先汇报结论、关键动作、验证结果与剩余风险，保持精简专业，无需寒暄客套。',
+  },
+  {
+    title: '技术债与依赖盘点',
+    description: '梳理模块间依赖关系，排查循环依赖与冗余引入',
+    prompt: '请梳理当前涉及模块的依赖关系，检查是否有循环依赖、冗余第三方库或过期 TODO 注释，并给出优化建议。',
+  },
+]
+
+function SnippetsMenu({
+  onSelectSnippet,
+  currentText,
+}: {
+  onSelectSnippet: (prompt: string) => void
+  currentText: string
+}) {
+  const [customSnippets, setCustomSnippets] = useState<Array<{ title: string; prompt: string }>>(() => {
+    try {
+      const raw = localStorage.getItem('ccweb.custom_snippets')
+      return raw ? JSON.parse(raw) : []
+    } catch {
+      return []
+    }
+  })
+
+  const handleSaveCustom = (closeMenu: () => void) => {
+    const trimmed = currentText.trim()
+    if (!trimmed) return
+    const title = trimmed.slice(0, 16) + (trimmed.length > 16 ? '…' : '')
+    const next = [{ title, prompt: trimmed }, ...customSnippets].slice(0, 20)
+    setCustomSnippets(next)
+    try {
+      localStorage.setItem('ccweb.custom_snippets', JSON.stringify(next))
+      useStore.getState().setNotice('已保存为常用模板')
+    } catch {
+      // ignore
+    }
+    closeMenu()
+  }
+
+  const handleDeleteCustom = (idx: number, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const next = customSnippets.filter((_, i) => i !== idx)
+    setCustomSnippets(next)
+    try {
+      localStorage.setItem('ccweb.custom_snippets', JSON.stringify(next))
+    } catch {
+      // ignore
+    }
+  }
+
+  return (
+    <Menu
+      label="常用模板"
+      align="start"
+      width={320}
+      trigger={({ open }) => (
+        <button
+          type="button"
+          className={`composer-btn ${open ? 'is-active' : ''}`}
+          aria-expanded={open}
+          title="常用 Prompt 模板与快捷指令"
+        >
+          <IconSparkle width={13} height={13} style={{ color: 'var(--color-accent)' }} />
+          <span>模板</span>
+        </button>
+      )}
+    >
+      {(close) => (
+        <div className="snippets-menu-panel">
+          <div className="snippets-menu-head">
+            <span style={{ fontWeight: 600, fontSize: 11.5, color: 'var(--color-text-dim)' }}>
+              常用 PROMPT 模板
+            </span>
+          </div>
+
+          <div className="snippets-list">
+            {BUILTIN_SNIPPETS.map((item, idx) => (
+              <button
+                key={idx}
+                type="button"
+                className="snippet-item"
+                onClick={() => {
+                  onSelectSnippet(item.prompt)
+                  close()
+                }}
+              >
+                <div className="snippet-title">{item.title}</div>
+                <div className="snippet-desc">{item.description}</div>
+              </button>
+            ))}
+
+            {customSnippets.length > 0 && (
+              <>
+                <div className="snippets-divider">我的自定义模板</div>
+                {customSnippets.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="snippet-item custom"
+                    onClick={() => {
+                      onSelectSnippet(item.prompt)
+                      close()
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="snippet-title">{item.title}</div>
+                      <div className="snippet-desc">{item.prompt}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="icon-btn snippet-del-btn"
+                      onClick={(e) => handleDeleteCustom(idx, e)}
+                      title="删除此模板"
+                    >
+                      <IconX width={11} height={11} />
+                    </button>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          {currentText.trim().length > 0 && (
+            <div className="snippets-menu-foot">
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                style={{ width: '100%', fontSize: 11.5, padding: '4px 8px' }}
+                onClick={() => handleSaveCustom(close)}
+              >
+                + 保存当前输入为自定义模板
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </Menu>
+  )
+}
 
 interface LastSendState {
   signature: string
@@ -560,6 +720,17 @@ export default function Composer({
 
         <div className="composer-bar">
           <AttachMenu onPickImage={() => fileRef.current?.click()} onReferenceFile={referenceFile} />
+          <SnippetsMenu
+            currentText={text}
+            onSelectSnippet={(snippet) => {
+              if (text.trim().length > 0) {
+                updateText(`${text}\n\n${snippet}`)
+              } else {
+                updateText(snippet)
+              }
+              setTimeout(() => taRef.current?.focus(), 50)
+            }}
+          />
           {sendControl && <ModeMenu send={sendControl} disabled={conn !== 'open' || !settings} />}
           <div className="composer-right">
             <ModelMenu

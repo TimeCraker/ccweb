@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
 import { IconChevron, IconCopy, IconFile, IconFolder, IconSearch, IconX, IconCheck } from './Icon'
+import { copyText } from '../clipboard'
 import DrawerResizer from './DrawerResizer'
 
 interface TreeNode {
@@ -48,6 +49,7 @@ function TreeItem({
   onSelectFile,
   activePath,
   onInsertMention,
+  changedFilesSet,
 }: {
   node: TreeNode
   depth: number
@@ -56,10 +58,12 @@ function TreeItem({
   onSelectFile: (path: string) => void
   activePath?: string | null
   onInsertMention: (path: string) => void
+  changedFilesSet: Set<string>
 }) {
   const isDir = node.type === 'directory'
   const isOpen = expanded.has(node.path)
   const isSelected = activePath === node.path
+  const isChanged = !isDir && (changedFilesSet.has(node.path) || changedFilesSet.has(node.name))
 
   return (
     <div className="file-tree-node">
@@ -83,6 +87,7 @@ function TreeItem({
           {isDir ? <IconFolder width={13} height={13} /> : <IconFile width={13} height={13} />}
         </span>
         <span className="file-tree-name">{node.name}</span>
+        {isChanged && <span className="file-git-dot" title="本次会话中已被编辑修改" />}
         {!isDir && (
           <button
             type="button"
@@ -109,6 +114,7 @@ function TreeItem({
               onSelectFile={onSelectFile}
               activePath={activePath}
               onInsertMention={onInsertMention}
+              changedFilesSet={changedFilesSet}
             />
           ))}
         </div>
@@ -125,6 +131,7 @@ export default function FilesPanel({
 }: Props) {
   useLocale()
   const workspace = useStore((s) => s.settings?.workspace)
+  const entries = useStore((s) => s.entries)
   const [tree, setTree] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [filterQuery, setFilterQuery] = useState('')
@@ -134,6 +141,26 @@ export default function FilesPanel({
   const [contentLoading, setContentLoading] = useState(false)
   const [contentError, setContentError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+
+  const changedFilesSet = useMemo(() => {
+    const set = new Set<string>()
+    for (const entry of entries) {
+      if (entry.type === 'turn') {
+        for (const b of entry.blocks) {
+          if (b.kind === 'tool' && (b.toolName === 'Edit' || b.toolName === 'Write' || b.toolName === 'MultiEdit')) {
+            const fp = String(b.input?.file_path ?? '').replace(/\\/g, '/')
+            if (fp) {
+              set.add(fp)
+              const parts = fp.split('/')
+              const name = parts[parts.length - 1]
+              if (name) set.add(name)
+            }
+          }
+        }
+      }
+    }
+    return set
+  }, [entries])
 
   // 加载目录树
   useEffect(() => {
@@ -314,6 +341,35 @@ export default function FilesPanel({
                 </button>
                 <button
                   type="button"
+                  className="btn btn-sm btn-ghost"
+                  style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => {
+                    void copyText(activeFile).then(() => {
+                      useStore.getState().setNotice(`已复制相对路径: ${activeFile}`)
+                    })
+                  }}
+                  title="复制相对路径"
+                >
+                  <IconCopy width={11} height={11} />
+                  <span>相对路径</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={() => {
+                    const full = workspace ? `${workspace}/${activeFile}`.replace(/[/\\]+/g, '/') : activeFile
+                    void copyText(full).then(() => {
+                      useStore.getState().setNotice(`已复制绝对路径: ${full}`)
+                    })
+                  }}
+                  title="复制绝对路径"
+                >
+                  <IconCopy width={11} height={11} />
+                  <span>绝对路径</span>
+                </button>
+                <button
+                  type="button"
                   className="icon-btn"
                   onClick={handleCopyContent}
                   title="复制代码内容"
@@ -398,6 +454,7 @@ export default function FilesPanel({
                     onSelectFile={handleSelectFile}
                     activePath={activeFile}
                     onInsertMention={handleInsertMention}
+                    changedFilesSet={changedFilesSet}
                   />
                 ))}
               </div>
