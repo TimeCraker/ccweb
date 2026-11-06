@@ -249,6 +249,13 @@ export const IconList = (p: P) => (
   </svg>
 )
 
+export const IconCheckSquare = (p: P) => (
+  <svg {...base(p)}>
+    <polyline points="9 11 12 14 22 4" />
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+)
+
 /** Shared personal brand, copied unchanged from my-portfolio/public/brand. */
 export function BrandMark({ size = 32 }: { size?: number; uid?: string }) {
   return <span className="tc-brand-mark" style={{ width: size, height: size }}><img src="/brand/timecraker-mark-v1.svg" width={size} height={size} alt="TC" /></span>

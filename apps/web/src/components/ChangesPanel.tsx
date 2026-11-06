@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { diffLines } from 'diff'
 import { useStore } from '../store'
 import { t } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
@@ -6,20 +7,29 @@ import type { FileBaseline } from '../types'
 import { compactPath } from '../lib/path'
 import DiffView from './DiffView'
 import { IconCheck, IconChevron, IconWarn, IconX } from './Icon'
+import DrawerResizer from './DrawerResizer'
 
 function FileChange({
   block,
   baseline,
   isFocused = false,
+  forceExpand = null,
 }: {
   block: ToolBlock
   baseline?: FileBaseline
   isFocused?: boolean
+  forceExpand?: boolean | null
 }) {
   const [open, setOpen] = useState(isFocused)
   const file = String(block.input?.file_path ?? block.toolName)
   const disk = block.status === 'done' ? baseline?.observed : undefined
   const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    if (forceExpand !== null) {
+      setOpen(forceExpand)
+    }
+  }, [forceExpand])
 
   useEffect(() => {
     if (isFocused) {
@@ -33,6 +43,47 @@ function FileChange({
 
   const requested = block.toolName === 'MultiEdit' && Array.isArray(block.input?.edits)
     ? block.input.edits : [block.input ?? {}]
+
+  const stats = useMemo(() => {
+    let add = 0
+    let del = 0
+    if (disk) {
+      if (disk.before !== disk.after) {
+        try {
+          const parts = diffLines(disk.before ?? '', disk.after ?? '', { timeout: 80, maxEditLength: 2000 })
+          if (parts) {
+            for (const p of parts) {
+              const count = p.count || p.value.split('\n').length - (p.value.endsWith('\n') ? 1 : 0)
+              if (p.added) add += count
+              else if (p.removed) del += count
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } else {
+      for (const edit of requested) {
+        const record = (edit ?? {}) as Record<string, unknown>
+        const o = block.toolName === 'Write' ? baseline?.content ?? '' : String(record.old_string ?? '')
+        const n = String(record.new_string ?? record.content ?? '')
+        try {
+          const parts = diffLines(o, n, { timeout: 80, maxEditLength: 2000 })
+          if (parts) {
+            for (const p of parts) {
+              const count = p.count || p.value.split('\n').length - (p.value.endsWith('\n') ? 1 : 0)
+              if (p.added) add += count
+              else if (p.removed) del += count
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return { add, del }
+  }, [disk, requested, block.toolName, baseline?.content])
+
   return (
     <details
       ref={detailsRef}
@@ -46,7 +97,13 @@ function FileChange({
         ) : (
           <IconCheck width={13} height={13} style={{ color: block.status === 'done' ? 'var(--color-ok)' : 'var(--color-text-faint)', flex: '0 0 auto' }} />
         )}
-        <span className="path" title={file}>{compactPath(file, 30)}</span>
+        <span className="path" title={file}>{compactPath(file, 28)}</span>
+        {(stats.add > 0 || stats.del > 0) && (
+          <span className="diff-stat-capsule" title={`+${stats.add} 行新增，-${stats.del} 行删除`}>
+            {stats.add > 0 && <span className="stat-add">+{stats.add}</span>}
+            {stats.del > 0 && <span className="stat-del">-{stats.del}</span>}
+          </span>
+        )}
         <span className="badge">{block.toolName}</span>
         <span className="badge">{t(disk ? 'dw.diskDiff' : 'dw.requestPreview')}</span>
         <IconChevron width={13} height={13} className="change-file-chevron" />
@@ -82,17 +139,21 @@ export default function ChangesPanel({
   onClose,
   focusFile,
   onSwitchToFiles,
+  onSwitchToPlan,
   onSwitchToDetails,
 }: {
   onClose: () => void
   focusFile?: string | null
   onSwitchToFiles?: () => void
+  onSwitchToPlan?: () => void
   onSwitchToDetails?: () => void
 }) {
   const baselines = useStore((s) => s.fileBaselines)
   const metrics = useStore((s) => s.metrics)
   const busy = useStore((s) => s.busy)
   const entries = useStore((s) => s.entries)
+  const [allExpanded, setAllExpanded] = useState<boolean | null>(null)
+
   const tools = useMemo(
     () =>
       entries.flatMap((entry) =>
@@ -119,6 +180,7 @@ export default function ChangesPanel({
 
   return (
     <aside className="drawer" aria-label={t('dw.changes')}>
+      <DrawerResizer />
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
           <button type="button" className="drawer-nav-tab is-active">
@@ -129,6 +191,11 @@ export default function ChangesPanel({
               {t('dw.tabFiles')}
             </button>
           )}
+          {onSwitchToPlan && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToPlan}>
+              计划
+            </button>
+          )}
           {onSwitchToDetails && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
               {t('dw.tabTasks')}
@@ -136,7 +203,18 @@ export default function ChangesPanel({
           )}
         </div>
         <div className="header-actions">
-          <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={t('dw.close')}>
+          {changes.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              style={{ fontSize: 11, height: 24, padding: '0 6px' }}
+              onClick={() => setAllExpanded((v) => (v === true ? false : true))}
+              title={allExpanded ? '全部折叠代码变更' : '全部展开代码变更'}
+            >
+              {allExpanded ? '全部折叠' : '全部展开'}
+            </button>
+          )}
+          <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>
             <IconX width={16} height={16} />
           </button>
         </div>
@@ -176,6 +254,7 @@ export default function ChangesPanel({
                 block={block}
                 baseline={baselines[block.toolUseId]}
                 isFocused={isFocused}
+                forceExpand={allExpanded}
               />
             )
           })}

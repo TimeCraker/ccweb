@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
 import { IconChevron, IconCopy, IconFile, IconFolder, IconSearch, IconX, IconCheck } from './Icon'
+import DrawerResizer from './DrawerResizer'
 
 interface TreeNode {
   name: string
@@ -13,7 +14,14 @@ interface TreeNode {
 interface Props {
   onClose: () => void
   onSwitchToChanges?: () => void
+  onSwitchToPlan?: () => void
   onSwitchToDetails?: () => void
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function filterTree(nodes: TreeNode[], q: string): TreeNode[] {
@@ -109,7 +117,12 @@ function TreeItem({
   )
 }
 
-export default function FilesPanel({ onClose, onSwitchToChanges, onSwitchToDetails }: Props) {
+export default function FilesPanel({
+  onClose,
+  onSwitchToChanges,
+  onSwitchToPlan,
+  onSwitchToDetails,
+}: Props) {
   useLocale()
   const workspace = useStore((s) => s.settings?.workspace)
   const [tree, setTree] = useState<TreeNode[]>([])
@@ -210,13 +223,35 @@ export default function FilesPanel({ onClose, onSwitchToChanges, onSwitchToDetai
     }
   }
 
+  const handleRevealInExplorer = async () => {
+    if (!activeFile) return
+    try {
+      await fetch('/api/workspaces/open-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: activeFile }),
+      })
+    } catch {
+      // ignore
+    }
+  }
+
   const filteredTree = useMemo(() => {
     const q = filterQuery.trim().toLowerCase()
     return filterTree(tree, q)
   }, [tree, filterQuery])
 
+  const fileStats = useMemo(() => {
+    if (fileContent == null) return null
+    const lines = fileContent.split('\n').length
+    const bytes = new Blob([fileContent]).size
+    const ext = activeFile?.split('.').pop()?.toUpperCase() ?? 'FILE'
+    return { lines, bytes: formatBytes(bytes), ext }
+  }, [fileContent, activeFile])
+
   return (
     <aside className="drawer" aria-label={t('dw.filesTitle')}>
+      <DrawerResizer />
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
           {onSwitchToChanges && (
@@ -227,6 +262,11 @@ export default function FilesPanel({ onClose, onSwitchToChanges, onSwitchToDetai
           <button type="button" className="drawer-nav-tab is-active">
             {t('dw.tabFiles')}
           </button>
+          {onSwitchToPlan && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToPlan}>
+              计划
+            </button>
+          )}
           {onSwitchToDetails && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
               {t('dw.tabTasks')}
@@ -234,7 +274,7 @@ export default function FilesPanel({ onClose, onSwitchToChanges, onSwitchToDetai
           )}
         </div>
         <div className="header-actions">
-          <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={t('dw.close')}>
+          <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>
             <IconX width={16} height={16} />
           </button>
         </div>
@@ -255,7 +295,23 @@ export default function FilesPanel({ onClose, onSwitchToChanges, onSwitchToDetai
               <span className="file-preview-path" title={activeFile}>
                 {activeFile}
               </span>
+              {fileStats && (
+                <span className="file-preview-meta" title={`${fileStats.lines} 行 · ${fileStats.bytes}`}>
+                  <span className="meta-tag">{fileStats.ext}</span>
+                  <span className="meta-text">{fileStats.lines} 行</span>
+                  <span className="meta-sep">·</span>
+                  <span className="meta-text">{fileStats.bytes}</span>
+                </span>
+              )}
               <div className="file-preview-actions">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={handleRevealInExplorer}
+                  title="在系统资源管理器中定位此文件"
+                >
+                  <IconFolder width={13} height={13} />
+                </button>
                 <button
                   type="button"
                   className="icon-btn"

@@ -4,6 +4,7 @@ import { useStore } from '../store'
 import { t, tf } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
 import { IconX } from './Icon'
+import DrawerResizer from './DrawerResizer'
 
 function fmtTokens(value: number): string {
   if (value >= 1000) return `${Math.round(value / 1000)}k`
@@ -42,12 +43,14 @@ export default function DetailsPanel({
   initialTab = 'context',
   onSwitchToChanges,
   onSwitchToFiles,
+  onSwitchToPlan,
 }: {
   onClose: () => void
   send?: (message: Record<string, unknown>) => void
   initialTab?: 'context' | 'controls'
   onSwitchToChanges?: () => void
   onSwitchToFiles?: () => void
+  onSwitchToPlan?: () => void
 }) {
   const [tab, setTab] = useState<'context' | 'trajectory' | 'controls'>(initialTab)
   const [checkpoint, setCheckpoint] = useState('')
@@ -92,6 +95,7 @@ export default function DetailsPanel({
 
   return (
     <aside className="drawer" aria-label={t('dw.details')}>
+      <DrawerResizer />
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
           {onSwitchToChanges && (
@@ -104,12 +108,17 @@ export default function DetailsPanel({
               {t('dw.tabFiles')}
             </button>
           )}
+          {onSwitchToPlan && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToPlan}>
+              计划
+            </button>
+          )}
           <button type="button" className="drawer-nav-tab is-active">
             {t('dw.tabTasks')}
           </button>
         </div>
         <div className="header-actions">
-          <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={t('dw.close')}>
+          <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>
             <IconX width={16} height={16} />
           </button>
         </div>

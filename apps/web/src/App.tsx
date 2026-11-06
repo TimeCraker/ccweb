@@ -8,7 +8,9 @@ import MessageStream from './components/MessageStream'
 import Composer from './components/Composer'
 import ChangesPanel from './components/ChangesPanel'
 import FilesPanel from './components/FilesPanel'
+import PlanPanel from './components/PlanPanel'
 import DetailsPanel from './components/DetailsPanel'
+import { initDrawerWidth } from './components/DrawerResizer'
 import UsageBar from './components/UsageBar'
 import PermissionCard from './components/PermissionCard'
 import QuestionCard from './components/QuestionCard'
@@ -92,13 +94,17 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('connection')
   const [detailsTab, setDetailsTab] = useState<'context' | 'controls'>('context')
   const [nativeOpen, setNativeOpen] = useState(false)
-  const [drawer, setDrawer] = useState<'changes' | 'files' | 'details' | null>(null)
+  const [drawer, setDrawer] = useState<'changes' | 'files' | 'plan' | 'details' | null>(null)
   const [focusFile, setFocusFile] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
   useLocale()
+
+  useEffect(() => {
+    initDrawerWidth()
+  }, [])
 
   useEffect(() => {
     const handleFocus = (e: Event) => {
@@ -605,6 +611,8 @@ export default function App() {
             onRename={renameSession}
             onExport={exportMarkdown}
             onOpenChanges={() => setDrawer('changes')}
+            onOpenFiles={() => setDrawer('files')}
+            onOpenPlan={() => setDrawer('plan')}
             onOpenDetails={() => {
               setDetailsTab('context')
               setDrawer('details')
@@ -732,6 +740,7 @@ export default function App() {
             onClose={closeDrawer}
             focusFile={focusFile}
             onSwitchToFiles={() => setDrawer('files')}
+            onSwitchToPlan={() => setDrawer('plan')}
             onSwitchToDetails={() => {
               setDetailsTab('controls')
               setDrawer('details')
@@ -742,6 +751,18 @@ export default function App() {
           <FilesPanel
             onClose={closeDrawer}
             onSwitchToChanges={() => setDrawer('changes')}
+            onSwitchToPlan={() => setDrawer('plan')}
+            onSwitchToDetails={() => {
+              setDetailsTab('controls')
+              setDrawer('details')
+            }}
+          />
+        )}
+        {drawer === 'plan' && (
+          <PlanPanel
+            onClose={closeDrawer}
+            onSwitchToChanges={() => setDrawer('changes')}
+            onSwitchToFiles={() => setDrawer('files')}
             onSwitchToDetails={() => {
               setDetailsTab('controls')
               setDrawer('details')
@@ -755,6 +776,7 @@ export default function App() {
             initialTab={detailsTab}
             onSwitchToChanges={() => setDrawer('changes')}
             onSwitchToFiles={() => setDrawer('files')}
+            onSwitchToPlan={() => setDrawer('plan')}
           />
         )}
       </div>

@@ -3024,8 +3024,9 @@ html.dark .ws-item:hover {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
-  width: min(452px, 42vw);
+  width: var(--drawer-w, min(460px, 45vw));
   min-width: 340px;
+  max-width: min(960px, 80vw);
   height: 100%;
   background: var(--color-panel);
   border-left: 1px solid var(--color-border);
@@ -4868,4 +4869,314 @@ html.dark .session-branch-tag {
   100% {
     background: transparent;
   }
+}
+
+/* ---------------- 抽屉左侧拖拽拉宽把手 ---------------- */
+.drawer-resizer {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 50;
+  transition: background var(--dur-fast) ease;
+}
+.drawer-resizer:hover,
+.drawer-resizer.is-dragging {
+  background: var(--color-accent);
+}
+body.is-resizing-drawer {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
+/* ---------------- Diff 行数彩色增删胶囊 ---------------- */
+.diff-stat-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  margin-left: 2px;
+}
+.diff-stat-capsule .stat-add {
+  color: var(--color-ok);
+}
+.diff-stat-capsule .stat-del {
+  color: var(--color-danger);
+}
+
+/* ---------------- FilesPanel 源码预览元信息 ---------------- */
+.file-preview-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--color-text-faint);
+  margin-left: 4px;
+}
+.file-preview-meta .meta-tag {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
+}
+.file-preview-meta .meta-sep {
+  opacity: 0.5;
+}
+
+/* ---------------- PlanPanel 实施计划伴侣 ---------------- */
+.plan-drawer {
+  background: var(--color-panel);
+}
+.plan-drawer-body {
+  padding: 12px 16px 24px;
+}
+.plan-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.plan-overview-card {
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--color-text) 3%, var(--color-panel));
+  border: 1px solid var(--color-border);
+}
+.plan-overview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.plan-title-area {
+  min-width: 0;
+  flex: 1;
+}
+.plan-file-pill {
+  display: inline-block;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+.plan-doc-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-overview-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.plan-progress-box {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+}
+.plan-progress-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.plan-progress-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-faint);
+}
+.plan-progress-num {
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+.plan-progress-bar-track {
+  height: 5px;
+  width: 100%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 80%, transparent);
+  overflow: hidden;
+}
+.plan-progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+
+/* 阶段与任务卡片列表 */
+.plan-stages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.plan-stage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-stage-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  padding: 2px 4px;
+}
+.plan-stage-head h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  flex: 1;
+}
+.plan-stage-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+.plan-stage-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.plan-step-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-text) 2%, var(--color-panel));
+  border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  font-size: 12px;
+  line-height: 1.45;
+  transition: all var(--dur-fast) ease;
+}
+.plan-step-card:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-panel));
+}
+.plan-step-card.is-done {
+  opacity: 0.65;
+}
+.plan-step-card.is-done .plan-step-text {
+  text-decoration: line-through;
+  color: var(--color-text-faint);
+}
+.plan-step-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--color-border);
+  margin-top: 2px;
+  flex-shrink: 0;
+  transition: all var(--dur-fast) ease;
+}
+.plan-step-check.is-checked {
+  background: var(--color-ok);
+  border-color: var(--color-ok);
+  color: #fff;
+}
+.plan-step-text {
+  flex: 1;
+  word-break: break-word;
+  color: var(--color-text);
+}
+.plan-step-action {
+  opacity: 0;
+  font-size: 11px;
+  height: 20px;
+  padding: 0 5px;
+  margin-top: -2px;
+  color: var(--color-accent);
+  transition: opacity var(--dur-fast) ease;
+}
+.plan-step-card:hover .plan-step-action {
+  opacity: 1;
+}
+
+/* 原文预览 */
+.plan-raw-wrap {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.plan-raw-code {
+  margin: 0;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.5;
+  font-family: var(--font-mono);
+  color: var(--color-text-faint);
+  max-height: 520px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 计划空态 */
+.plan-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--color-text-faint);
+}
+.plan-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  margin-bottom: 12px;
+}
+.plan-empty-card h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--color-text);
+  font-weight: 600;
+}
+.plan-empty-card p {
+  margin: 0 0 16px;
+  font-size: 12px;
+  max-width: 280px;
+  line-height: 1.5;
+}
+.plan-empty-card code {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.plan-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }

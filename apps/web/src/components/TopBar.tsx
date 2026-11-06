@@ -13,6 +13,7 @@ import {
   SectionIcon,
   IconFolder,
   IconCopy,
+  IconCheckSquare,
 } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 import { cycleTheme, useThemeMode } from '../theme'
@@ -25,13 +26,14 @@ interface Props {
   onExport: () => void
   onOpenChanges: () => void
   onOpenFiles?: () => void
+  onOpenPlan?: () => void
   onOpenDetails: () => void
   onOpenNav?: () => void
   changeCount: number
   sidebarCollapsed?: boolean
   onExpandSidebar?: () => void
-  activeDrawer?: 'changes' | 'files' | 'details' | null
-  onToggleDrawer?: (drawer: 'changes' | 'files' | 'details') => void
+  activeDrawer?: 'changes' | 'files' | 'plan' | 'details' | null
+  onToggleDrawer?: (drawer: 'changes' | 'files' | 'plan' | 'details') => void
   activeTasksCount?: number
 }
 
@@ -42,6 +44,7 @@ export default function TopBar({
   onExport,
   onOpenChanges,
   onOpenFiles,
+  onOpenPlan,
   onOpenDetails,
   onOpenNav,
   changeCount,
@@ -229,7 +232,7 @@ export default function TopBar({
           type="button"
           className={`header-companion-btn ${activeDrawer === 'changes' ? 'is-active' : ''}`}
           onClick={() => (onToggleDrawer ? onToggleDrawer('changes') : onOpenChanges())}
-          title={`${t('hd.review')} - 切换右侧代码 Diff 对比面板`}
+          title={`${t('hd.review')} (Ctrl+J) - 切换右侧代码 Diff 对比面板`}
           aria-label={t('hd.review')}
         >
           <IconEdit width={13} height={13} />
@@ -246,6 +249,17 @@ export default function TopBar({
         >
           <IconFolder width={13} height={13} />
           <span>{t('hd.files')}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`header-companion-btn ${activeDrawer === 'plan' ? 'is-active' : ''}`}
+          onClick={() => (onToggleDrawer ? onToggleDrawer('plan') : onOpenPlan ? onOpenPlan() : undefined)}
+          title="实施计划 - 跟踪当前项目阶段与待办进展"
+          aria-label="实施计划"
+        >
+          <IconCheckSquare width={13} height={13} />
+          <span>计划</span>
         </button>
 
         <button
