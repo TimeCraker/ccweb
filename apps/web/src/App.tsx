@@ -93,11 +93,24 @@ export default function App() {
   const [detailsTab, setDetailsTab] = useState<'context' | 'controls'>('context')
   const [nativeOpen, setNativeOpen] = useState(false)
   const [drawer, setDrawer] = useState<'changes' | 'files' | 'details' | null>(null)
+  const [focusFile, setFocusFile] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
   useLocale()
+
+  useEffect(() => {
+    const handleFocus = (e: Event) => {
+      const customEvent = e as CustomEvent<string>
+      if (typeof customEvent.detail === 'string') {
+        setFocusFile(customEvent.detail)
+        setDrawer('changes')
+      }
+    }
+    window.addEventListener('ccweb:focus-change', handleFocus)
+    return () => window.removeEventListener('ccweb:focus-change', handleFocus)
+  }, [])
 
   const entries = useStore((s) => s.entries)
   const tasks = useStore((s) => s.nativeTasks)
@@ -404,8 +417,16 @@ export default function App() {
         openSettings(guiTabs[name])
         return 'local'
       }
-      if (['context', 'tasks', 'rewind'].includes(name)) {
-        setDetailsTab(name === 'context' ? 'context' : 'controls')
+      if (['review', 'diff', 'changes'].includes(name)) {
+        setDrawer('changes')
+        return 'local'
+      }
+      if (['files', 'tree'].includes(name)) {
+        setDrawer('files')
+        return 'local'
+      }
+      if (['context', 'tasks', 'cost', 'usage', 'details', 'rewind'].includes(name)) {
+        setDetailsTab(name === 'tasks' || name === 'rewind' ? 'controls' : 'context')
         setDrawer('details')
         return 'local'
       }
@@ -646,7 +667,7 @@ export default function App() {
                   <div className="dock">
                     <div className="dock-inner">
                       {composer}
-                      <UsageBar />
+                      <UsageBar onOpenDetails={(tab) => { setDetailsTab(tab ?? 'context'); setDrawer('details'); }} />
                     </div>
                   </div>
                 </>
@@ -697,7 +718,7 @@ export default function App() {
                         </div>
                       )}
                       {composer}
-                      <UsageBar />
+                      <UsageBar onOpenDetails={(tab) => { setDetailsTab(tab ?? 'context'); setDrawer('details'); }} />
                     </div>
                   </div>
                 </>
@@ -709,6 +730,7 @@ export default function App() {
         {drawer === 'changes' && (
           <ChangesPanel
             onClose={closeDrawer}
+            focusFile={focusFile}
             onSwitchToFiles={() => setDrawer('files')}
             onSwitchToDetails={() => {
               setDetailsTab('controls')

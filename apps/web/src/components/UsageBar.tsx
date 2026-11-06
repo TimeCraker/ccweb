@@ -25,7 +25,7 @@ function ms(value: number | null | undefined): string {
  * 输入区下方的一行低噪用量摘要 + 锚定弹层。
  * 空态不渲染占位破折号;诊断字段默认收起;外点/Esc 关闭由 Menu 原语保证。
  */
-export default function UsageBar() {
+export default function UsageBar({ onOpenDetails }: { onOpenDetails?: (tab?: 'context' | 'controls') => void } = {}) {
   const metrics = useStore((s) => s.metrics)
   const busy = useStore((s) => s.busy)
   const context = useStore((s) => s.context)
@@ -75,7 +75,12 @@ export default function UsageBar() {
         </span>
       )}
       {percentage != null && (
-        <span className={`usage-item ${percentage >= 85 ? 'is-danger' : percentage >= 70 ? 'is-warn' : ''}`} title="当前上下文占用比例">
+        <span
+          className={`usage-item ${percentage >= 85 ? 'is-danger' : percentage >= 70 ? 'is-warn' : ''} ${onOpenDetails ? 'is-clickable' : ''}`}
+          title={onOpenDetails ? '当前上下文占用比例（点击展开右侧详细诊断）' : '当前上下文占用比例'}
+          onClick={onOpenDetails ? () => onOpenDetails('context') : undefined}
+          style={onOpenDetails ? { cursor: 'pointer' } : undefined}
+        >
           <span className="usage-icon">📊</span>
           <span className="usage-label">上下文</span>
           <b>{num(percentage, '%')}</b>
@@ -187,6 +192,16 @@ export default function UsageBar() {
               ) : null}
               <p className="usage-foot">{t('us.streamNote')}</p>
             </details>
+            {onOpenDetails && (
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                style={{ width: '100%', marginTop: 8, fontSize: 11.5 }}
+                onClick={() => onOpenDetails('context')}
+              >
+                在伴侣面板查看详细诊断与任务 →
+              </button>
+            )}
           </div>
         )}
       </Menu>

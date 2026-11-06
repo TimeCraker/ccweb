@@ -115,11 +115,23 @@ export default function Composer({
     const handler = (e: Event) => {
       const customEvent = e as CustomEvent<string>
       if (typeof customEvent.detail === 'string') {
-        updateText(customEvent.detail)
+        const insertion = customEvent.detail
+        setText((curr) => {
+          let next = ''
+          if (!curr.trim()) {
+            next = insertion
+          } else if (insertion.includes('\n')) {
+            next = `${curr.trimEnd()}\n\n${insertion}`
+          } else {
+            next = curr.endsWith(' ') ? `${curr}${insertion}` : `${curr} ${insertion}`
+          }
+          localStorage.setItem(key, next)
+          return next
+        })
         setTimeout(() => {
           if (taRef.current) {
             taRef.current.focus()
-            taRef.current.selectionStart = taRef.current.selectionEnd = customEvent.detail.length
+            taRef.current.scrollTop = taRef.current.scrollHeight
           }
         }, 50)
       }
@@ -212,10 +224,10 @@ export default function Composer({
     }
   }
 
-  /** 斜杠命令补全:输入以 / 开头(且仅首词)时弹出过滤列表 */
+  /** 斜杠命令补全:输入以 / 开头(且仅首词且未敲空格)时弹出过滤列表 */
   const slashMatches = useMemo(() => {
-    if (!text.startsWith('/') || text.includes('\n')) return []
-    const word = text.slice(1).split(/\s/)[0] ?? ''
+    if (!text.startsWith('/') || text.includes('\n') || text.slice(1).includes(' ')) return []
+    const word = text.slice(1)
     const customSkills = (userSkills ?? []).map((sk) => ({
       name: sk.name,
       description: sk.description ? `(Skill) ${sk.description}` : '(Skill) 用户自定义技能',

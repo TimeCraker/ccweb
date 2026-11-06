@@ -4834,3 +4834,38 @@ html.dark .session-branch-tag {
   padding: 1px 10px;
   white-space: pre;
 }
+
+/* ==================== 跨组件强联动微动效 ==================== */
+.tool-review-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+  cursor: pointer;
+  margin-left: auto;
+  margin-right: 6px;
+  transition: all var(--dur-fast) ease;
+}
+.tool-review-pill:hover {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.change-file.is-focused-change {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 25%, transparent);
+  animation: change-pulse 2s ease-out;
+}
+@keyframes change-pulse {
+  0% {
+    background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}

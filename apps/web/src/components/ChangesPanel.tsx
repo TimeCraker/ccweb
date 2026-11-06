@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
@@ -7,14 +7,39 @@ import { compactPath } from '../lib/path'
 import DiffView from './DiffView'
 import { IconCheck, IconChevron, IconWarn, IconX } from './Icon'
 
-function FileChange({ block, baseline }: { block: ToolBlock; baseline?: FileBaseline }) {
-  const [open, setOpen] = useState(false)
+function FileChange({
+  block,
+  baseline,
+  isFocused = false,
+}: {
+  block: ToolBlock
+  baseline?: FileBaseline
+  isFocused?: boolean
+}) {
+  const [open, setOpen] = useState(isFocused)
   const file = String(block.input?.file_path ?? block.toolName)
   const disk = block.status === 'done' ? baseline?.observed : undefined
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    if (isFocused) {
+      setOpen(true)
+      if (detailsRef.current) {
+        detailsRef.current.open = true
+        detailsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }, [isFocused])
+
   const requested = block.toolName === 'MultiEdit' && Array.isArray(block.input?.edits)
     ? block.input.edits : [block.input ?? {}]
   return (
-    <details className="change-file" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details
+      ref={detailsRef}
+      className={`change-file ${isFocused ? 'is-focused-change' : ''}`}
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
       <summary>
         {block.status === 'error' ? (
           <IconWarn width={13} height={13} style={{ color: 'var(--color-danger)', flex: '0 0 auto' }} />
@@ -55,10 +80,12 @@ function FileChange({ block, baseline }: { block: ToolBlock; baseline?: FileBase
 /** 右侧「本次改动」面板:仅展示可关联到工具调用的记录,保留主对话与滚动位置。 */
 export default function ChangesPanel({
   onClose,
+  focusFile,
   onSwitchToFiles,
   onSwitchToDetails,
 }: {
   onClose: () => void
+  focusFile?: string | null
   onSwitchToFiles?: () => void
   onSwitchToDetails?: () => void
 }) {
@@ -138,7 +165,20 @@ export default function ChangesPanel({
         <section className="drawer-section">
           <h3>{t('dw.files')}</h3>
           {changes.length === 0 && <p className="menu-empty">{t('dw.noFiles')}</p>}
-          {changes.map((block) => <FileChange key={block.toolUseId} block={block} baseline={baselines[block.toolUseId]} />)}
+          {changes.map((block) => {
+            const filePath = String(block.input?.file_path ?? block.toolName)
+            const isFocused = Boolean(
+              focusFile && (filePath === focusFile || filePath.endsWith(focusFile) || focusFile.endsWith(filePath)),
+            )
+            return (
+              <FileChange
+                key={block.toolUseId}
+                block={block}
+                baseline={baselines[block.toolUseId]}
+                isFocused={isFocused}
+              />
+            )
+          })}
         </section>
 
         <section className="drawer-section">

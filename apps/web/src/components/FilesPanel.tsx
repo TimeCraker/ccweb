@@ -187,6 +187,18 @@ export default function FilesPanel({ onClose, onSwitchToChanges, onSwitchToDetai
     window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: `@${path} ` }))
   }
 
+  const handleQuoteCode = () => {
+    if (!activeFile) return
+    const selection = window.getSelection()?.toString()?.trim()
+    if (selection) {
+      const ext = activeFile.split('.').pop() ?? ''
+      const snippet = `\`\`\`${ext}\n// 来自 ${activeFile}\n${selection}\n\`\`\``
+      window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: snippet }))
+    } else {
+      window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: `@${activeFile} ` }))
+    }
+  }
+
   const handleCopyContent = () => {
     if (fileContent == null) return
     try {
@@ -255,10 +267,10 @@ export default function FilesPanel({ onClose, onSwitchToChanges, onSwitchToDetai
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
-                  onClick={() => handleInsertMention(activeFile)}
-                  title={t('dw.filesInsertMention')}
+                  onClick={handleQuoteCode}
+                  title="引用当前选中的代码片段或文件路径到输入框"
                 >
-                  {t('dw.filesInsertMention')}
+                  引用到对话
                 </button>
               </div>
             </div>

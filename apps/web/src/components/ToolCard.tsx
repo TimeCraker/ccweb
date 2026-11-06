@@ -86,6 +86,13 @@ export default function ToolCard({ block, turnDone }: { block: ToolBlock; turnDo
     return oldStr != null && newStr != null ? { oldStr, newStr } : null
   }, [block.toolName, block.input, block.inputRaw])
 
+  const isFileEdit = ['Edit', 'Write', 'MultiEdit'].includes(block.toolName)
+  const targetFilePath = typeof block.input?.file_path === 'string'
+    ? block.input.file_path
+    : typeof block.input?.path === 'string'
+      ? block.input.path
+      : null
+
   return (
     <div className="tool-card">
       <button
@@ -119,6 +126,26 @@ export default function ToolCard({ block, turnDone }: { block: ToolBlock; turnDo
           {t(status.text)}
           {elapsed ? ` ${elapsed}` : ''}
         </span>
+        {isFileEdit && targetFilePath && (
+          <span
+            className="tool-review-pill"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation()
+              window.dispatchEvent(new CustomEvent('ccweb:focus-change', { detail: targetFilePath }))
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+                window.dispatchEvent(new CustomEvent('ccweb:focus-change', { detail: targetFilePath }))
+              }
+            }}
+            title="在右侧伴侣审查面板对比完整 Diff"
+          >
+            审查 Diff →
+          </span>
+        )}
         <svg className="tool-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m9 6 6 6-6 6" />
         </svg>
