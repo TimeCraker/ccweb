@@ -8,7 +8,7 @@ import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
 import { copyText } from '../clipboard'
-import { IconFork, IconWarn, IconCopy, IconCheck, IconPencil, IconList, IconX } from './Icon'
+import { IconFork, IconWarn, IconCopy, IconCheck, IconPencil, IconList, IconX, IconChevron } from './Icon'
 
 
 export interface HeadingItem {
@@ -270,6 +270,108 @@ function UserRow({ text, onFork, images }: { text: string; onFork?: () => void; 
   )
 }
 
+type BlockGroup =
+  | { kind: 'block'; block: Block; index: number }
+  | { kind: 'tool-batch'; tools: Extract<Block, { kind: 'tool' }>[]; startIndex: number }
+
+function groupBlocks(blocks: Block[]): BlockGroup[] {
+  const groups: BlockGroup[] = []
+  let currentTools: Extract<Block, { kind: 'tool' }>[] = []
+  let toolStartIndex = 0
+
+  const flushTools = () => {
+    if (currentTools.length === 0) return
+    if (currentTools.length === 1 && currentTools[0]) {
+      groups.push({ kind: 'block', block: currentTools[0], index: toolStartIndex })
+    } else {
+      groups.push({ kind: 'tool-batch', tools: currentTools, startIndex: toolStartIndex })
+    }
+    currentTools = []
+  }
+
+  blocks.forEach((b, i) => {
+    if (b.kind === 'tool') {
+      if (currentTools.length === 0) {
+        toolStartIndex = i
+      }
+      currentTools.push(b)
+    } else {
+      flushTools()
+      groups.push({ kind: 'block', block: b, index: i })
+    }
+  })
+  flushTools()
+  return groups
+}
+
+function ToolBatchView({
+  tools,
+  turnDone,
+}: {
+  tools: Extract<Block, { kind: 'tool' }>[]
+  turnDone?: boolean
+}) {
+  const hasError = tools.some((t) => t.status === 'error')
+  const isRunning = tools.some((t) => t.status === 'running')
+  const [open, setOpen] = useState(hasError || isRunning)
+
+  const summaryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    tools.forEach((t) => {
+      counts[t.toolName] = (counts[t.toolName] ?? 0) + 1
+    })
+    return Object.entries(counts)
+      .map(([name, count]) => `${name} ${count}`)
+      .join(' · ')
+  }, [tools])
+
+  return (
+    <div className={`tool-batch-container ${hasError ? 'has-error' : ''} ${open ? 'is-expanded' : ''}`}>
+      <button
+        type="button"
+        className="tool-batch-header"
+        onClick={() => setOpen(!open)}
+        title={open ? '折叠连续工具列表' : '展开查看连续工具详情'}
+        aria-expanded={open}
+      >
+        <div className="tool-batch-meta">
+          <span className={`tool-batch-icon ${hasError ? 'error' : isRunning ? 'running' : 'done'}`}>
+            {hasError ? (
+              <IconWarn width={13} height={13} style={{ color: 'var(--color-danger)' }} />
+            ) : isRunning ? (
+              <span className="ws-spinner" style={{ width: 12, height: 12 }} />
+            ) : (
+              <IconCheck width={13} height={13} style={{ color: 'var(--color-ok)' }} />
+            )}
+          </span>
+          <span className="tool-batch-title">
+            连续执行了 <strong>{tools.length}</strong> 项工具操作 ({summaryCounts})
+          </span>
+          {hasError && <span className="tool-batch-err-badge">包含报错</span>}
+        </div>
+        <div className="tool-batch-chevron">
+          <IconChevron
+            width={12}
+            height={12}
+            style={{
+              transform: open ? 'rotate(180deg)' : undefined,
+              transition: 'transform var(--dur-fast) ease',
+            }}
+          />
+        </div>
+      </button>
+
+      {open && (
+        <div className="tool-batch-list animate-slide-down">
+          {tools.map((block, idx) => (
+            <ToolCard key={block.toolUseId || idx} block={block} turnDone={turnDone} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TurnView({
   turn,
   canRegenerate,
@@ -297,12 +399,22 @@ function TurnView({
 
   const headings = useMemo(() => parseHeadings(fullText), [fullText])
   const [tocOpen, setTocOpen] = useState(false)
+  const blockGroups = useMemo(() => groupBlocks(turn.blocks), [turn.blocks])
 
   return (
     <div className="msg-assistant group/turn relative">
-      {turn.blocks.map((b, i) => (
-        <BlockView key={i} block={b} turnDone={turn.done} isLastText={b.kind === 'text' && b.streaming && lastTextStreaming} />
-      ))}
+      {blockGroups.map((g) =>
+        g.kind === 'tool-batch' ? (
+          <ToolBatchView key={`tool-batch-${g.startIndex}`} tools={g.tools} turnDone={turn.done} />
+        ) : (
+          <BlockView
+            key={`block-${g.index}`}
+            block={g.block}
+            turnDone={turn.done}
+            isLastText={g.block.kind === 'text' && g.block.streaming && lastTextStreaming}
+          />
+        ),
+      )}
       <div className="turn-tail">
         <div className="turn-metrics">
           {turn.tail && (

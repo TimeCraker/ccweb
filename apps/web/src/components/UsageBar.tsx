@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { t } from '../i18n'
 import { Menu } from './ui/Menu'
-import { IconChevron } from './Icon'
+import { IconChevron, IconClock, IconCpu, IconFlame, IconZap } from './Icon'
 
 function num(value: number | null | undefined, suffix = ''): string {
   if (value == null) return '—'
@@ -36,7 +36,11 @@ export default function UsageBar({ onOpenDetails }: { onOpenDetails?: (tab?: 'co
     return () => clearInterval(timer)
   }, [busy])
 
-  const percentage = contextUsage(context?.raw)?.percentage ?? null
+  const ctx = contextUsage(context?.raw)
+  const percentage = ctx?.percentage ?? null
+  const usedTokens = ctx?.used ?? (metrics?.inputTokens ? metrics.inputTokens + (metrics.outputTokens ?? 0) : null)
+  const maxTokens = ctx?.max ?? null
+
   const duration = metrics?.runStartedAt ? Math.max(0, ((metrics.completedAt ?? now) - metrics.runStartedAt) / 1000) : null
   const speed = metrics?.tokensPerSecond ?? null
   const hasData =
@@ -62,14 +66,18 @@ export default function UsageBar({ onOpenDetails }: { onOpenDetails?: (tab?: 'co
     <div className="usage usage-metric-strip" aria-label={t('us.title')}>
       {duration != null && (
         <span className="usage-item" title="当前耗时">
-          <span className="usage-icon">⏱</span>
+          <span className="usage-icon">
+            <IconClock width={12} height={12} />
+          </span>
           <span className="usage-label">{failed ? '失败于' : cancelled ? '取消于' : '耗时'}</span>
           <b>{num(duration, 's')}</b>
         </span>
       )}
       {speed != null && (
         <span className="usage-item" title="生成速率">
-          <span className="usage-icon">⚡</span>
+          <span className="usage-icon">
+            <IconZap width={12} height={12} />
+          </span>
           <span className="usage-label">{metrics?.speedScope === 'turn' ? '均速' : '速率'}</span>
           <b>{num(speed)} tok/s</b>
         </span>
@@ -77,18 +85,30 @@ export default function UsageBar({ onOpenDetails }: { onOpenDetails?: (tab?: 'co
       {percentage != null && (
         <span
           className={`usage-item ${percentage >= 85 ? 'is-danger' : percentage >= 70 ? 'is-warn' : ''} ${onOpenDetails ? 'is-clickable' : ''}`}
-          title={onOpenDetails ? '当前上下文占用比例（点击展开右侧详细诊断）' : '当前上下文占用比例'}
+          title={
+            onOpenDetails
+              ? `当前上下文容量：${usedTokens != null ? Math.round(usedTokens / 1000) + 'k' : ''}${maxTokens ? ' / ' + Math.round(maxTokens / 1000) + 'k' : ''} (${num(percentage, '%')})，点击在伴侣抽屉查看明细`
+              : `当前上下文占用：${num(percentage, '%')}`
+          }
           onClick={onOpenDetails ? () => onOpenDetails('context') : undefined}
           style={onOpenDetails ? { cursor: 'pointer' } : undefined}
         >
-          <span className="usage-icon">📊</span>
+          <span className="usage-icon">
+            <IconCpu width={12} height={12} />
+          </span>
           <span className="usage-label">上下文</span>
-          <b>{num(percentage, '%')}</b>
+          <b>
+            {maxTokens && usedTokens
+              ? `${Math.round(usedTokens / 1000)}k/${Math.round(maxTokens / 1000)}k`
+              : num(percentage, '%')}
+          </b>
         </span>
       )}
       {cacheHitRate != null && cacheHitRate > 0 && (
         <span className="usage-item" title="Prompt 缓存命中率">
-          <span className="usage-icon">🔥</span>
+          <span className="usage-icon">
+            <IconFlame width={12} height={12} />
+          </span>
           <span className="usage-label">缓存</span>
           <b>{num(cacheHitRate * 100, '%')}</b>
         </span>
