@@ -40,6 +40,15 @@ function appendPromptHistory(item: string) {
 }
 
 /** 最近一次成功发送:放在模块级,避免空态→对话态切换导致 Composer 重挂载后丢失 */
+
+const DEFAULT_SLASH_COMMANDS = [
+  { name: 'compact', description: '压缩精简上下文，释放空间' },
+  { name: 'clear', description: '清空历史，开始新会话' },
+  { name: 'plan', description: '进入规划模式，先拟定实施步骤' },
+  { name: 'bug', description: '系统化定位与诊断当前代码问题' },
+  { name: 'review', description: '全面审查当前代码改动与质量' },
+]
+
 let lastSend: LastSendState | null = null
 
 interface Props {
@@ -200,8 +209,12 @@ export default function Composer({
   /** 斜杠命令补全:输入以 / 开头(且仅首词)时弹出过滤列表 */
   const slashMatches = useMemo(() => {
     if (!text.startsWith('/') || text.includes('\n')) return []
-    const word = text.slice(1)
-    return slashCommands.filter((command) => command.name.toLowerCase().includes(word.toLowerCase())).slice(0, 8)
+    const word = text.slice(1).split(/\s/)[0] ?? ''
+    const all = [
+      ...slashCommands,
+      ...DEFAULT_SLASH_COMMANDS.filter((d) => !slashCommands.some((c) => c.name === d.name)),
+    ]
+    return all.filter((command) => command.name.toLowerCase().includes(word.toLowerCase())).slice(0, 8)
   }, [text, slashCommands])
 
   /** @文件补全:末词以 @ 开头(词边界检测,行首或空白后)时激活 */
@@ -336,22 +349,32 @@ export default function Composer({
           ))}
         </div>
       )}
-      {slashMatches.length === 0 && fileMatches.length > 0 && (
+      {slashMatches.length === 0 && atQuery !== null && (
         <div className="suggestions" role="listbox" aria-label={t('cp.attachFile')}>
-          {fileMatches.map((file, index) => (
-            <button
-              key={file}
-              className="suggestion"
-              data-active={index === fileSel}
-              onMouseEnter={() => setFileSel(index)}
-              onClick={() => pickFile(file)}
-            >
-              <IconFile width={13} height={13} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
-              <span className="desc" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text-dim)', opacity: 1 }} title={file}>
-                {file}
-              </span>
-            </button>
-          ))}
+          {fileMatches.length > 0 ? (
+            fileMatches.map((file, index) => {
+              const parts = file.split('/')
+              const fileName = parts.pop() ?? file
+              const fileDir = parts.join('/')
+              return (
+                <button
+                  key={file}
+                  className="suggestion"
+                  data-active={index === fileSel}
+                  onMouseEnter={() => setFileSel(index)}
+                  onClick={() => pickFile(file)}
+                >
+                  <IconFile width={13} height={13} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
+                  <span className="file-suggestion-name">{fileName}</span>
+                  {fileDir && <span className="file-suggestion-dir">{fileDir}</span>}
+                </button>
+              )
+            })
+          ) : (
+            <div className="suggestion-hint">
+              <span>输入文件名进行工作区检索...</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -403,7 +426,13 @@ export default function Composer({
           value={text}
           aria-label={t('cp.input')}
           placeholder={
-            waiting ? t('cp.waitingPlaceholder') : busy ? t('cp.queuePlaceholder') : t('cp.placeholderPlain')
+            waiting
+              ? t('cp.waitingPlaceholder')
+              : busy
+                ? t('cp.queuePlaceholder')
+                : hero
+                  ? '向 Claude 提问，输入 @ 引用工作区文件，/ 快捷指令...'
+                  : '输入提问，输入 @ 引用文件，/ 快捷指令... (Enter 发送)'
           }
           onChange={(e) => updateText(e.target.value)}
           onPaste={(e) => {

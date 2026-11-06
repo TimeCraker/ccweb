@@ -174,6 +174,9 @@ export default function App() {
       } else if (e.key.toLowerCase() === 'b') {
         e.preventDefault()
         setSidebarCollapsed((v) => !v)
+      } else if (e.key.toLowerCase() === 'j') {
+        e.preventDefault()
+        setDrawer((v) => (v ? null : 'changes'))
       }
     }
     window.addEventListener('keydown', onKey)
@@ -588,6 +591,9 @@ export default function App() {
             changeCount={changeInfo.files.length}
             sidebarCollapsed={sidebarCollapsed}
             onExpandSidebar={() => setSidebarCollapsed(false)}
+            activeDrawer={drawer}
+            onToggleDrawer={(target) => setDrawer((curr) => (curr === target ? null : target))}
+            activeTasksCount={activeTasks.length}
           />
 
           {nativeOpen ? (
@@ -699,9 +705,22 @@ export default function App() {
           )}
         </main>
 
-        {drawer === 'changes' && <ChangesPanel onClose={closeDrawer} />}
+        {drawer === 'changes' && (
+          <ChangesPanel
+            onClose={closeDrawer}
+            onSwitchToDetails={() => {
+              setDetailsTab('controls')
+              setDrawer('details')
+            }}
+          />
+        )}
         {drawer === 'details' && (
-          <DetailsPanel onClose={closeDrawer} send={sendControl} initialTab={detailsTab} />
+          <DetailsPanel
+            onClose={closeDrawer}
+            send={sendControl}
+            initialTab={detailsTab}
+            onSwitchToChanges={() => setDrawer('changes')}
+          />
         )}
       </div>
 

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store'
-import { t, tf } from '../i18n'
+import { t } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
 import type { FileBaseline } from '../types'
 import { compactPath } from '../lib/path'
@@ -53,7 +53,7 @@ function FileChange({ block, baseline }: { block: ToolBlock; baseline?: FileBase
 }
 
 /** 右侧「本次改动」面板:仅展示可关联到工具调用的记录,保留主对话与滚动位置。 */
-export default function ChangesPanel({ onClose }: { onClose: () => void }) {
+export default function ChangesPanel({ onClose, onSwitchToDetails }: { onClose: () => void; onSwitchToDetails?: () => void }) {
   const baselines = useStore((s) => s.fileBaselines)
   const metrics = useStore((s) => s.metrics)
   const busy = useStore((s) => s.busy)
@@ -85,12 +85,16 @@ export default function ChangesPanel({ onClose }: { onClose: () => void }) {
   return (
     <aside className="drawer" aria-label={t('dw.changes')}>
       <header className="drawer-head">
-        <h2>{t('dw.changes')}</h2>
-        {changes.length > 0 && (
-          <span className="badge accent">
-            {tf('dw.fileCount', changedFiles.size)}
-          </span>
-        )}
+        <div className="drawer-nav-tabs">
+          <button type="button" className="drawer-nav-tab is-active">
+            Review {changedFiles.size > 0 && <span className="tab-badge">{changedFiles.size}</span>}
+          </button>
+          {onSwitchToDetails && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
+              Tasks & Details
+            </button>
+          )}
+        </div>
         <div className="header-actions">
           <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={t('dw.close')}>
             <IconX width={16} height={16} />

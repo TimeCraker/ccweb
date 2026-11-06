@@ -3,6 +3,8 @@ import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
 import {
   IconChevron,
+  IconEdit,
+  IconGauge,
   IconGear,
   IconPencil,
   IconPlus,
@@ -27,6 +29,9 @@ interface Props {
   changeCount: number
   sidebarCollapsed?: boolean
   onExpandSidebar?: () => void
+  activeDrawer?: 'changes' | 'details' | null
+  onToggleDrawer?: (drawer: 'changes' | 'details') => void
+  activeTasksCount?: number
 }
 
 export default function TopBar({
@@ -40,6 +45,9 @@ export default function TopBar({
   changeCount,
   sidebarCollapsed,
   onExpandSidebar,
+  activeDrawer,
+  onToggleDrawer,
+  activeTasksCount,
 }: Props) {
   const sessionId = useStore((s) => s.sessionId)
   const session = useStore((s) => s.sessions.find((item) => item.id === s.sessionId))
@@ -215,6 +223,32 @@ export default function TopBar({
       </div>
 
       <div className="header-actions">
+        <button
+          type="button"
+          className={`header-companion-btn ${activeDrawer === 'changes' ? 'is-active' : ''}`}
+          onClick={() => onToggleDrawer ? onToggleDrawer('changes') : onOpenChanges()}
+          title="审查改动 (Review) - 切换右侧代码 Diff 对比面板"
+          aria-label="审查改动"
+        >
+          <IconEdit width={13} height={13} />
+          <span>Review</span>
+          {changeCount > 0 && <span className="header-badge accent">{changeCount}</span>}
+        </button>
+
+        <button
+          type="button"
+          className={`header-companion-btn ${activeDrawer === 'details' ? 'is-active' : ''}`}
+          onClick={() => onToggleDrawer ? onToggleDrawer('details') : onOpenDetails()}
+          title="任务与详情 (Tasks) - 查看后台任务与系统诊断"
+          aria-label="任务与详情"
+        >
+          <IconGauge width={13} height={13} />
+          <span>Tasks</span>
+          {activeTasksCount != null && activeTasksCount > 0 && (
+            <span className="dot accent live" style={{ width: 6, height: 6 }} />
+          )}
+        </button>
+
         <button
           className="icon-btn"
           onClick={cycleTheme}

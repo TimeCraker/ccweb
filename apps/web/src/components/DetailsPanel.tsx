@@ -40,10 +40,12 @@ export default function DetailsPanel({
   onClose,
   send,
   initialTab = 'context',
+  onSwitchToChanges,
 }: {
   onClose: () => void
   send?: (message: Record<string, unknown>) => void
   initialTab?: 'context' | 'controls'
+  onSwitchToChanges?: () => void
 }) {
   const [tab, setTab] = useState<'context' | 'trajectory' | 'controls'>(initialTab)
   const [checkpoint, setCheckpoint] = useState('')
@@ -89,7 +91,16 @@ export default function DetailsPanel({
   return (
     <aside className="drawer" aria-label={t('dw.details')}>
       <header className="drawer-head">
-        <h2>{t('dw.details')}</h2>
+        <div className="drawer-nav-tabs">
+          {onSwitchToChanges && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
+              Review
+            </button>
+          )}
+          <button type="button" className="drawer-nav-tab is-active">
+            Tasks & Details
+          </button>
+        </div>
         <div className="header-actions">
           <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={t('dw.close')}>
             <IconX width={16} height={16} />
