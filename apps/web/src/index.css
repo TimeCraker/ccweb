@@ -3227,6 +3227,91 @@ html.dark .ws-item:hover {
   color: var(--color-text-faint);
 }
 
+/* 并排差异视图 (Side-by-Side Split Diff) */
+.diff-view.diff-view-split {
+  display: flex;
+  flex-direction: column;
+}
+.diff-split-header {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-panel-2);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.diff-split-header-col {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 10px;
+}
+.diff-split-header-col.left {
+  border-right: 1px solid var(--color-border);
+}
+.diff-split-body {
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+}
+.diff-split-row {
+  display: flex;
+  align-items: stretch;
+  min-width: min-content;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 35%, transparent);
+}
+.diff-split-row:hover {
+  background: color-mix(in srgb, var(--color-accent) 4%, transparent);
+}
+.diff-split-cell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: 1px 8px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre;
+}
+.diff-split-cell.left {
+  border-right: 1px solid var(--color-border);
+}
+.diff-split-cell.del {
+  background: color-mix(in srgb, var(--color-danger) 13%, transparent);
+  color: color-mix(in srgb, var(--color-danger) 85%, var(--color-text));
+}
+.diff-split-cell.add {
+  background: color-mix(in srgb, var(--color-ok) 13%, transparent);
+  color: color-mix(in srgb, var(--color-ok) 85%, var(--color-text));
+}
+.diff-split-cell.context {
+  color: var(--color-text-faint);
+}
+.diff-split-cell.empty {
+  background: color-mix(in srgb, var(--color-bg) 60%, var(--color-panel-2));
+  opacity: 0.45;
+}
+.diff-split-ln {
+  flex: 0 0 28px;
+  text-align: right;
+  margin-right: 8px;
+  user-select: none;
+  opacity: 0.4;
+  font-size: 10.5px;
+}
+.diff-split-sign {
+  flex: 0 0 14px;
+  user-select: none;
+  font-weight: 600;
+}
+.diff-split-code {
+  flex: 1;
+  min-width: 0;
+}
+
 /* 运行详情里的原生日志 */
 .raw-details summary {
   cursor: pointer;
@@ -5086,13 +5171,20 @@ body.is-resizing-drawer {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  border: 1px solid var(--color-border);
+  width: 15px;
+  height: 15px;
+  border-radius: 3.5px;
+  border: 1.5px solid var(--color-border-strong);
   margin-top: 2px;
   flex-shrink: 0;
+  cursor: pointer;
+  padding: 0;
+  background: transparent;
   transition: all var(--dur-fast) ease;
+}
+.plan-step-check:hover {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
 .plan-step-check.is-checked {
   background: var(--color-ok);

@@ -587,3 +587,42 @@ configApi.post("/workspaces/read-file", async (c) => {
   }
   return c.json({ ok: true, content, path: target });
 });
+
+const PLAN_WHITELIST = new Set([
+  'implementation_plan.md',
+  'SPEC.md',
+  'task.md',
+  'todo.md',
+  'PLAN.md',
+]);
+
+// 工作区实施计划原子持久化写入（仅限白名单计划文件，防越权与逃逸）
+configApi.post("/workspaces/write-plan", async (c) => {
+  const body = await c.req.json<{ path?: string; content?: string }>();
+  const target = (body.path || "").trim();
+  const content = body.content;
+
+  if (!target || typeof content !== 'string') {
+    return c.json({ ok: false, error: "缺少路径或文件内容" }, 400);
+  }
+  const base = basename(target);
+  if (!PLAN_WHITELIST.has(base) || target !== base) {
+    return c.json({ ok: false, error: "只允许安全持久化白名单计划文件" }, 403);
+  }
+  if (content.length > 512 * 1024) {
+    return c.json({ ok: false, error: "计划文件超出大小限制" }, 400);
+  }
+
+  const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
+  const fullPath = join(current, base);
+  if (!inside(fullPath, current)) {
+    return c.json({ ok: false, error: "禁止越权访问工作区外部" }, 403);
+  }
+
+  try {
+    atomicWrite(fullPath, content);
+    return c.json({ ok: true, path: base, size: content.length });
+  } catch (error) {
+    return c.json({ ok: false, error: (error as Error).message }, 500);
+  }
+});

@@ -6,7 +6,7 @@ import type { ToolBlock } from '../render/blocks'
 import type { FileBaseline } from '../types'
 import { compactPath } from '../lib/path'
 import DiffView from './DiffView'
-import { IconCheck, IconChevron, IconWarn, IconX } from './Icon'
+import { IconCheck, IconChevron, IconDiffSplit, IconDiffUnified, IconWarn, IconX } from './Icon'
 import DrawerResizer from './DrawerResizer'
 
 function FileChange({
@@ -14,11 +14,13 @@ function FileChange({
   baseline,
   isFocused = false,
   forceExpand = null,
+  diffMode = 'unified',
 }: {
   block: ToolBlock
   baseline?: FileBaseline
   isFocused?: boolean
   forceExpand?: boolean | null
+  diffMode?: 'unified' | 'split'
 }) {
   const [open, setOpen] = useState(isFocused)
   const file = String(block.input?.file_path ?? block.toolName)
@@ -116,7 +118,7 @@ function FileChange({
               <p className="menu-empty">{t(disk.before === disk.after ? 'dw.noDiskChange'
                 : disk.before === null ? 'dw.emptyFileCreated' : 'dw.emptyFileRemoved')}</p>
             ) : (
-              <DiffView oldStr={disk.before ?? ''} newStr={disk.after ?? ''} disk />
+              <DiffView oldStr={disk.before ?? ''} newStr={disk.after ?? ''} disk mode={diffMode} />
             )
           ) : requested.map((edit: unknown, index: number) => {
             const record = (edit ?? {}) as Record<string, unknown>
@@ -125,6 +127,7 @@ function FileChange({
                 key={index}
                 oldStr={block.toolName === 'Write' ? baseline?.content ?? '' : String(record.old_string ?? '')}
                 newStr={String(record.new_string ?? record.content ?? '')}
+                mode={diffMode}
               />
             )
           })}
@@ -153,6 +156,23 @@ export default function ChangesPanel({
   const busy = useStore((s) => s.busy)
   const entries = useStore((s) => s.entries)
   const [allExpanded, setAllExpanded] = useState<boolean | null>(null)
+  const [diffMode, setDiffMode] = useState<'unified' | 'split'>(() => {
+    try {
+      return (localStorage.getItem('ccweb_diff_mode') as 'unified' | 'split') || 'unified'
+    } catch {
+      return 'unified'
+    }
+  })
+
+  const toggleDiffMode = () => {
+    const next = diffMode === 'unified' ? 'split' : 'unified'
+    setDiffMode(next)
+    try {
+      localStorage.setItem('ccweb_diff_mode', next)
+    } catch {
+      // ignore
+    }
+  }
 
   const tools = useMemo(
     () =>
@@ -204,15 +224,27 @@ export default function ChangesPanel({
         </div>
         <div className="header-actions">
           {changes.length > 0 && (
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
-              style={{ fontSize: 11, height: 24, padding: '0 6px' }}
-              onClick={() => setAllExpanded((v) => (v === true ? false : true))}
-              title={allExpanded ? '全部折叠代码变更' : '全部展开代码变更'}
-            >
-              {allExpanded ? '全部折叠' : '全部展开'}
-            </button>
+            <>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={toggleDiffMode}
+                title={diffMode === 'unified' ? '切换为并排双栏比对 (Side-by-Side)' : '切换为单列统一比对 (Unified)'}
+              >
+                {diffMode === 'unified' ? <IconDiffSplit width={13} height={13} /> : <IconDiffUnified width={13} height={13} />}
+                <span>{diffMode === 'unified' ? '并排' : '单列'}</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                style={{ fontSize: 11, height: 24, padding: '0 6px' }}
+                onClick={() => setAllExpanded((v) => (v === true ? false : true))}
+                title={allExpanded ? '全部折叠代码变更' : '全部展开代码变更'}
+              >
+                {allExpanded ? '全部折叠' : '全部展开'}
+              </button>
+            </>
           )}
           <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>
             <IconX width={16} height={16} />
@@ -255,6 +287,7 @@ export default function ChangesPanel({
                 baseline={baselines[block.toolUseId]}
                 isFocused={isFocused}
                 forceExpand={allExpanded}
+                diffMode={diffMode}
               />
             )
           })}

@@ -14,6 +14,7 @@ import DrawerResizer from './DrawerResizer'
 
 interface PlanStep {
   id: string
+  lineIndex: number
   text: string
   done: boolean
   stage: string
@@ -48,6 +49,7 @@ export default function PlanPanel({
   const [activePlanFile, setActivePlanFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [viewRaw, setViewRaw] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -92,7 +94,7 @@ export default function PlanPanel({
     const groups: Record<string, PlanStep[]> = {}
     let idCounter = 0
 
-    for (const rawLine of lines) {
+    lines.forEach((rawLine, idx) => {
       const line = rawLine.trim()
       if (line.startsWith('# ') && mainTitle === '实施计划') {
         mainTitle = line.replace(/^#\s+/, '').trim()
@@ -107,6 +109,7 @@ export default function PlanPanel({
           const list = groups[currentStage] ?? []
           list.push({
             id: `step-${idCounter}`,
+            lineIndex: idx,
             text,
             done,
             stage: currentStage,
@@ -114,7 +117,7 @@ export default function PlanPanel({
           groups[currentStage] = list
         }
       }
-    }
+    })
 
     const stageList: StageGroup[] = Object.entries(groups).map(([stage, steps]) => ({
       stage,
@@ -134,6 +137,55 @@ export default function PlanPanel({
       progressPct: pct,
     }
   }, [fileContent])
+
+  // 双向持久化：勾选/取消勾选步骤并原子写回磁盘
+  const handleToggleStep = async (step: PlanStep) => {
+    if (!fileContent || !activePlanFile || syncing) return
+    const rawLines = fileContent.split('\n')
+    const targetLine = rawLines[step.lineIndex]
+    if (!targetLine) return
+
+    const nextDone = !step.done
+    let updatedLine = targetLine
+    if (nextDone) {
+      updatedLine = targetLine.replace(/^(\s*[-*]\s+\[)\s*(\]\s+.*)$/, '$1x$2')
+    } else {
+      updatedLine = targetLine.replace(/^(\s*[-*]\s+\[)[xX](\]\s+.*)$/, '$1 $2')
+    }
+
+    if (updatedLine === targetLine) return
+
+    rawLines[step.lineIndex] = updatedLine
+    const newContent = rawLines.join('\n')
+
+    // 乐观更新
+    setFileContent(newContent)
+    setSyncing(true)
+
+    try {
+      const res = await fetch('/api/workspaces/write-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: activePlanFile,
+          content: newContent,
+        }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (data.ok) {
+        useStore.getState().setNotice(`已同步更新 ${activePlanFile} 进度`)
+      } else {
+        // 失败回滚
+        setFileContent(fileContent)
+        useStore.getState().setError(data.error || '同步保存计划失败')
+      }
+    } catch {
+      setFileContent(fileContent)
+      useStore.getState().setError('网络异常，无法保存计划文件')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleContinueTask = (stepText: string) => {
     const prompt = `请继续推进任务：${stepText}`
@@ -262,9 +314,9 @@ export default function PlanPanel({
                       <strong>{completedSteps}</strong> / {totalSteps} 步骤 ({progressPct}%)
                     </span>
                   </div>
-                  <div className="plan-progress-bar-track">
+                  <div className="plan-progress-track">
                     <div
-                      className="plan-progress-bar-fill"
+                      className="plan-progress-fill"
                       style={{
                         width: `${progressPct}%`,
                         background: progressPct === 100 ? 'var(--color-ok)' : 'var(--color-accent)',
@@ -275,7 +327,7 @@ export default function PlanPanel({
               )}
             </div>
 
-            {/* 视图内容切换 */}
+            {/* 阶段大纲列表 */}
             {viewRaw ? (
               <div className="plan-raw-wrap">
                 <pre className="plan-raw-code">
@@ -299,13 +351,22 @@ export default function PlanPanel({
                           key={step.id}
                           className={`plan-step-card ${step.done ? 'is-done' : ''}`}
                         >
-                          <span
+                          <button
+                            type="button"
                             className={`plan-step-check ${step.done ? 'is-checked' : ''}`}
-                            aria-hidden="true"
+                            onClick={() => handleToggleStep(step)}
+                            disabled={syncing}
+                            title={step.done ? '标记为未完成（点击写回磁盘）' : '标记为已完成（点击写回磁盘）'}
+                            aria-label={step.done ? '标记为未完成' : '标记为已完成'}
                           >
                             {step.done ? <IconCheck width={11} height={11} /> : null}
-                          </span>
-                          <span className="plan-step-text" title={step.text}>
+                          </button>
+                          <span
+                            className="plan-step-text"
+                            title={step.text}
+                            onClick={() => handleToggleStep(step)}
+                            style={{ cursor: 'pointer' }}
+                          >
                             {step.text}
                           </span>
                           <button
