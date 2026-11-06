@@ -19,6 +19,8 @@ interface Props {
   onOpenSettings: () => void
   onOpenSession: (id: string) => void
   onSetWorkspace: (dir: string) => void
+  onToggleSidebar?: () => void
+  onExportSession?: () => void
 }
 
 const EMPTY_WORKSPACES: Array<{ dir: string; sessions: number; lastModified: string | null }> = []
@@ -31,6 +33,8 @@ export default function CommandPalette({
   onOpenSettings,
   onOpenSession,
   onSetWorkspace,
+  onToggleSidebar,
+  onExportSession,
 }: Props) {
   const sessions = useStore((s) => s.sessions)
   const settings = useStore((s) => s.settings)
@@ -60,6 +64,19 @@ export default function CommandPalette({
     const commands: Cmd[] = [
       { id: 'new', label: tr('palette.cmd.newSession'), hint: 'Ctrl N', group: 'commands', run: onNewSession },
       { id: 'settings', label: tr('palette.cmd.settings'), hint: 'Ctrl ,', group: 'commands', run: onOpenSettings },
+      {
+        id: 'toggleSidebar',
+        label: '折叠 / 展开侧边栏',
+        hint: 'Ctrl B',
+        group: 'commands',
+        run: () => onToggleSidebar?.(),
+      },
+      {
+        id: 'exportMd',
+        label: '导出当前会话为 Markdown',
+        group: 'commands',
+        run: () => onExportSession?.(),
+      },
       {
         id: 'theme',
         label: `${tr('hd.theme')} · ${mode === 'dark' ? tr('hd.themeDark') : mode === 'light' ? tr('hd.themeLight') : tr('hd.themeSystem')}`,

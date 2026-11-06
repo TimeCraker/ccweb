@@ -4489,3 +4489,38 @@ html.dark .session-branch-tag {
     background-color: transparent;
   }
 }
+
+
+/* Phase 3: 工作区快速预设芯片 */
+.ws-quick-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 9px;
+  padding: 0 1px;
+}
+.ws-preset-label {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  margin-right: 2px;
+}
+.ws-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  height: 22px;
+  border-radius: 9999px;
+  background: var(--color-panel-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-soft);
+}
+.ws-preset-chip:hover {
+  background: var(--color-panel-3);
+  color: var(--color-text);
+  border-color: var(--color-accent);
+  transform: translateY(-1px);
+}

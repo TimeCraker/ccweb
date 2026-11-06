@@ -712,6 +712,8 @@ export default function App() {
         onOpenSettings={() => openSettings()}
         onOpenSession={openSession}
         onSetWorkspace={setWorkspace}
+        onToggleSidebar={() => setSidebarCollapsed((v) => !v)}
+        onExportSession={exportMarkdown}
       />
       {settingsOpen && (
         <Suspense fallback={<div role="status">正在打开设置…</div>}>

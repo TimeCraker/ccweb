@@ -965,6 +965,22 @@ function WorkspaceAddDrawer({
         </button>
       </div>
 
+      {/* 快捷常用工作区芯片 */}
+      <div className="ws-quick-presets">
+        <span className="ws-preset-label">快捷直达:</span>
+        {['my_workspace', 'ccweb', 'vibe-studio', 'ResumeAIX'].map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            className="ws-preset-chip"
+            onClick={() => handleResolveAndOpen(preset)}
+            title={`快速打开 ${preset}`}
+          >
+            {preset}
+          </button>
+        ))}
+      </div>
+
       <button
         type="button"
         className={`ws-pick-card ${picking ? 'is-picking' : ''}`}
