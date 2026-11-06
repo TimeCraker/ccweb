@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { t, useLocale } from '../i18n'
 import { IconChevron, IconCopy, IconFile, IconFolder, IconSearch, IconX, IconCheck } from './Icon'
 import { copyText } from '../clipboard'
+import { baseName } from '../lib/path'
 import DrawerResizer from './DrawerResizer'
 
 interface TreeNode {
@@ -198,12 +199,28 @@ export default function FilesPanel({
     })
   }
 
-  // 选定文件查看代码预览
+  // 选定文件查看代码预览或多媒体展示
+  const activeExt = (activeFile?.split('.').pop() || '').toLowerCase()
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(activeExt)
+  const isPdf = activeExt === 'pdf'
+  const isVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(activeExt)
+  const isAudio = ['mp3', 'wav', 'm4a'].includes(activeExt)
+  const isDoc = ['docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt', 'zip', 'tar', 'gz', '7z'].includes(activeExt)
+
   const handleSelectFile = async (filePath: string) => {
     setActiveFile(filePath)
-    setContentLoading(true)
     setContentError(null)
     setFileContent(null)
+
+    const ext = (filePath.split('.').pop() || '').toLowerCase()
+    const isBinaryMedia = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'pdf', 'mp4', 'webm', 'ogg', 'mov', 'mp3', 'wav', 'm4a', 'docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt', 'zip', 'tar', 'gz', '7z'].includes(ext)
+
+    if (isBinaryMedia) {
+      setContentLoading(false)
+      return
+    }
+
+    setContentLoading(true)
     try {
       const res = await fetch('/api/workspaces/read-file', {
         method: 'POST',
@@ -269,10 +286,10 @@ export default function FilesPanel({
   }, [tree, filterQuery])
 
   const fileStats = useMemo(() => {
-    if (fileContent == null) return null
+    const ext = activeFile?.split('.').pop()?.toUpperCase() ?? 'FILE'
+    if (fileContent == null) return { lines: 0, bytes: '', ext }
     const lines = fileContent.split('\n').length
     const bytes = new Blob([fileContent]).size
-    const ext = activeFile?.split('.').pop()?.toUpperCase() ?? 'FILE'
     return { lines, bytes: formatBytes(bytes), ext }
   }, [fileContent, activeFile])
 
@@ -390,12 +407,87 @@ export default function FilesPanel({
             {contentLoading ? (
               <div className="menu-empty" style={{ padding: '40px 16px' }}>
                 <span className="ws-spinner" style={{ marginRight: 8 }} />
-                正在加载源码…
+                正在加载文件…
               </div>
             ) : contentError ? (
               <div className="note warn" style={{ margin: 16 }}>
                 <strong>无法预览文件</strong>
                 <div>{contentError}</div>
+              </div>
+            ) : isImage && activeFile ? (
+              <div
+                className="file-preview-media file-preview-image"
+                style={{
+                  padding: 24,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 320,
+                  background: 'var(--color-panel-2)',
+                  borderRadius: 8,
+                  margin: 16,
+                }}
+              >
+                <img
+                  src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                  alt={activeFile}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '65vh',
+                    objectFit: 'contain',
+                    borderRadius: 6,
+                    boxShadow: 'var(--shadow-card)',
+                  }}
+                />
+              </div>
+            ) : isPdf && activeFile ? (
+              <div className="file-preview-media file-preview-pdf" style={{ height: '70vh', padding: 12 }}>
+                <iframe
+                  src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                  title={activeFile}
+                  style={{ width: '100%', height: '100%', border: 'none', borderRadius: 6 }}
+                />
+              </div>
+            ) : isVideo && activeFile ? (
+              <div className="file-preview-media file-preview-video" style={{ padding: 20, textAlign: 'center' }}>
+                <video
+                  controls
+                  src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                  style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: 6 }}
+                />
+              </div>
+            ) : isAudio && activeFile ? (
+              <div className="file-preview-media file-preview-audio" style={{ padding: 36, textAlign: 'center' }}>
+                <audio
+                  controls
+                  src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            ) : isDoc && activeFile ? (
+              <div
+                className="file-preview-doc-card"
+                style={{
+                  padding: 36,
+                  textAlign: 'center',
+                  margin: 16,
+                  background: 'var(--color-panel-2)',
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <IconFile width={36} height={36} style={{ margin: '0 auto 12px', color: 'var(--color-accent)' }} />
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{baseName(activeFile)}</div>
+                <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4, marginBottom: 18 }}>
+                  {activeExt.toUpperCase()} 独立二进制文档
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={handleRevealInExplorer}
+                >
+                  在系统资源管理器中打开
+                </button>
               </div>
             ) : fileContent != null ? (
               <div className="file-preview-code">

@@ -1,46 +1,29 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t } from '../i18n'
-import { IconArrowUp, IconStop, IconFile, IconWarn, IconSparkle, IconX, IconTrash } from './Icon'
+import { IconArrowUp, IconStop, IconFile, IconWarn, IconSparkle, IconX, IconTrash, IconChevron } from './Icon'
 import { AttachMenu, ModelMenu, ModeMenu } from './RunMenus'
 import { Menu } from './ui/Menu'
 import Lightbox from './Lightbox'
 
-const BUILTIN_SNIPPETS = [
-  {
-    title: '遵循规范提交',
-    description: '运行检查并遵循 Conventional Commits 双语规范提交改动',
-    prompt: '请先运行自动化检查确认通过，然后遵循 Conventional Commits 双语规范（如 feat(scope): 中文 / English）提交本次改动。',
-  },
-  {
-    title: '边界单测体检',
-    description: '为关键边界条件与异常分支补充单元测试并运行验证',
-    prompt: '请分析现有代码的关键逻辑与边界条件，补充必要的单元测试，并运行全量测试确认 100% 通过。',
-  },
-  {
-    title: '代码改动审查',
-    description: '全面审查近期代码变更，确认无越权与未捕获异常',
-    prompt: '请全面审查我们最近的代码变更，检查是否有未捕获的边界异常、内存/引用泄漏或越权操作，并给出客观评估。',
-  },
-  {
-    title: '精简汇报结论',
-    description: '汇报任务结论、关键动作、验证结果与剩余风险',
-    prompt: '请优先汇报结论、关键动作、验证结果与剩余风险，保持精简专业，无需寒暄客套。',
-  },
-  {
-    title: '技术债与依赖盘点',
-    description: '梳理模块间依赖关系，排查循环依赖与冗余引入',
-    prompt: '请梳理当前涉及模块的依赖关系，检查是否有循环依赖、冗余第三方库或过期 TODO 注释，并给出优化建议。',
-  },
+const EMPTY_SKILLS: Array<{ name: string; description?: string }> = []
+const DEFAULT_SLASH_ACTIONS = [
+  { name: 'plan', description: '生成或跟踪工程实施计划' },
+  { name: 'review', description: '审查本次代码改动与 Diff' },
+  { name: 'compact', description: '精简会话上下文' },
+  { name: 'cost', description: '查看 Token 消耗与成本' },
+  { name: 'clear', description: '清空当前屏幕内容' },
 ]
 
-function SnippetsMenu({
-  onSelectSnippet,
+function CommandsMenu({
+  onSelectCommand,
   currentText,
 }: {
-  onSelectSnippet: (prompt: string) => void
+  onSelectCommand: (cmd: string) => void
   currentText: string
 }) {
+  const settings = useStore((s) => s.settings)
+  const skills = settings?.skills ?? EMPTY_SKILLS
   const [customSnippets, setCustomSnippets] = useState<Array<{ title: string; prompt: string }>>(() => {
     try {
       const raw = localStorage.getItem('ccweb.custom_snippets')
@@ -58,9 +41,9 @@ function SnippetsMenu({
     setCustomSnippets(next)
     try {
       localStorage.setItem('ccweb.custom_snippets', JSON.stringify(next))
-      useStore.getState().setNotice('已保存为常用模板')
+      useStore.getState().setNotice('已保存为常用指令')
     } catch {
-      // ignore
+      /* ignore */
     }
     closeMenu()
   }
@@ -72,24 +55,25 @@ function SnippetsMenu({
     try {
       localStorage.setItem('ccweb.custom_snippets', JSON.stringify(next))
     } catch {
-      // ignore
+      /* ignore */
     }
   }
 
   return (
     <Menu
-      label="常用模板"
+      label="快捷指令"
       align="start"
-      width={320}
+      width={340}
       trigger={({ open }) => (
         <button
           type="button"
-          className={`composer-btn ${open ? 'is-active' : ''}`}
+          className={`chip-btn ${open ? 'is-active' : ''}`}
           aria-expanded={open}
-          title="常用 Prompt 模板与快捷指令"
+          title="快捷指令与用户技能"
         >
-          <IconSparkle width={13} height={13} style={{ color: 'var(--color-accent)' }} />
-          <span>模板</span>
+          <IconSparkle width={13} height={13} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
+          <span className="chip-label">指令</span>
+          <IconChevron width={11} height={11} />
         </button>
       )}
     >
@@ -97,35 +81,60 @@ function SnippetsMenu({
         <div className="snippets-menu-panel">
           <div className="snippets-menu-head">
             <span style={{ fontWeight: 600, fontSize: 11.5, color: 'var(--color-text-dim)' }}>
-              常用 PROMPT 模板
+              用户技能与快捷指令
             </span>
           </div>
 
-          <div className="snippets-list">
-            {BUILTIN_SNIPPETS.map((item, idx) => (
+          <div className="snippets-list" style={{ maxHeight: 320, overflowY: 'auto' }}>
+            {skills.length > 0 && (
+              <>
+                <div className="snippets-divider" style={{ marginTop: 0 }}>我的自定义技能 (SKILLS)</div>
+                {skills.map((skill) => (
+                  <button
+                    key={skill.name}
+                    type="button"
+                    className="snippet-item"
+                    onClick={() => {
+                      onSelectCommand(`/${skill.name} `)
+                      close()
+                    }}
+                  >
+                    <div className="snippet-title" style={{ color: 'var(--color-accent)' }}>
+                      /{skill.name}
+                    </div>
+                    {skill.description && <div className="snippet-desc">{skill.description}</div>}
+                  </button>
+                ))}
+              </>
+            )}
+
+            <div className="snippets-divider">工程快捷动作</div>
+            {DEFAULT_SLASH_ACTIONS.map((action) => (
               <button
-                key={idx}
+                key={action.name}
                 type="button"
                 className="snippet-item"
                 onClick={() => {
-                  onSelectSnippet(item.prompt)
+                  onSelectCommand(`/${action.name} `)
                   close()
                 }}
               >
-                <div className="snippet-title">{item.title}</div>
-                <div className="snippet-desc">{item.description}</div>
+                <div className="snippet-title" style={{ fontFamily: 'var(--font-mono)' }}>
+                  /{action.name}
+                </div>
+                <div className="snippet-desc">{action.description}</div>
               </button>
             ))}
 
             {customSnippets.length > 0 && (
               <>
-                <div className="snippets-divider">我的自定义模板</div>
+                <div className="snippets-divider">我的自定义常用语句</div>
                 {customSnippets.map((item, idx) => (
                   <div
                     key={idx}
                     className="snippet-item custom"
                     onClick={() => {
-                      onSelectSnippet(item.prompt)
+                      onSelectCommand(item.prompt)
                       close()
                     }}
                   >
@@ -137,7 +146,7 @@ function SnippetsMenu({
                       type="button"
                       className="icon-btn snippet-del-btn"
                       onClick={(e) => handleDeleteCustom(idx, e)}
-                      title="删除此模板"
+                      title="删除此项"
                     >
                       <IconX width={11} height={11} />
                     </button>
@@ -155,7 +164,7 @@ function SnippetsMenu({
                 style={{ width: '100%', fontSize: 11.5, padding: '4px 8px' }}
                 onClick={() => handleSaveCustom(close)}
               >
-                + 保存当前输入为自定义模板
+                + 保存当前输入为常用指令
               </button>
             </div>
           )}
@@ -750,13 +759,16 @@ export default function Composer({
 
         <div className="composer-bar">
           <AttachMenu onPickImage={() => fileRef.current?.click()} onReferenceFile={referenceFile} />
-          <SnippetsMenu
+          <CommandsMenu
             currentText={text}
-            onSelectSnippet={(snippet) => {
-              if (text.trim().length > 0) {
-                updateText(`${text}\n\n${snippet}`)
+            onSelectCommand={(cmd) => {
+              if (cmd.startsWith('/')) {
+                // 指令直接替换或前置插入
+                updateText(cmd)
+              } else if (text.trim().length > 0) {
+                updateText(`${text}\n\n${cmd}`)
               } else {
-                updateText(snippet)
+                updateText(cmd)
               }
               setTimeout(() => taRef.current?.focus(), 50)
             }}
@@ -764,7 +776,7 @@ export default function Composer({
           {text.trim().length > 0 && (
             <button
               type="button"
-              className="composer-btn composer-btn-clear"
+              className="chip-btn composer-btn-clear"
               onClick={() => {
                 updateText('')
                 taRef.current?.focus()
@@ -772,7 +784,7 @@ export default function Composer({
               title="清空当前输入草稿"
               aria-label="清空当前输入草稿"
             >
-              <IconTrash width={13} height={13} style={{ color: 'var(--color-text-faint)' }} />
+              <IconTrash width={13} height={13} />
             </button>
           )}
           {sendControl && <ModeMenu send={sendControl} disabled={conn !== 'open' || !settings} />}

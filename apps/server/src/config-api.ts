@@ -588,6 +588,51 @@ configApi.post("/workspaces/read-file", async (c) => {
   return c.json({ ok: true, content, path: target });
 });
 
+const MIME_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  bmp: 'image/bmp',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  ogg: 'video/ogg',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  pdf: 'application/pdf',
+  json: 'application/json',
+  txt: 'text/plain; charset=utf-8',
+  md: 'text/markdown; charset=utf-8',
+};
+
+// 原始工作区文件流读取（用于多媒体与文档预览）
+configApi.get("/workspaces/raw-file", async (c) => {
+  const target = (c.req.query("path") || "").trim();
+  if (!target) return c.text("请指定文件路径", 400);
+  const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
+  const fullPath = resolve(current, target);
+  if (!inside(fullPath, current) || !existsSync(fullPath)) {
+    return c.text("文件不存在或越权访问", 404);
+  }
+  const stat = statSync(fullPath);
+  if (!stat.isFile()) return c.text("不是有效文件", 400);
+  if (stat.size > 50 * 1024 * 1024) {
+    return c.text("文件超出预览大小限制 (50MB)", 413);
+  }
+
+  const ext = (target.split('.').pop() || '').toLowerCase();
+  const mime = MIME_TYPES[ext] || 'application/octet-stream';
+  const data = readFileSync(fullPath);
+  return c.body(data, 200, {
+    'Content-Type': mime,
+    'Content-Length': String(stat.size),
+    'Cache-Control': 'no-cache',
+  });
+});
+
 const PLAN_WHITELIST = new Set([
   'implementation_plan.md',
   'SPEC.md',

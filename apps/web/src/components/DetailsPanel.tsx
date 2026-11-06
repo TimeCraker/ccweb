@@ -52,7 +52,7 @@ export default function DetailsPanel({
   onSwitchToFiles?: () => void
   onSwitchToPlan?: () => void
 }) {
-  const [tab, setTab] = useState<'context' | 'trajectory' | 'controls'>(initialTab)
+  const [tab, setTab] = useState<'context' | 'trajectory'>(initialTab === 'controls' ? 'trajectory' : initialTab)
   const [checkpoint, setCheckpoint] = useState('')
   const context = useStore((s) => s.context)
   const metrics = useStore((s) => s.metrics)
@@ -124,18 +124,35 @@ export default function DetailsPanel({
         </div>
       </header>
       <div className="drawer-body">
+        {tasks.filter((t) => t.status === 'running').length > 0 && (
+          <div className="note" style={{ marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontWeight: 600 }}>有后台任务正在运行中</span>
+            </div>
+            {tasks
+              .filter((t) => t.status === 'running')
+              .map((task) => (
+                <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {task.description}
+                  </span>
+                  {send && (
+                    <button className="btn btn-sm" onClick={() => send({ t: 'task.stop', taskId: task.id })}>
+                      停止
+                    </button>
+                  )}
+                </div>
+              ))}
+          </div>
+        )}
+
         <div className="drawer-tabs" role="tablist">
-          {(
-            [
-              ['context', t('dw.context')],
-              ['trajectory', t('dw.trajectory')],
-              ['controls', '任务与回退'],
-            ] as const
-          ).map(([key, label]) => (
-            <button key={key} role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
-              {label}
-            </button>
-          ))}
+          <button role="tab" aria-selected={tab === 'context'} onClick={() => setTab('context')}>
+            上下文与用量
+          </button>
+          <button role="tab" aria-selected={tab === 'trajectory'} onClick={() => setTab('trajectory')}>
+            调用轨迹 {trajectory.length > 0 && `(${trajectory.length})`}
+          </button>
         </div>
 
         {tab === 'context' && (
@@ -213,11 +230,6 @@ export default function DetailsPanel({
                 </dl>
               </section>
             )}
-
-            <details className="raw-details" style={{ marginTop: 14 }}>
-              <summary>原生上下文数据</summary>
-              <pre>{context ? JSON.stringify(context.raw, null, 2) : '原生运行时尚未提供'}</pre>
-            </details>
           </>
         )}
 
@@ -257,101 +269,68 @@ export default function DetailsPanel({
           </section>
         )}
 
-        {tab === 'controls' && (
-          <>
-            <section className="drawer-section">
-              <h3>{t('dw.tasks')}</h3>
-              {tasks.length === 0 ? (
-                <p className="hint" style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>
-                  当前没有后台任务。只有运行时报出后台任务时，这里才会出现可停止的条目。
-                </p>
-              ) : (
-                tasks.map((task) => (
-                  <div className="change-file" key={task.id} style={{ padding: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <strong style={{ fontSize: 12.5, minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {task.description}
-                      </strong>
-                      <span className="badge">{task.status}</span>
-                      {task.status === 'running' && send && (
-                        <button className="btn btn-sm" onClick={() => send({ t: 'task.stop', taskId: task.id })}>
-                          停止
-                        </button>
-                      )}
-                    </div>
-                    {task.summary && (
-                      <p style={{ marginTop: 5, fontSize: 11.5, color: 'var(--color-text-faint)' }}>{task.summary}</p>
-                    )}
-                  </div>
-                ))
-              )}
-            </section>
-
-            <section className="drawer-section">
-              <h3>{t('dw.rewind')}</h3>
-              <p style={{ fontSize: 11.5, lineHeight: 1.6, color: 'var(--color-text-faint)', marginBottom: 8 }}>
-                只回退原生跟踪的文件，不回退对话；Bash 等外部写入不一定被跟踪。先预览，再确认执行。
-              </p>
-              <label className="field">
-                <span className="label">文件检查点</span>
-                <select
-                  aria-label="文件检查点"
-                  value={checkpoint}
-                  onChange={(e) => {
-                    setCheckpoint(e.target.value)
-                    useStore.setState({ rewind: null })
+        <details className="raw-details" style={{ marginTop: 20 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--color-text-faint)', fontSize: 11.5 }}>
+            高级设置与文件回退
+          </summary>
+          <div style={{ marginTop: 10, padding: 8, background: 'var(--color-panel-2)', borderRadius: 6 }}>
+            <p style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--color-text-faint)', marginBottom: 8 }}>
+              只回退原生跟踪的文件，不回退对话。先预览，再确认执行。
+            </p>
+            <label className="field" style={{ display: 'block', marginBottom: 8 }}>
+              <select
+                aria-label="文件检查点"
+                value={checkpoint}
+                onChange={(e) => {
+                  setCheckpoint(e.target.value)
+                  useStore.setState({ rewind: null })
+                }}
+                style={{ width: '100%', fontSize: 11.5 }}
+              >
+                <option value="">选择本次连接的用户轮次</option>
+                {checkpoints.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.text}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="row-actions">
+              <button
+                className="btn btn-sm"
+                disabled={busy || !checkpoint}
+                onClick={() => send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: true })}
+              >
+                预览回退
+              </button>
+              {rewind?.preview && rewind.result.canRewind && (
+                <button
+                  className="btn btn-sm btn-primary"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm('确认按此检查点回退原生跟踪的文件？这会修改文件；Bash 写入与对话不会回退。')) return
+                    send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: false })
                   }}
                 >
-                  <option value="">选择本次连接的用户轮次</option>
-                  {checkpoints.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.text}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="row-actions" style={{ marginTop: 8 }}>
-                <button
-                  className="btn"
-                  disabled={busy || !checkpoint}
-                  onClick={() => send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: true })}
-                >
-                  预览文件回退
+                  确认回退
                 </button>
-                {rewind?.preview && rewind.result.canRewind && (
-                  <button
-                    className="btn btn-primary"
-                    disabled={busy}
-                    onClick={() => {
-                      if (!window.confirm('确认按此检查点回退原生跟踪的文件？这会修改文件；Bash 写入与对话不会回退。')) return
-                      send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: false })
-                    }}
-                  >
-                    确认回退文件
-                  </button>
-                )}
-              </div>
-              {rewind && (
-                <div className="note" style={{ marginTop: 9 }}>
-                  <div>
-                    <strong>{rewind.preview ? '预览结果' : '执行结果'}</strong>
-                    <div style={{ marginTop: 3 }}>
-                      {rewind.result.canRewind ? '可回退' : rewind.result.error ?? '不可回退'}
-                    </div>
-                    {rewind.result.filesChanged?.length ? (
-                      <div style={{ marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-                        {rewind.result.filesChanged.slice(0, 12).join('\n')}
-                      </div>
-                    ) : null}
-                    <div style={{ marginTop: 4 }}>
-                      新增 {rewind.result.insertions ?? '—'} / 删除 {rewind.result.deletions ?? '—'}
-                    </div>
+              )}
+            </div>
+            {rewind && (
+              <div className="note" style={{ marginTop: 9 }}>
+                <div>
+                  <strong>{rewind.preview ? '预览结果' : '执行结果'}</strong>
+                  <div style={{ marginTop: 3 }}>
+                    {rewind.result.canRewind ? '可回退' : rewind.result.error ?? '不可回退'}
                   </div>
                 </div>
-              )}
-            </section>
-          </>
-        )}
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <pre style={{ fontSize: 10 }}>{context ? JSON.stringify(context.raw, null, 2) : '原生运行时尚未提供'}</pre>
+          </div>
+        </details>
       </div>
     </aside>
   )

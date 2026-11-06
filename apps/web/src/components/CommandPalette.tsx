@@ -98,8 +98,8 @@ export default function CommandPalette({
       },
       {
         id: 'drawer-details',
-        label: '打开伴侣抽屉: 任务与运行详情 (Tasks & Details)',
-        hint: 'Tasks',
+        label: '打开伴侣抽屉: 运行与用量看板 (Usage & Logs)',
+        hint: 'Usage',
         group: 'commands',
         run: () => onOpenDrawer?.('details'),
       },

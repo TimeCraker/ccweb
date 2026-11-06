@@ -5457,6 +5457,12 @@ body.is-resizing-drawer {
 
 /* 清空草稿微按钮 */
 .composer-btn-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 7px;
+  border-radius: 8px;
   color: var(--color-text-faint);
   transition: all var(--dur-fast) ease;
 }
