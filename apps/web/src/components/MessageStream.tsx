@@ -8,7 +8,32 @@ import Markdown from './Markdown'
 import ThinkingBlock from './ThinkingBlock'
 import ToolCard from './ToolCard'
 import { copyText } from '../clipboard'
-import { IconFork, IconWarn, IconCopy, IconCheck, IconPencil } from './Icon'
+import { IconFork, IconWarn, IconCopy, IconCheck, IconPencil, IconList, IconX } from './Icon'
+
+
+export interface HeadingItem {
+  level: number
+  text: string
+  id: string
+}
+
+export function parseHeadings(markdown: string): HeadingItem[] {
+  if (!markdown) return []
+  const lines = markdown.split('\n')
+  const headings: HeadingItem[] = []
+  for (const line of lines) {
+    const match = /^(#{1,3})\s+(.+)$/.exec(line.trim())
+    if (match && match[1] && match[2]) {
+      const level = match[1].length
+      const text = match[2].trim().replace(/[#*`_]/g, '')
+      if (text) {
+        const id = 'heading-' + encodeURIComponent(text.toLowerCase().replace(/\s+/g, '-'))
+        headings.push({ level, text, id })
+      }
+    }
+  }
+  return headings
+}
 
 interface StreamProps {
   onRegenerate?: () => void
@@ -107,16 +132,22 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
           <RunningTimer startedAt={turnStartedAt} />
         </div>
       )}
-      {/* 回到底部(dsh 对齐):非钉底时浮动 */}
+      {/* 回到底部微型胶囊:非钉底时浮动在右下角 */}
       {!atBottom && (
         <button
-          onClick={() => virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'smooth' })}
+          type="button"
+          onClick={() => {
+            virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'smooth' })
+            setAtBottom(true)
+          }}
           aria-label={t('ms.toBottom')}
-          className="animate-pop-in absolute bottom-4 left-1/2 grid size-9 -translate-x-1/2 place-items-center rounded-full border border-border-strong bg-panel text-text-dim shadow-xl hover:text-text"
+          className="scroll-to-bottom-pill animate-pop-in"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14m0 0 6-6m-6 6-6-6" />
           </svg>
+          <span>{busy ? '正在生成新内容 · 跳至最新' : '回到底部'}</span>
+          {busy && <span className="dot accent live" style={{ width: 6, height: 6, marginLeft: 2 }} />}
         </button>
       )}
     </div>
@@ -264,6 +295,9 @@ function TurnView({
     .map((b) => b.text)
     .join('\n\n')
 
+  const headings = useMemo(() => parseHeadings(fullText), [fullText])
+  const [tocOpen, setTocOpen] = useState(false)
+
   return (
     <div className="msg-assistant group/turn relative">
       {turn.blocks.map((b, i) => (
@@ -280,6 +314,58 @@ function TurnView({
           )}
         </div>
         <div className="turn-actions">
+          {turn.done && headings.length >= 2 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setTocOpen(!tocOpen)}
+                className={`turn-action-btn ${tocOpen ? 'is-active' : ''}`}
+                title={`查看大纲目录 (共 ${headings.length} 节)`}
+                aria-label="查看大纲"
+              >
+                <IconList width={12} height={12} />
+                <span>大纲 ({headings.length})</span>
+              </button>
+              {tocOpen && (
+                <div className="toc-dropdown animate-slide-down">
+                  <div className="toc-header">
+                    <span className="font-semibold text-text">目录大纲</span>
+                    <button
+                      type="button"
+                      onClick={() => setTocOpen(false)}
+                      className="icon-btn"
+                      style={{ width: 20, height: 20 }}
+                      title="关闭大纲"
+                    >
+                      <IconX width={11} height={11} />
+                    </button>
+                  </div>
+                  <div className="toc-list">
+                    {headings.map((h, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          const el = document.getElementById(h.id)
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            el.classList.add('heading-targeted')
+                            setTimeout(() => el.classList.remove('heading-targeted'), 1600)
+                          }
+                          setTocOpen(false)
+                        }}
+                        className={`toc-item toc-level-${h.level}`}
+                        title={h.text}
+                      >
+                        <span className="toc-dot">•</span>
+                        <span className="toc-text">{h.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {turn.done && fullText.trim().length > 0 && (
             <button
               type="button"

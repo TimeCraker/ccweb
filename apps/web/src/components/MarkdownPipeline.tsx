@@ -89,10 +89,21 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   )
 }
 
-function extractText(node: ReactNode): string {
+export function extractText(node: ReactNode): string {
   if (typeof node === 'string') return node
   if (Array.isArray(node)) return node.map(extractText).join('')
   return ''
+}
+
+function Heading({ level, children }: { level: 1 | 2 | 3; children?: ReactNode }) {
+  const text = extractText(children)
+  const id = text ? 'heading-' + encodeURIComponent(text.trim().toLowerCase().replace(/\s+/g, '-')) : undefined
+  const Tag = `h${level}` as const
+  return (
+    <Tag id={id} className="scroll-mt-6 group/h relative">
+      {children}
+    </Tag>
+  )
 }
 
 export default function MarkdownPipeline({ text }: { text: string }) {
@@ -100,7 +111,12 @@ export default function MarkdownPipeline({ text }: { text: string }) {
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       rehypePlugins={[rehypeHighlight]}
-      components={{ pre: (props) => <CodeBlock>{props.children}</CodeBlock> }}
+      components={{
+        pre: (props) => <CodeBlock>{props.children}</CodeBlock>,
+        h1: (props) => <Heading level={1}>{props.children}</Heading>,
+        h2: (props) => <Heading level={2}>{props.children}</Heading>,
+        h3: (props) => <Heading level={3}>{props.children}</Heading>,
+      }}
     >
       {text}
     </ReactMarkdown>
