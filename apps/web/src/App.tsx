@@ -7,6 +7,7 @@ import TopBar from './components/TopBar'
 import MessageStream from './components/MessageStream'
 import Composer from './components/Composer'
 import ChangesPanel from './components/ChangesPanel'
+import FilesPanel from './components/FilesPanel'
 import DetailsPanel from './components/DetailsPanel'
 import UsageBar from './components/UsageBar'
 import PermissionCard from './components/PermissionCard'
@@ -91,7 +92,7 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('connection')
   const [detailsTab, setDetailsTab] = useState<'context' | 'controls'>('context')
   const [nativeOpen, setNativeOpen] = useState(false)
-  const [drawer, setDrawer] = useState<'changes' | 'details' | null>(null)
+  const [drawer, setDrawer] = useState<'changes' | 'files' | 'details' | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -708,6 +709,17 @@ export default function App() {
         {drawer === 'changes' && (
           <ChangesPanel
             onClose={closeDrawer}
+            onSwitchToFiles={() => setDrawer('files')}
+            onSwitchToDetails={() => {
+              setDetailsTab('controls')
+              setDrawer('details')
+            }}
+          />
+        )}
+        {drawer === 'files' && (
+          <FilesPanel
+            onClose={closeDrawer}
+            onSwitchToChanges={() => setDrawer('changes')}
             onSwitchToDetails={() => {
               setDetailsTab('controls')
               setDrawer('details')
@@ -720,6 +732,7 @@ export default function App() {
             send={sendControl}
             initialTab={detailsTab}
             onSwitchToChanges={() => setDrawer('changes')}
+            onSwitchToFiles={() => setDrawer('files')}
           />
         )}
       </div>

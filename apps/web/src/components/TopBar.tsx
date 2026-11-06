@@ -24,13 +24,14 @@ interface Props {
   onRename: (id: string, title: string) => void
   onExport: () => void
   onOpenChanges: () => void
+  onOpenFiles?: () => void
   onOpenDetails: () => void
   onOpenNav?: () => void
   changeCount: number
   sidebarCollapsed?: boolean
   onExpandSidebar?: () => void
-  activeDrawer?: 'changes' | 'details' | null
-  onToggleDrawer?: (drawer: 'changes' | 'details') => void
+  activeDrawer?: 'changes' | 'files' | 'details' | null
+  onToggleDrawer?: (drawer: 'changes' | 'files' | 'details') => void
   activeTasksCount?: number
 }
 
@@ -40,6 +41,7 @@ export default function TopBar({
   onRename,
   onExport,
   onOpenChanges,
+  onOpenFiles,
   onOpenDetails,
   onOpenNav,
   changeCount,
@@ -226,24 +228,35 @@ export default function TopBar({
         <button
           type="button"
           className={`header-companion-btn ${activeDrawer === 'changes' ? 'is-active' : ''}`}
-          onClick={() => onToggleDrawer ? onToggleDrawer('changes') : onOpenChanges()}
-          title="审查改动 (Review) - 切换右侧代码 Diff 对比面板"
-          aria-label="审查改动"
+          onClick={() => (onToggleDrawer ? onToggleDrawer('changes') : onOpenChanges())}
+          title={`${t('hd.review')} - 切换右侧代码 Diff 对比面板`}
+          aria-label={t('hd.review')}
         >
           <IconEdit width={13} height={13} />
-          <span>Review</span>
+          <span>{t('hd.review')}</span>
           {changeCount > 0 && <span className="header-badge accent">{changeCount}</span>}
         </button>
 
         <button
           type="button"
+          className={`header-companion-btn ${activeDrawer === 'files' ? 'is-active' : ''}`}
+          onClick={() => (onToggleDrawer ? onToggleDrawer('files') : onOpenFiles ? onOpenFiles() : undefined)}
+          title={`${t('hd.files')} - 浏览工作区源码文件树与代码预览`}
+          aria-label={t('hd.files')}
+        >
+          <IconFolder width={13} height={13} />
+          <span>{t('hd.files')}</span>
+        </button>
+
+        <button
+          type="button"
           className={`header-companion-btn ${activeDrawer === 'details' ? 'is-active' : ''}`}
-          onClick={() => onToggleDrawer ? onToggleDrawer('details') : onOpenDetails()}
-          title="任务与详情 (Tasks) - 查看后台任务与系统诊断"
-          aria-label="任务与详情"
+          onClick={() => (onToggleDrawer ? onToggleDrawer('details') : onOpenDetails())}
+          title={`${t('hd.tasks')} - 查看后台任务与系统诊断`}
+          aria-label={t('hd.tasks')}
         >
           <IconGauge width={13} height={13} />
-          <span>Tasks</span>
+          <span>{t('hd.tasks')}</span>
           {activeTasksCount != null && activeTasksCount > 0 && (
             <span className="dot accent live" style={{ width: 6, height: 6 }} />
           )}

@@ -43,10 +43,15 @@ function appendPromptHistory(item: string) {
 
 const DEFAULT_SLASH_COMMANDS = [
   { name: 'compact', description: '压缩精简上下文，释放空间' },
-  { name: 'clear', description: '清空历史，开始新会话' },
   { name: 'plan', description: '进入规划模式，先拟定实施步骤' },
   { name: 'bug', description: '系统化定位与诊断当前代码问题' },
+  { name: 'clear', description: '清空历史，开始新会话' },
   { name: 'review', description: '全面审查当前代码改动与质量' },
+  { name: 'files', description: '查看工作区源码文件树与代码预览' },
+  { name: 'tasks', description: '查看后台任务与系统运行指标' },
+  { name: 'cost', description: '查看 Token 消耗与用量统计' },
+  { name: 'init', description: '初始化或审计项目工程规范 (CLAUDE.md)' },
+  { name: 'model', description: '查看或切换当前 AI 模型配置' },
 ]
 
 let lastSend: LastSendState | null = null
@@ -163,6 +168,7 @@ export default function Composer({
   }, [images.length])
   const busy = useStore((s) => s.busy)
   const slashCommands = useStore((s) => s.slashCommands)
+  const userSkills = useStore((s) => s.settings?.skills)
   const fileResults = useStore((s) => s.fileResults)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -210,12 +216,19 @@ export default function Composer({
   const slashMatches = useMemo(() => {
     if (!text.startsWith('/') || text.includes('\n')) return []
     const word = text.slice(1).split(/\s/)[0] ?? ''
+    const customSkills = (userSkills ?? []).map((sk) => ({
+      name: sk.name,
+      description: sk.description ? `(Skill) ${sk.description}` : '(Skill) 用户自定义技能',
+    }))
     const all = [
       ...slashCommands,
       ...DEFAULT_SLASH_COMMANDS.filter((d) => !slashCommands.some((c) => c.name === d.name)),
+      ...customSkills.filter(
+        (sk) => !DEFAULT_SLASH_COMMANDS.some((d) => d.name === sk.name) && !slashCommands.some((c) => c.name === sk.name),
+      ),
     ]
-    return all.filter((command) => command.name.toLowerCase().includes(word.toLowerCase())).slice(0, 8)
-  }, [text, slashCommands])
+    return all.filter((command) => command.name.toLowerCase().includes(word.toLowerCase())).slice(0, 10)
+  }, [text, slashCommands, userSkills])
 
   /** @文件补全:末词以 @ 开头(词边界检测,行首或空白后)时激活 */
   const atQuery = useMemo(() => {

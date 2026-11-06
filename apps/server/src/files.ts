@@ -9,9 +9,18 @@ import { runtimeSettings } from './settings.js'
  */
 
 const IGNORED_DIRS = new Set(['node_modules', '.git', 'dist'])
+const TREE_IGNORED_DIRS = new Set(['node_modules', '.git', 'dist', '.next', '.turbo', 'build', 'coverage', '.cache'])
 const MAX_RESULTS = 15
 const MAX_DEPTH = 10
 const MAX_REVIEW_BYTES = 64 * 1024
+const MAX_TREE_ITEMS = 400
+
+export interface TreeNode {
+  name: string
+  path: string
+  type: 'file' | 'directory'
+  children?: TreeNode[]
+}
 
 /** undefined 表示无法采集，null 表示文件尚不存在。 */
 export function readWorkspaceSnapshot(workspace: string, file: string): string | null | undefined {
@@ -77,4 +86,51 @@ function walk(dir: string, rel: string, q: string, out: string[], depth: number)
       walk(join(dir, e.name), childRel, q, out, depth + 1)
     }
   }
+}
+
+export function buildWorkspaceTree(workspace?: string, maxItems = MAX_TREE_ITEMS, maxDepth = 6): TreeNode[] {
+  const root = workspace ?? runtimeSettings.workspace ?? process.env.CCWEB_WORKSPACE ?? process.cwd()
+  let count = 0
+
+  function scan(dir: string, rel: string, depth: number): TreeNode[] {
+    if (depth > maxDepth || count >= maxItems) return []
+    let entries
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch {
+      return []
+    }
+    entries.sort((a, b) => {
+      if (a.isDirectory() && !b.isDirectory()) return -1
+      if (!a.isDirectory() && b.isDirectory()) return 1
+      return a.name.localeCompare(b.name)
+    })
+
+    const nodes: TreeNode[] = []
+    for (const e of entries) {
+      if (count >= maxItems) break
+      if (e.name.startsWith('.') && e.name !== '.env.example' && e.name !== '.gitignore') continue
+      const childRel = rel ? `${rel}/${e.name}` : e.name
+      if (e.isDirectory()) {
+        if (TREE_IGNORED_DIRS.has(e.name)) continue
+        count++
+        nodes.push({
+          name: e.name,
+          path: childRel,
+          type: 'directory',
+          children: scan(join(dir, e.name), childRel, depth + 1),
+        })
+      } else if (e.isFile()) {
+        count++
+        nodes.push({
+          name: e.name,
+          path: childRel,
+          type: 'file',
+        })
+      }
+    }
+    return nodes
+  }
+
+  return scan(root, '', 0)
 }

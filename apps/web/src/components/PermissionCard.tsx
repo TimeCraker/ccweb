@@ -115,14 +115,16 @@ export default function PermissionCard({ onResolve }: Props) {
       <div className="permission-actions">
         <span className="hint">{dangerous ? '这条命令可能不可逆，请确认后再允许。' : t('pm.confirm')}</span>
         <button className="btn btn-sm" onClick={() => onResolve(permission.requestId, false)}>
-          {isPlan ? '继续修改计划' : t('pm.deny')}
+          <span className="key-badge">N</span>
+          <span>{isPlan ? '继续修改计划' : t('pm.deny')}</span>
         </button>
         <button
           className="btn btn-sm btn-primary"
           disabled={isPlan && !permission.plan?.trim()}
           onClick={() => onResolve(permission.requestId, true)}
         >
-          {isPlan ? '采纳并开始执行' : t('pm.allow')}
+          <span className="key-badge">Y</span>
+          <span>{isPlan ? '采纳并开始执行' : t('pm.allow')}</span>
         </button>
       </div>
     </div>

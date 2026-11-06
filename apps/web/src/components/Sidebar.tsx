@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
 import type { SessionMeta } from '../types'
@@ -857,6 +857,20 @@ function WorkspaceAddDrawer({
   const [pickError, setPickError] = useState<string | null>(null)
   const abortCtrlRef = useRef<AbortController | null>(null)
 
+  const quickPresets = useMemo(() => {
+    const names = new Set<string>()
+    for (const d of discovered) {
+      if (d.name && !d.name.startsWith(".")) {
+        names.add(d.name)
+        if (names.size >= 5) break
+      }
+    }
+    if (names.size === 0) {
+      return ["ccweb", "my_workspace"]
+    }
+    return Array.from(names)
+  }, [discovered])
+
   useEffect(() => {
     fetch('/api/workspaces/discover')
       .then((r) => (r.ok ? r.json() : null))
@@ -968,7 +982,7 @@ function WorkspaceAddDrawer({
       {/* 快捷常用工作区芯片 */}
       <div className="ws-quick-presets">
         <span className="ws-preset-label">快捷直达:</span>
-        {['my_workspace', 'ccweb', 'vibe-studio', 'ResumeAIX'].map((preset) => (
+        {quickPresets.map((preset) => (
           <button
             key={preset}
             type="button"
@@ -1034,7 +1048,7 @@ function WorkspaceAddDrawer({
       <div className="ws-manual-input-row">
         <input
           className="input ws-manual-input"
-          placeholder="输入文件夹名或绝对路径，如 助学金申请表 或 C:\Projects\app"
+          placeholder={t('sb.project.inputPlaceholder')}
           value={manualPath}
           onChange={(e) => setManualPath(e.target.value)}
           onKeyDown={(e) => {

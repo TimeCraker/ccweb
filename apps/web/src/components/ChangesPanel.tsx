@@ -53,7 +53,15 @@ function FileChange({ block, baseline }: { block: ToolBlock; baseline?: FileBase
 }
 
 /** 右侧「本次改动」面板:仅展示可关联到工具调用的记录,保留主对话与滚动位置。 */
-export default function ChangesPanel({ onClose, onSwitchToDetails }: { onClose: () => void; onSwitchToDetails?: () => void }) {
+export default function ChangesPanel({
+  onClose,
+  onSwitchToFiles,
+  onSwitchToDetails,
+}: {
+  onClose: () => void
+  onSwitchToFiles?: () => void
+  onSwitchToDetails?: () => void
+}) {
   const baselines = useStore((s) => s.fileBaselines)
   const metrics = useStore((s) => s.metrics)
   const busy = useStore((s) => s.busy)
@@ -87,11 +95,16 @@ export default function ChangesPanel({ onClose, onSwitchToDetails }: { onClose: 
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
           <button type="button" className="drawer-nav-tab is-active">
-            Review {changedFiles.size > 0 && <span className="tab-badge">{changedFiles.size}</span>}
+            {t('dw.tabReview')} {changedFiles.size > 0 && <span className="tab-badge">{changedFiles.size}</span>}
           </button>
+          {onSwitchToFiles && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToFiles}>
+              {t('dw.tabFiles')}
+            </button>
+          )}
           {onSwitchToDetails && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
-              Tasks & Details
+              {t('dw.tabTasks')}
             </button>
           )}
         </div>

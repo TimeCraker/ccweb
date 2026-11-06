@@ -41,11 +41,13 @@ export default function DetailsPanel({
   send,
   initialTab = 'context',
   onSwitchToChanges,
+  onSwitchToFiles,
 }: {
   onClose: () => void
   send?: (message: Record<string, unknown>) => void
   initialTab?: 'context' | 'controls'
   onSwitchToChanges?: () => void
+  onSwitchToFiles?: () => void
 }) {
   const [tab, setTab] = useState<'context' | 'trajectory' | 'controls'>(initialTab)
   const [checkpoint, setCheckpoint] = useState('')
@@ -94,11 +96,16 @@ export default function DetailsPanel({
         <div className="drawer-nav-tabs">
           {onSwitchToChanges && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
-              Review
+              {t('dw.tabReview')}
+            </button>
+          )}
+          {onSwitchToFiles && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToFiles}>
+              {t('dw.tabFiles')}
             </button>
           )}
           <button type="button" className="drawer-nav-tab is-active">
-            Tasks & Details
+            {t('dw.tabTasks')}
           </button>
         </div>
         <div className="header-actions">

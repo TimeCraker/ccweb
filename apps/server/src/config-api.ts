@@ -11,6 +11,7 @@ import { APP_DIR, CC_DIR, runtimeSettings, effectiveEnv, listEndpointTemplates, 
 import { listConnections, removeConnection, saveConnection, testConnection, templateKeyOf } from './connections.js'
 import { listDeletedSessions, restoreDeletedSession } from './session-backup.js'
 import { isLoopbackOrigin } from './origin.js'
+import { buildWorkspaceTree, readWorkspaceSnapshot } from './files.js'
 
 type Kind = 'skill' | 'command' | 'rule' | 'hooks' | 'mcp' | 'permissions'
 type Source = 'user' | 'project' | 'plugin' | 'inherited' | 'managed'
@@ -565,4 +566,24 @@ configApi.post('/workspaces/open-folder', async (c) => {
   } catch (err: unknown) {
     return c.json({ ok: false, error: (err as Error)?.message || '无法打开文件夹' }, 500);
   }
+});
+
+// 工作区文件树
+configApi.get("/workspaces/tree", async (c) => {
+  const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
+  const tree = buildWorkspaceTree(current);
+  return c.json({ ok: true, root: current, tree });
+});
+
+// 工作区文件只读内容读取
+configApi.post("/workspaces/read-file", async (c) => {
+  const body = await c.req.json<{ path?: string }>();
+  const target = (body.path || "").trim();
+  if (!target) return c.json({ ok: false, error: "请指定文件路径" }, 400);
+  const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
+  const content = readWorkspaceSnapshot(current, target);
+  if (content === undefined) {
+    return c.json({ ok: false, error: "无法读取文件内容（可能文件不存在、超出大小限制或为二进制）" }, 404);
+  }
+  return c.json({ ok: true, content, path: target });
 });
