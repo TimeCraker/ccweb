@@ -545,18 +545,62 @@ configApi.get('/workspaces/discover', async (c) => {
   });
 });
 
-// 打开系统本地文件夹资源管理器
+// 打开系统本地文件夹资源管理器 (若传入的是文件则在资源管理器中选中该文件)
 configApi.post('/workspaces/open-folder', async (c) => {
   const body = await c.req.json<{ path?: string }>();
   const target = (body.path || '').trim();
-  if (!target || !existsSync(target) || !statSync(target).isDirectory()) {
-    return c.json({ ok: false, error: '目录不存在或无效' }, 400);
+  if (!target || !existsSync(target)) {
+    return c.json({ ok: false, error: '路径不存在或无效' }, 400);
   }
   try {
     const isWindows = process.platform === 'win32';
     const isMac = process.platform === 'darwin';
+    const isDir = statSync(target).isDirectory();
     if (isWindows) {
-      execFile('explorer.exe', [target]);
+      if (isDir) {
+        execFile('explorer.exe', [target]);
+      } else {
+        execFile('explorer.exe', [`/select,${target}`]);
+      }
+    } else if (isMac) {
+      if (isDir) {
+        execFile('open', [target]);
+      } else {
+        execFile('open', ['-R', target]);
+      }
+    } else {
+      execFile('xdg-open', [isDir ? target : dirname(target)]);
+    }
+    return c.json({ ok: true });
+  } catch (err: unknown) {
+    return c.json({ ok: false, error: (err as Error)?.message || '无法打开文件夹' }, 500);
+  }
+});
+
+// 打开系统本地文件(调用系统默认关联程序)
+configApi.post('/workspaces/open-file', async (c) => {
+  const body = await c.req.json<{ path?: string }>();
+  const rawPath = (body.path || '').trim();
+  if (!rawPath) return c.json({ ok: false, error: '请指定文件路径' }, 400);
+
+  const current = resolve(runtimeSettings.workspace || process.env.CCWEB_WORKSPACE || process.cwd());
+  const target = isAbsolute(rawPath) ? resolve(rawPath) : resolve(current, rawPath);
+
+  if (!existsSync(target) || !statSync(target).isFile()) {
+    return c.json({ ok: false, error: '文件不存在或不是有效文件' }, 400);
+  }
+
+  const realCurrent = realpathSync(current);
+  const realTarget = realpathSync(target);
+  if (!realTarget.startsWith(realCurrent)) {
+    return c.json({ ok: false, error: '禁止越界访问工作区外部文件' }, 403);
+  }
+
+  try {
+    const isWindows = process.platform === 'win32';
+    const isMac = process.platform === 'darwin';
+    if (isWindows) {
+      execFile('cmd.exe', ['/c', 'start', '""', target], { windowsVerbatimArguments: true });
     } else if (isMac) {
       execFile('open', [target]);
     } else {
@@ -564,7 +608,7 @@ configApi.post('/workspaces/open-folder', async (c) => {
     }
     return c.json({ ok: true });
   } catch (err: unknown) {
-    return c.json({ ok: false, error: (err as Error)?.message || '无法打开文件夹' }, 500);
+    return c.json({ ok: false, error: (err as Error)?.message || '无法打开目标文件' }, 500);
   }
 });
 

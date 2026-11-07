@@ -3,7 +3,8 @@ import { contextUsage } from '../context-usage'
 import { useStore } from '../store'
 import { t, tf } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
-import { IconX } from './Icon'
+import { IconCopy, IconX } from './Icon'
+import { copyText } from '../clipboard'
 import DrawerResizer from './DrawerResizer'
 
 function fmtTokens(value: number): string {
@@ -188,7 +189,23 @@ export default function DetailsPanel({
                 )}
               </>
             ) : (
-              <p className="menu-empty">{t('ctx.waiting')}</p>
+              <div
+                style={{
+                  padding: '16px',
+                  background: 'var(--color-panel-2)',
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                  marginBottom: 14,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>运行准备就绪</span>
+                  <span className="dot ok" style={{ width: 6, height: 6 }} />
+                </div>
+                <p style={{ fontSize: 11.5, color: 'var(--color-text-dim)', lineHeight: 1.5, margin: 0 }}>
+                  对话启动后将在此处实时呈现上下文 Token 水位、命中率与实时费用。
+                </p>
+              </div>
             )}
 
             {compositionTotal > 0 && (
@@ -219,7 +236,28 @@ export default function DetailsPanel({
 
             {metrics && (
               <section className="drawer-section">
-                <h3>{t('ctx.total')}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3>{t('ctx.total')}</h3>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    style={{ fontSize: 11, height: 22, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    onClick={async () => {
+                      const lines = [
+                        `Token 输入: ${fmtTokens(metrics.inputTokens)}`,
+                        `Token 输出: ${fmtTokens(metrics.outputTokens)}`,
+                        `预估消耗: ${money(metrics.totalCostUsd)}`,
+                      ]
+                      if (level) lines.unshift(`水位: ${pct.toFixed(0)}% (${fmtTokens(level.used)} / ${fmtTokens(level.max)})`)
+                      await copyText(lines.join('\n'))
+                      useStore.getState().setNotice('已复制运行用量数据')
+                    }}
+                    title="复制用量数据"
+                  >
+                    <IconCopy width={11} height={11} />
+                    <span>复制摘要</span>
+                  </button>
+                </div>
                 <dl className="kv-list">
                   <dt>{t('ctx.output')}</dt>
                   <dd>{fmtTokens(metrics.outputTokens)}</dd>
@@ -230,11 +268,57 @@ export default function DetailsPanel({
                 </dl>
               </section>
             )}
+
+            <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                style={{ flex: 1, fontSize: 11, height: 26 }}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: '/compact' }))
+                  useStore.getState().setNotice('已将 /compact 注入输入框')
+                }}
+                title="压缩当前会话上下文并保留关键信息"
+              >
+                /compact 压缩上下文
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                style={{ flex: 1, fontSize: 11, height: 26 }}
+                onClick={() => {
+                  useStore.getState().clearView()
+                  useStore.getState().setNotice('已清空当前屏幕')
+                }}
+                title="清空当前屏幕消息 (保留后台上下文)"
+              >
+                清空屏幕
+              </button>
+            </div>
           </>
         )}
 
         {tab === 'trajectory' && (
           <section className="drawer-section">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>按时间记录工具调用流水</span>
+              {trajectory.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  style={{ fontSize: 11, height: 22, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                  onClick={async () => {
+                    const txt = trajectory.map((item, idx) => `${idx + 1}. [${item.status}] ${item.toolName} - ${item.summary}`).join('\n')
+                    await copyText(txt)
+                    useStore.getState().setNotice('已复制工具调用流水账')
+                  }}
+                  title="复制全部调用记录"
+                >
+                  <IconCopy width={11} height={11} />
+                  <span>复制流水</span>
+                </button>
+              )}
+            </div>
             {trajectory.length === 0 ? (
               <p className="menu-empty">{t('ctx.noTrajectory')}</p>
             ) : (
@@ -245,8 +329,13 @@ export default function DetailsPanel({
                       className={`dot ${item.status === 'error' ? 'danger' : item.status === 'done' ? 'ok' : 'accent'}`}
                       style={{ marginTop: 6 }}
                     />
-                    <div style={{ minWidth: 0 }}>
-                      <strong style={{ display: 'block', fontSize: 12.5, fontWeight: 550 }}>{item.toolName}</strong>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <strong style={{ fontSize: 12, fontWeight: 550 }}>{item.toolName}</strong>
+                        <span style={{ fontSize: 10.5, color: item.status === 'error' ? 'var(--color-danger)' : 'var(--color-text-faint)' }}>
+                          {item.status === 'error' ? '失败' : item.status === 'done' ? '成功' : '执行中'}
+                        </span>
+                      </div>
                       <span
                         style={{
                           display: 'block',
@@ -256,6 +345,7 @@ export default function DetailsPanel({
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
+                          marginTop: 2,
                         }}
                         title={item.summary}
                       >
@@ -269,9 +359,9 @@ export default function DetailsPanel({
           </section>
         )}
 
-        <details className="raw-details" style={{ marginTop: 20 }}>
-          <summary style={{ cursor: 'pointer', color: 'var(--color-text-faint)', fontSize: 11.5 }}>
-            高级设置与文件回退
+        <details className="raw-details" style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--color-text-faint)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>高级排障与检查点文件回退</span>
           </summary>
           <div style={{ marginTop: 10, padding: 8, background: 'var(--color-panel-2)', borderRadius: 6 }}>
             <p style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--color-text-faint)', marginBottom: 8 }}>

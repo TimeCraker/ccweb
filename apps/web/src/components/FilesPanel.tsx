@@ -305,6 +305,25 @@ export default function FilesPanel({
     }
   }
 
+  const handleOpenFileWithDefaultApp = async () => {
+    if (!activeFile) return
+    try {
+      const res = await fetch('/api/workspaces/open-file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: activeFile }),
+      })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (data.ok) {
+        useStore.getState().setNotice(`已在系统中打开文件: ${baseName(activeFile)}`)
+      } else {
+        useStore.getState().setNotice(data.error || '无法打开此文件')
+      }
+    } catch {
+      useStore.getState().setNotice('调用系统程序异常')
+    }
+  }
+
   const filteredTree = useMemo(() => {
     const q = filterQuery.trim().toLowerCase()
     return filterTree(tree, q)
@@ -465,9 +484,38 @@ export default function FilesPanel({
                 正在加载文件…
               </div>
             ) : contentError ? (
-              <div className="note warn" style={{ margin: 16 }}>
-                <strong>无法预览文件</strong>
-                <div>{contentError}</div>
+              <div
+                className="file-preview-doc-card"
+                style={{
+                  padding: 32,
+                  textAlign: 'center',
+                  margin: 16,
+                  background: 'var(--color-panel-2)',
+                  borderRadius: 8,
+                  border: '1px solid var(--color-border)',
+                }}
+              >
+                <IconFile width={36} height={36} style={{ margin: '0 auto 12px', color: 'var(--color-warn)' }} />
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{baseName(activeFile)}</div>
+                <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4, marginBottom: 16 }}>
+                  {contentError}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={handleOpenFileWithDefaultApp}
+                  >
+                    用系统默认程序打开
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={handleRevealInExplorer}
+                  >
+                    在资源管理器中定位
+                  </button>
+                </div>
               </div>
             ) : isImage && activeFile ? (
               <div
@@ -523,7 +571,7 @@ export default function FilesPanel({
               <div
                 className="file-preview-doc-card"
                 style={{
-                  padding: 36,
+                  padding: 32,
                   textAlign: 'center',
                   margin: 16,
                   background: 'var(--color-panel-2)',
@@ -533,16 +581,25 @@ export default function FilesPanel({
               >
                 <IconFile width={36} height={36} style={{ margin: '0 auto 12px', color: 'var(--color-accent)' }} />
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{baseName(activeFile)}</div>
-                <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4, marginBottom: 18 }}>
-                  {activeExt.toUpperCase()} 独立二进制文档
+                <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4, marginBottom: 16 }}>
+                  {activeExt.toUpperCase()} 二进制文件 (建议使用本地关联程序查看)
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  onClick={handleRevealInExplorer}
-                >
-                  在系统资源管理器中打开
-                </button>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary"
+                    onClick={handleOpenFileWithDefaultApp}
+                  >
+                    用系统默认程序打开
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-secondary"
+                    onClick={handleRevealInExplorer}
+                  >
+                    在资源管理器中定位
+                  </button>
+                </div>
               </div>
             ) : fileContent != null ? (
               isMarkdown && viewMode === 'preview' ? (

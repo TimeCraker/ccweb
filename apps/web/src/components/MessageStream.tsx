@@ -524,11 +524,94 @@ function TurnView({
   )
 }
 
+function ApiErrorCard({ text }: { text: string }) {
+  const is429 = text.includes('429') || text.toLowerCase().includes('rate limit') || text.includes('权限')
+  const isAuth = text.includes('401') || text.toLowerCase().includes('unauthorized') || text.toLowerCase().includes('auth')
+  const statusCodeMatch = /\((\d{3})\)/.exec(text) || /\b(\d{3})\b/.exec(text)
+  const code = statusCodeMatch ? statusCodeMatch[1] : is429 ? '429' : isAuth ? '401' : 'ERR'
+
+  return (
+    <div
+      className="api-error-card animate-fade-in"
+      style={{
+        margin: '12px 0',
+        padding: '14px 16px',
+        borderRadius: '8px',
+        background: 'color-mix(in srgb, var(--color-danger) 8%, var(--color-panel-2))',
+        border: '1px solid color-mix(in srgb, var(--color-danger) 30%, transparent)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <IconWarn width={14} height={14} style={{ color: 'var(--color-danger)', flexShrink: 0 }} />
+          <strong style={{ fontSize: 13, color: 'var(--color-danger)' }}>模型接口调用异常</strong>
+          <span
+            style={{
+              fontSize: 10,
+              padding: '1px 6px',
+              borderRadius: 4,
+              background: 'var(--color-danger)',
+              color: '#fff',
+              fontWeight: 600,
+            }}
+          >
+            HTTP {code}
+          </span>
+        </div>
+      </div>
+      <p
+        style={{
+          fontSize: 12,
+          color: 'var(--color-text)',
+          lineHeight: 1.6,
+          fontFamily: 'var(--font-mono)',
+          wordBreak: 'break-all',
+          margin: '0 0 10px 0',
+          padding: '8px 10px',
+          background: 'color-mix(in srgb, var(--color-panel) 80%, transparent)',
+          borderRadius: 5,
+        }}
+      >
+        {text}
+      </p>
+      {is429 && (
+        <div style={{ fontSize: 11.5, color: 'var(--color-text-dim)', marginBottom: 10 }}>
+          建议：当前模型由于订阅权限或频控限制暂时无法响应，建议点击底部模型菜单切换其他可用模型。
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="btn btn-sm btn-secondary"
+          style={{ fontSize: 11, height: 24, padding: '0 8px', display: 'flex', alignItems: 'center', gap: 4 }}
+          onClick={() => {
+            void copyText(text).then(() => {
+              useStore.getState().setNotice('已复制错误信息')
+            })
+          }}
+        >
+          <IconCopy width={11} height={11} />
+          <span>复制报错</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function BlockView({ block, turnDone, isLastText }: { block: Block; turnDone?: boolean; isLastText: boolean }) {
   const [copied, setCopied] = useState(false)
   useLocale()
   if (block.kind === 'thinking') return <ThinkingBlock block={block} />
   if (block.kind === 'tool') return <ToolCard block={block} turnDone={turnDone} />
+  if (
+    block.kind === 'text' &&
+    !block.streaming &&
+    Boolean(block.text) &&
+    (/^(?:API Error:.*|Request rejected.*|\b429\b.*|\b401\b.*)/i.test(block.text.trim()) ||
+      block.text.includes('API Error:'))
+  ) {
+    return <ApiErrorCard text={block.text} />
+  }
   return (
     <div className={`group relative ${isLastText ? 'stream-caret' : ''}`}>
       <Markdown text={block.text || '…'} />

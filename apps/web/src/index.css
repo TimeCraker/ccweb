@@ -1557,7 +1557,7 @@ html.dark .ws-item:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 46vw;
+  max-width: min(320px, 36vw);
 }
 .header-title-text-wrap {
   display: inline-flex;
@@ -1971,6 +1971,13 @@ html.dark .ws-item:hover {
   color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+@media (max-width: 960px) {
+  .chip-btn .chip-model-name {
+    max-width: 90px;
+  }
 }
 .chip-btn .chip-badge {
   display: inline-flex;
@@ -4644,9 +4651,16 @@ html.dark .session-branch-tag {
 
 
 /* 顶栏常驻伴侣面板手柄 (对标 Antigravity 顶部 Review / Tasks) */
+.header-companion-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
 .header-companion-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   height: 28px;
   padding: 0 9px;
@@ -4657,6 +4671,8 @@ html.dark .session-branch-tag {
   font-size: 11.5px;
   font-weight: 550;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all var(--dur-fast) var(--ease-soft);
 }
 .header-companion-btn:hover {
@@ -4669,6 +4685,21 @@ html.dark .session-branch-tag {
   background: color-mix(in srgb, var(--color-accent) 15%, var(--color-panel-2));
   color: var(--color-accent);
   border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+/* 抽屉打开时，顶栏按钮优雅自适应收缩为「纯图标+微徽标」模式，杜绝文字挤压折行 */
+.header-actions.drawer-is-open .header-companion-btn {
+  padding: 0 7px;
+}
+.header-actions.drawer-is-open .header-companion-btn .btn-label {
+  display: none;
+}
+@media (max-width: 860px) {
+  .header-companion-btn {
+    padding: 0 7px;
+  }
+  .header-companion-btn .btn-label {
+    display: none;
+  }
 }
 .header-badge {
   display: inline-flex;

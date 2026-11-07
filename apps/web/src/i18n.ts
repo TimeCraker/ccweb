@@ -50,7 +50,7 @@ const ZH = {
   'sb.version': '版本',
   'sb.project.inputPlaceholder': '输入项目名称或绝对路径，如 ccweb 或 C:\\Projects\\my-app',
   'hd.review': '改动审查',
-  'hd.tasks': '任务与详情',
+  'hd.tasks': '运行与用量',
   'hd.files': '工作区文件',
   // 顶栏(V3)
   'hd.more': '更多',
@@ -380,7 +380,7 @@ const EN: Dict = {
   'sb.version': 'version',
   'sb.project.inputPlaceholder': 'Enter project name or absolute path, e.g. ccweb or C:\\Projects\\my-app',
   'hd.review': 'Review',
-  'hd.tasks': 'Tasks & Details',
+  'hd.tasks': 'Usage & Logs',
   'hd.files': 'Files',
   'hd.more': 'More',
   'hd.menu': 'Session menu',
