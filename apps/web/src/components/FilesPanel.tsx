@@ -5,6 +5,7 @@ import { IconChevron, IconCopy, IconFile, IconFolder, IconSearch, IconX, IconChe
 import { copyText } from '../clipboard'
 import { baseName } from '../lib/path'
 import DrawerResizer from './DrawerResizer'
+import Markdown from './Markdown'
 
 interface TreeNode {
   name: string
@@ -206,6 +207,29 @@ export default function FilesPanel({
   const isVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(activeExt)
   const isAudio = ['mp3', 'wav', 'm4a'].includes(activeExt)
   const isDoc = ['docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt', 'zip', 'tar', 'gz', '7z'].includes(activeExt)
+  const isMarkdown = activeExt === 'md' || activeExt === 'markdown'
+  const isJson = activeExt === 'json'
+
+  const [viewMode, setViewMode] = useState<'preview' | 'source'>(() => {
+    try {
+      return localStorage.getItem('ccweb.fileViewMode') === 'source' ? 'source' : 'preview'
+    } catch {
+      return 'preview'
+    }
+  })
+  const [formatJson, setFormatJson] = useState(true)
+
+  const displayCode = useMemo(() => {
+    if (fileContent == null) return null
+    if (isJson && formatJson) {
+      try {
+        return JSON.stringify(JSON.parse(fileContent), null, 2)
+      } catch {
+        return fileContent
+      }
+    }
+    return fileContent
+  }, [fileContent, isJson, formatJson])
 
   const handleSelectFile = async (filePath: string) => {
     setActiveFile(filePath)
@@ -257,9 +281,10 @@ export default function FilesPanel({
   }
 
   const handleCopyContent = () => {
-    if (fileContent == null) return
+    const textToCopy = displayCode ?? fileContent
+    if (textToCopy == null) return
     try {
-      navigator.clipboard?.writeText(fileContent)
+      navigator.clipboard?.writeText(textToCopy)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -393,6 +418,36 @@ export default function FilesPanel({
                 >
                   {copied ? <IconCheck width={13} height={13} style={{ color: 'var(--color-ok)' }} /> : <IconCopy width={13} height={13} />}
                 </button>
+                {isMarkdown && fileContent != null && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => {
+                      const next = viewMode === 'preview' ? 'source' : 'preview'
+                      setViewMode(next)
+                      try {
+                        localStorage.setItem('ccweb.fileViewMode', next)
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    title={viewMode === 'preview' ? '切换为带行号的源码查看' : '切换为富文本渲染预览'}
+                  >
+                    <span>{viewMode === 'preview' ? '查看源码' : '富文本预览'}</span>
+                  </button>
+                )}
+                {isJson && fileContent != null && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    onClick={() => setFormatJson((v) => !v)}
+                    title={formatJson ? '查看未格式化原始代码' : '美化缩进排版 (Format)'}
+                  >
+                    <span>{formatJson ? '原始 JSON' : '格式化'}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-sm btn-secondary"
@@ -490,22 +545,36 @@ export default function FilesPanel({
                 </button>
               </div>
             ) : fileContent != null ? (
-              <div className="file-preview-code">
-                <table className="code-table">
-                  <tbody>
-                    {fileContent.split('\n').map((line, idx) => (
-                      <tr key={idx}>
-                        <td className="code-line-num" aria-hidden="true">
-                          {idx + 1}
-                        </td>
-                        <td className="code-line-text">
-                          <code>{line || ' '}</code>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              isMarkdown && viewMode === 'preview' ? (
+                <div
+                  className="file-preview-markdown md"
+                  style={{
+                    padding: '20px 24px',
+                    overflowY: 'auto',
+                    maxHeight: '74vh',
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <Markdown text={fileContent} />
+                </div>
+              ) : (
+                <div className="file-preview-code">
+                  <table className="code-table">
+                    <tbody>
+                      {(displayCode ?? fileContent).split('\n').map((line, idx) => (
+                        <tr key={idx}>
+                          <td className="code-line-num" aria-hidden="true">
+                            {idx + 1}
+                          </td>
+                          <td className="code-line-text">
+                            <code>{line || ' '}</code>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             ) : null}
           </div>
         ) : (

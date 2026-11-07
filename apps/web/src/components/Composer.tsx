@@ -331,10 +331,28 @@ export default function Composer({
       }
     }
 
+    const editHandler = (e: Event) => {
+      const customEvent = e as CustomEvent<string>
+      if (typeof customEvent.detail === 'string') {
+        const promptToEdit = customEvent.detail
+        updateText(promptToEdit)
+        useStore.getState().setNotice('已将提问回填至输入框')
+        setTimeout(() => {
+          if (taRef.current) {
+            taRef.current.focus()
+            taRef.current.selectionStart = taRef.current.selectionEnd = promptToEdit.length
+            taRef.current.scrollTop = taRef.current.scrollHeight
+          }
+        }, 50)
+      }
+    }
+
     window.addEventListener('ccweb:insert-prompt', handler)
+    window.addEventListener('ccweb:edit-prompt', editHandler)
     window.addEventListener('ccweb:quote-code', quoteHandler)
     return () => {
       window.removeEventListener('ccweb:insert-prompt', handler)
+      window.removeEventListener('ccweb:edit-prompt', editHandler)
       window.removeEventListener('ccweb:quote-code', quoteHandler)
     }
   }, [key])

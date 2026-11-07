@@ -234,11 +234,11 @@ function UserRow({ text, onFork, images }: { text: string; onFork?: () => void; 
           <button
             type="button"
             onClick={() => {
-              window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: text }))
+              window.dispatchEvent(new CustomEvent('ccweb:edit-prompt', { detail: text }))
               window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
             }}
             aria-label="编辑提问"
-            title="编辑并重新提问 (填入输入框)"
+            title="编辑并重新提问 (回填至输入框)"
             className="icon-btn"
           >
             <IconPencil width={12} height={12} />
