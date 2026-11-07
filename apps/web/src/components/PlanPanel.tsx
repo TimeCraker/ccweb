@@ -6,7 +6,6 @@ import {
   IconCheckSquare,
   IconChevron,
   IconFolder,
-  IconList,
   IconSparkle,
   IconX,
 } from './Icon'
@@ -190,6 +189,7 @@ export default function PlanPanel({
   const handleContinueTask = (stepText: string) => {
     const prompt = `请继续推进任务：${stepText}`
     window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: prompt }))
+    useStore.getState().setNotice('已将任务指令填入输入框')
   }
 
   const handleCreatePlan = () => {
@@ -203,14 +203,26 @@ export default function PlanPanel({
   const handleRevealFile = async () => {
     if (!activePlanFile) return
     try {
-      await fetch('/api/workspaces/open-folder', {
+      const res = await fetch('/api/workspaces/open-folder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: activePlanFile }),
       })
+      const data = (await res.json()) as { ok: boolean; error?: string }
+      if (data.ok) {
+        useStore.getState().setNotice(`已在资源管理器中定位计划文件: ${activePlanFile}`)
+      } else {
+        useStore.getState().setNotice(data.error || '无法打开资源管理器')
+      }
     } catch {
-      // ignore
+      useStore.getState().setNotice('调用系统程序异常')
     }
+  }
+
+  const handleRefresh = async () => {
+    setLoading(true)
+    await loadPlanFile()
+    useStore.getState().setNotice('已刷新实施计划进度')
   }
 
   return (
@@ -273,23 +285,31 @@ export default function PlanPanel({
                   <button
                     type="button"
                     className="icon-btn"
-                    onClick={() => setRefreshKey((k) => k + 1)}
-                    title="重新加载计划文件"
+                    onClick={handleRefresh}
+                    title="重新加载实施计划文件"
+                    aria-label="刷新计划"
                   >
-                    <IconList width={13} height={13} />
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                    </svg>
                   </button>
                   <button
                     type="button"
                     className="icon-btn"
                     onClick={handleRevealFile}
-                    title="在系统资源管理器中打开此文件"
+                    title="在系统资源管理器中定位此计划文件"
+                    aria-label="在系统资源管理器中定位"
                   >
                     <IconFolder width={13} height={13} />
                   </button>
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost"
-                    onClick={() => setViewRaw((v) => !v)}
+                    onClick={() => {
+                      const next = !viewRaw
+                      setViewRaw(next)
+                      useStore.getState().setNotice(next ? '已切换为 Markdown 源码' : '已切换为卡片实施大纲')
+                    }}
                     title={viewRaw ? '切换为卡片进度视图' : '查看 Markdown 源码'}
                   >
                     {viewRaw ? '卡片视图' : '源码'}

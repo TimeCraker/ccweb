@@ -142,7 +142,6 @@ export default function ChangesPanel({
   onClose,
   focusFile,
   onSwitchToFiles,
-  onSwitchToPlan,
   onSwitchToDetails,
 }: {
   onClose: () => void
@@ -209,11 +208,6 @@ export default function ChangesPanel({
           {onSwitchToFiles && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToFiles}>
               {t('dw.tabFiles')}
-            </button>
-          )}
-          {onSwitchToPlan && (
-            <button type="button" className="drawer-nav-tab" onClick={onSwitchToPlan}>
-              计划
             </button>
           )}
           {onSwitchToDetails && (

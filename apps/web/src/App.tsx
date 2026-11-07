@@ -17,7 +17,7 @@ import QuestionCard from './components/QuestionCard'
 import CommandPalette from './components/CommandPalette'
 import Toast from './components/Toast'
 import QueueDock from './components/QueueDock'
-import { BrandMark, IconEdit, IconSearch, IconSparkle, IconFile } from './components/Icon'
+import { BrandMark, IconEdit, IconSearch, IconSparkle, IconFile, IconCheckSquare } from './components/Icon'
 import type { SettingsTab } from './components/SettingsCenter'
 
 const STARTER_ACTIONS = [
@@ -128,6 +128,8 @@ export default function App() {
   if (conn === 'open') everConnected.current = true
   const connBanner = conn !== 'open' && everConnected.current
   const workspace = useStore((s) => s.settings?.workspace)
+  const settings = useStore((s) => s.settings)
+  const isPlanMode = (settings?.active?.permissionMode ?? settings?.permissionMode) === 'plan'
 
   const changeInfo = useMemo(() => {
     const files: string[] = []
@@ -674,6 +676,16 @@ export default function App() {
                   </div>
                   <div className="dock">
                     <div className="dock-inner">
+                      {isPlanMode && (
+                        <div className="change-strip plan-strip">
+                          <IconCheckSquare width={14} height={14} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
+                          <strong>规划模式 (Plan Mode) · 已激活</strong>
+                          <span className="files">可在此处或对话流中同步生成实施大纲</span>
+                          <button className="btn btn-sm" onClick={() => setDrawer('plan')}>
+                            查看大纲 ↗
+                          </button>
+                        </div>
+                      )}
                       {composer}
                       <UsageBar onOpenDetails={(tab) => { setDetailsTab(tab ?? 'context'); setDrawer('details'); }} />
                     </div>
@@ -722,6 +734,16 @@ export default function App() {
                           <span className="files">{changeInfo.files.slice(0, 3).join(' · ')}</span>
                           <button className="btn btn-sm" onClick={() => setDrawer('changes')}>
                             查看
+                          </button>
+                        </div>
+                      )}
+                      {isPlanMode && (
+                        <div className="change-strip plan-strip">
+                          <IconCheckSquare width={14} height={14} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
+                          <strong>规划模式 (Plan Mode) · 已激活</strong>
+                          <span className="files">可在此处或对话流中同步生成实施大纲</span>
+                          <button className="btn btn-sm" onClick={() => setDrawer('plan')}>
+                            查看大纲 ↗
                           </button>
                         </div>
                       )}

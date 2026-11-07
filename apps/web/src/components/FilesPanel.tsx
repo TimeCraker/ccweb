@@ -128,7 +128,6 @@ function TreeItem({
 export default function FilesPanel({
   onClose,
   onSwitchToChanges,
-  onSwitchToPlan,
   onSwitchToDetails,
 }: Props) {
   useLocale()
@@ -350,11 +349,6 @@ export default function FilesPanel({
           <button type="button" className="drawer-nav-tab is-active">
             {t('dw.tabFiles')}
           </button>
-          {onSwitchToPlan && (
-            <button type="button" className="drawer-nav-tab" onClick={onSwitchToPlan}>
-              计划
-            </button>
-          )}
           {onSwitchToDetails && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
               {t('dw.tabTasks')}

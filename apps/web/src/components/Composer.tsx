@@ -257,6 +257,8 @@ export default function Composer({
   const draftKey = useRef(key)
   const [historyIdx, setHistoryIdx] = useState(-1)
   const draftBeforeHistory = useRef('')
+  const slashListRef = useRef<HTMLDivElement>(null)
+  const fileListRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (draftKey.current === key) return
@@ -287,13 +289,17 @@ export default function Composer({
         const insertion = customEvent.detail
         setText((curr) => {
           let next = ''
-          if (!curr.trim()) {
+          const trimmed = curr.trim()
+          if (!trimmed || trimmed === '/') {
+            next = insertion
+          } else if (insertion.startsWith('/') && trimmed.startsWith('/')) {
             next = insertion
           } else if (insertion.includes('\n')) {
             next = `${curr.trimEnd()}\n\n${insertion}`
           } else {
             next = curr.endsWith(' ') ? `${curr}${insertion}` : `${curr} ${insertion}`
           }
+          next = next.replace(/^\/\/+/, '/')
           localStorage.setItem(key, next)
           return next
         })
@@ -483,6 +489,21 @@ export default function Composer({
     setSlashSel(0)
   }, [text])
 
+  // 键盘上下键切换时，高亮项自动跟随滚动到可视区域内
+  useEffect(() => {
+    if (slashMatches.length > 0 && slashListRef.current) {
+      const activeEl = slashListRef.current.querySelector<HTMLElement>('[data-active="true"]')
+      activeEl?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [slashSel, slashMatches.length])
+
+  useEffect(() => {
+    if (fileMatches.length > 0 && fileListRef.current) {
+      const activeEl = fileListRef.current.querySelector<HTMLElement>('[data-active="true"]')
+      activeEl?.scrollIntoView({ block: 'nearest' })
+    }
+  }, [fileSel, fileMatches.length])
+
   const canSend = Boolean(text.trim() || images.length)
   const isBusyOrWaiting = busy || waiting
   const isStopMode = isBusyOrWaiting && !canSend
@@ -517,7 +538,8 @@ export default function Composer({
   }
 
   const pickSlash = (name: string) => {
-    updateText(`/${name} `)
+    const clean = name.replace(/^\/+/, '')
+    updateText(`/${clean} `)
     setSlashSel(0)
     taRef.current?.focus()
   }
@@ -576,7 +598,7 @@ export default function Composer({
       />
 
       {slashMatches.length > 0 && (
-        <div className="suggestions" role="listbox" aria-label="斜杠命令">
+        <div ref={slashListRef} className="suggestions" role="listbox" aria-label="斜杠命令">
           {slashMatches.map((command, index) => (
             <button
               key={command.name}
@@ -592,7 +614,7 @@ export default function Composer({
         </div>
       )}
       {slashMatches.length === 0 && atQuery !== null && (
-        <div className="suggestions" role="listbox" aria-label={t('cp.attachFile')}>
+        <div ref={fileListRef} className="suggestions" role="listbox" aria-label={t('cp.attachFile')}>
           {fileMatches.length > 0 ? (
             fileMatches.map((file, index) => {
               const parts = file.split('/')

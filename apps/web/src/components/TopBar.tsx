@@ -10,10 +10,8 @@ import {
   IconPlus,
   IconSun,
   IconMoon,
-  SectionIcon,
   IconFolder,
   IconCopy,
-  IconCheckSquare,
 } from './Icon'
 import { Menu, MenuItem } from './ui/Menu'
 import { cycleTheme, useThemeMode } from '../theme'
@@ -44,12 +42,9 @@ export default function TopBar({
   onExport,
   onOpenChanges,
   onOpenFiles,
-  onOpenPlan,
   onOpenDetails,
   onOpenNav,
   changeCount,
-  sidebarCollapsed,
-  onExpandSidebar,
   activeDrawer,
   onToggleDrawer,
   activeTasksCount,
@@ -92,16 +87,6 @@ export default function TopBar({
 
   return (
     <header className="header">
-      {sidebarCollapsed && onExpandSidebar && (
-        <button
-          className="icon-btn sidebar-expand"
-          onClick={onExpandSidebar}
-          aria-label={t('sb.expand')}
-          title={t('sb.expand')}
-        >
-          <SectionIcon name="panel" width={17} height={17} />
-        </button>
-      )}
       {onOpenNav && (
         <button className="icon-btn nav-toggle" onClick={onOpenNav} aria-label={t('sb.expand')} title={t('sb.expand')}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
@@ -250,17 +235,6 @@ export default function TopBar({
           >
             <IconFolder width={13} height={13} />
             <span className="btn-label">{t('hd.files')}</span>
-          </button>
-
-          <button
-            type="button"
-            className={`header-companion-btn ${activeDrawer === 'plan' ? 'is-active' : ''}`}
-            onClick={() => (onToggleDrawer ? onToggleDrawer('plan') : onOpenPlan ? onOpenPlan() : undefined)}
-            title="实施计划 - 跟踪当前项目阶段与待办进展"
-            aria-label="实施计划"
-          >
-            <IconCheckSquare width={13} height={13} />
-            <span className="btn-label">计划</span>
           </button>
 
           <button

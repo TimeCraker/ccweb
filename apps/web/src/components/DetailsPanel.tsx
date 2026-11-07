@@ -44,7 +44,6 @@ export default function DetailsPanel({
   initialTab = 'context',
   onSwitchToChanges,
   onSwitchToFiles,
-  onSwitchToPlan,
 }: {
   onClose: () => void
   send?: (message: Record<string, unknown>) => void
@@ -107,11 +106,6 @@ export default function DetailsPanel({
           {onSwitchToFiles && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToFiles}>
               {t('dw.tabFiles')}
-            </button>
-          )}
-          {onSwitchToPlan && (
-            <button type="button" className="drawer-nav-tab" onClick={onSwitchToPlan}>
-              计划
             </button>
           )}
           <button type="button" className="drawer-nav-tab is-active">
