@@ -43,6 +43,136 @@ function filterTree(nodes: TreeNode[], q: string): TreeNode[] {
   return result
 }
 
+interface FileIconProps {
+  name: string
+  isDir: boolean
+  isOpen?: boolean
+}
+
+function FileTreeIcon({ name, isDir, isOpen }: FileIconProps) {
+  if (isDir) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: '#d97706', flexShrink: 0 }}>
+        {isOpen ? (
+          <>
+            <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" fill="#d97706" fillOpacity="0.18" />
+            <path d="m2 10 2.2 9.2A2 2 0 0 0 6.1 21h13.8a2 2 0 0 0 1.9-1.8L23 10H2Z" fill="#d97706" fillOpacity="0.32" />
+          </>
+        ) : (
+          <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" fill="#d97706" fillOpacity="0.22" />
+        )}
+      </svg>
+    )
+  }
+
+  const ext = (name.split('.').pop() || '').toLowerCase()
+  const lower = name.toLowerCase()
+
+  // TypeScript / TSX
+  if (ext === 'ts' || ext === 'tsx') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="3.5" fill="#3178c6" />
+        <path d="M7 9h6M10 9v9" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
+        {ext === 'tsx' ? (
+          <path d="M14 12l4 6M18 12l-4 6" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+        ) : (
+          <path d="M14 16.5c.8.6 1.8.8 2.6.4.8-.4 1.1-1.2.7-1.8-.4-.7-2-.9-2.6-1.5-.6-.7-.2-1.8.8-2.3 1-.4 2.1-.2 2.8.4" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" />
+        )}
+      </svg>
+    )
+  }
+
+  // JavaScript / JSX / MJS / CJS
+  if (ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="3.5" fill="#f7df1e" />
+        <path d="M8 15c0 2 1.5 2.5 2.8 2.5 1.5 0 2.2-.8 2.2-2.2V9" stroke="#1c1f24" strokeWidth="2.2" strokeLinecap="round" />
+        <path d="M14 16.5c.8.6 1.8.8 2.6.4.8-.4 1.1-1.2.7-1.8-.4-.7-2-.9-2.6-1.5-.6-.7-.2-1.8.8-2.3 1-.4 2.1-.2 2.8.4" stroke="#1c1f24" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // JSON
+  if (ext === 'json') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="3.5" fill="#ea580c" />
+        <path d="M9 8c-1 0-1.8.8-1.8 1.8v1.4c0 .8-.6 1.4-1.2 1.8.6.4 1.2 1 1.2 1.8v1.4c0 1 .8 1.8 1.8 1.8M15 8c1 0 1.8.8 1.8 1.8v1.4c0 .8.6 1.4 1.2 1.8-.6.4-1.2 1-1.2 1.8v1.4c0 1-.8 1.8-1.8 1.8" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // Markdown / TXT / Doc
+  if (ext === 'md' || ext === 'mdx' || ext === 'txt') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="3.5" fill="#0284c7" />
+        <path d="M6 16V8l3 3.5L12 8v8M18 13l-2.5 3-2.5-3M15.5 8v8" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // CSS / SCSS / LESS
+  if (ext === 'css' || ext === 'scss' || ext === 'less') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="3.5" fill="#6366f1" />
+        <path d="M8 8h8M8 12h6M8 16h8" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+
+  // HTML / SVG / XML
+  if (ext === 'html' || ext === 'svg' || ext === 'xml') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="3.5" fill="#e11d48" />
+        <path d="m8 9-3 3 3 3M16 9l3 3-3 3M13 8l-2 8" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
+
+  // Images / Media
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'ico', 'bmp', 'mp4', 'webm', 'mov', 'mp3', 'wav'].includes(ext)) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <rect x="3" y="3" width="18" height="18" rx="3.5" fill="#a855f7" />
+        <circle cx="8" cy="8" r="1.5" fill="#ffffff" />
+        <path d="M4 17l5-5 3 3 4-4 4 4v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-1Z" fill="#ffffff" />
+      </svg>
+    )
+  }
+
+  // Git / Config / Lock / Package
+  if (lower.includes('gitignore') || lower.includes('gitattributes')) {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 3v6M12 15v6M3 12h6M15 12h6" />
+      </svg>
+    )
+  }
+
+  if (lower.includes('package') || lower.includes('pnpm') || lower.includes('lock') || ext === 'yaml' || ext === 'yml') {
+    return (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" fill="#10b981" fillOpacity="0.18" />
+        <path d="M12 12 4 7.5M12 12v9M12 12l8-4.5" />
+      </svg>
+    )
+  }
+
+  // Default File
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ color: 'var(--color-text-faint)', flexShrink: 0 }}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 2v6h6" />
+    </svg>
+  )
+}
+
 function TreeItem({
   node,
   depth,
@@ -86,7 +216,7 @@ function TreeItem({
           )}
         </span>
         <span className="file-tree-icon">
-          {isDir ? <IconFolder width={13} height={13} /> : <IconFile width={13} height={13} />}
+          <FileTreeIcon name={node.name} isDir={isDir} isOpen={isOpen} />
         </span>
         <span className="file-tree-name">{node.name}</span>
         {isChanged && <span className="file-git-dot" title="本次会话中已被编辑修改" />}
@@ -631,17 +761,27 @@ export default function FilesPanel({
         ) : (
           <div className="file-tree-container">
             <div className="file-tree-filter-wrap">
-              <IconSearch width={13} height={13} className="file-tree-search-icon" />
-              <input
-                className="input file-tree-filter-input"
-                placeholder="筛选工作区文件…"
-                value={filterQuery}
-                onChange={(e) => setFilterQuery(e.target.value)}
-              />
+              <div className="file-tree-search-inner">
+                <IconSearch width={13} height={13} className="file-tree-search-icon" />
+                <input
+                  className="file-tree-filter-input"
+                  placeholder="筛选工作区文件… (按 Esc 清除)"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setFilterQuery('')
+                  }}
+                />
+                {filterQuery && (
+                  <button type="button" className="file-tree-clear-btn" onClick={() => setFilterQuery('')} title="清除筛选 (Esc)">
+                    <IconX width={11} height={11} />
+                  </button>
+                )}
+              </div>
               {filterQuery && (
-                <button type="button" className="icon-btn" onClick={() => setFilterQuery('')} title="清除筛选">
-                  <IconX width={11} height={11} />
-                </button>
+                <span className="file-tree-count-badge">
+                  {filteredTree.length} 个结果
+                </span>
               )}
             </div>
 
