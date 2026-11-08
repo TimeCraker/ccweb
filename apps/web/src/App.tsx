@@ -138,6 +138,7 @@ export default function App() {
   }, [entries])
 
   const sessionId = useStore((s) => s.sessionId)
+  const historyVersion = useStore((s) => s.historyVersion)
   const [dismissedChangeCount, setDismissedChangeCount] = useState<number>(0)
   const prevSessionIdRef = useRef<string | null>(null)
   const prevChangeCountRef = useRef<number>(0)
@@ -152,6 +153,14 @@ export default function App() {
       if (changeDismissTimerRef.current) clearTimeout(changeDismissTimerRef.current)
     }
   }, [sessionId, changeInfo.count])
+
+  // 历史回放更新完成时（例如切会话拉回历史消息）：保持静默防护，对齐计数避免误弹提示条
+  useEffect(() => {
+    if (!busy) {
+      setDismissedChangeCount(changeInfo.count)
+      prevChangeCountRef.current = changeInfo.count
+    }
+  }, [historyVersion, busy, changeInfo.count])
 
   // 当产生新的实时改动时：展示提示条，并在 10 秒后自动淡出隐藏
   useEffect(() => {

@@ -1383,6 +1383,7 @@ html.dark .session-row[aria-current='true'] {
   box-shadow: inset 2px 0 0 var(--color-accent);
 }
 .session-row .title {
+  display: block;
   min-width: 0;
   flex: 1;
   overflow: hidden;
