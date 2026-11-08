@@ -315,56 +315,49 @@ export default function ChangesPanel({
         <div className="header-actions">
           {changes.length > 0 && (
             <>
-              {(totalStats.add > 0 || totalStats.del > 0) && (
-                <span className="diff-stats-badge" title={`新增 ${totalStats.add} 行，删除 ${totalStats.del} 行`}>
-                  <span className="diff-stats-add">+{totalStats.add}</span>
-                  <span className="diff-stats-del">-{totalStats.del}</span>
-                </span>
-              )}
               <button
                 type="button"
-                className="btn btn-sm btn-ghost"
-                style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                className="icon-btn"
+                style={{ width: 28, height: 28 }}
                 onClick={handleCopyAllDiff}
                 title="复制全部变更的标准 Diff 补丁"
+                aria-label="复制全部 Diff"
               >
-                <IconCopy width={12} height={12} />
-                <span>复制 Diff</span>
+                <IconCopy width={14} height={14} />
               </button>
               <button
                 type="button"
-                className="btn btn-sm btn-ghost"
-                style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                className="icon-btn"
+                style={{ width: 28, height: 28 }}
                 onClick={toggleDiffMode}
                 title={diffMode === 'unified' ? '切换为并排双栏比对 (Side-by-Side)' : '切换为单列统一比对 (Unified)'}
+                aria-label="切换比对模式"
               >
-                {diffMode === 'unified' ? <IconDiffSplit width={13} height={13} /> : <IconDiffUnified width={13} height={13} />}
-                <span>{diffMode === 'unified' ? '并排' : '单列'}</span>
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost"
-                style={{ fontSize: 11, height: 24, padding: '0 6px' }}
-                onClick={() => setAllExpanded((v) => (v === true ? false : true))}
-                title={allExpanded ? '全部折叠代码变更' : '全部展开代码变更'}
-              >
-                {allExpanded ? '全部折叠' : '全部展开'}
+                {diffMode === 'unified' ? <IconDiffSplit width={14} height={14} /> : <IconDiffUnified width={14} height={14} />}
               </button>
             </>
           )}
-          <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>
+          <button className="icon-btn" style={{ width: 28, height: 28 }} onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>
             <IconX width={16} height={16} />
           </button>
         </div>
       </header>
       <div className="drawer-body">
         <div className={`note ${failedChecks > 0 ? 'warn' : ''}`} role="status">
-          <div>
-            <strong>{status}</strong>
-            <div style={{ marginTop: 3 }}>
-              文件改动 {done}/{changes.length} 次工具确认成功 · 命令记录 {checks.length} 条
-              {failedChecks > 0 ? `（${failedChecks} 条失败）` : ''}。命令成功不等于测试通过。
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <strong>{status}</strong>
+              <div style={{ marginTop: 3 }}>
+                文件改动 {done}/{changes.length} 次工具确认成功 · 命令记录 {checks.length} 条
+                {failedChecks > 0 ? `（${failedChecks} 条失败）` : ''}。命令成功不等于测试通过。
+              </div>
             </div>
+            {(totalStats.add > 0 || totalStats.del > 0) && (
+              <span className="diff-stats-badge" title={`新增 ${totalStats.add} 行，删除 ${totalStats.del} 行`}>
+                <span className="diff-stats-add">+{totalStats.add}</span>
+                <span className="diff-stats-del">-{totalStats.del}</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -379,7 +372,20 @@ export default function ChangesPanel({
         </p>
 
         <section className="drawer-section">
-          <h3>{t('dw.files')}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <h3 style={{ margin: 0 }}>{t('dw.files')}</h3>
+            {changes.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                style={{ fontSize: 11, height: 22, padding: '0 6px' }}
+                onClick={() => setAllExpanded((v) => (v === true ? false : true))}
+                title={allExpanded ? '全部折叠代码变更' : '全部展开代码变更'}
+              >
+                {allExpanded ? '全部折叠' : '全部展开'}
+              </button>
+            )}
+          </div>
           {changes.length === 0 && (
             <div className="empty-changes-box" style={{ padding: '16px 12px', textAlign: 'center', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>
               <p className="menu-empty" style={{ margin: 0 }}>{t('dw.noFiles')}</p>
