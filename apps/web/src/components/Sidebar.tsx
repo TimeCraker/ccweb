@@ -122,6 +122,10 @@ export default function Sidebar({
   const savedSessions = useStore((s) => s.sessions)
   const firstPrompt = useStore((s) => s.entries.find((entry) => entry.type === 'user'))
   const activeId = useStore((s) => s.sessionId)
+  const backgroundRunningCount = useMemo(
+    () => savedSessions.filter((s) => s.id !== activeId && Boolean(s.isRunning)).length,
+    [savedSessions, activeId],
+  )
   const sessions =
     activeId && !savedSessions.some((session) => session.id === activeId)
       ? [
@@ -421,10 +425,20 @@ export default function Sidebar({
             <button
               className={`rail-item ${activeId ? 'is-active' : ''}`}
               aria-label={t('sb.sessions')}
-              title={t('sb.sessions')}
+              title={
+                backgroundRunningCount > 0
+                  ? `${t('sb.sessions')} · ${backgroundRunningCount} 个会话在后台运行`
+                  : t('sb.sessions')
+              }
               aria-expanded={open}
+              style={{ position: 'relative' }}
             >
               <IconChat width={18} height={18} />
+              {backgroundRunningCount > 0 && (
+                <span className="rail-running-badge" title={`${backgroundRunningCount} 个会话在后台运行`}>
+                  {backgroundRunningCount}
+                </span>
+              )}
             </button>
           )}
         >
@@ -865,6 +879,22 @@ export default function Sidebar({
       </div>
 
       <footer className="sidebar-footer">
+        {backgroundRunningCount > 0 && (
+          <div className="sidebar-running-row">
+            <button
+              type="button"
+              className="sidebar-running-pill"
+              onClick={() => {
+                const target = savedSessions.find((s) => s.id !== activeId && Boolean(s.isRunning))
+                if (target) onOpenSession(target.id)
+              }}
+              title={`点击切换至正在后台运行的会话 (${backgroundRunningCount} 个推进中)`}
+            >
+              <span className="dot ok live" style={{ width: 6, height: 6 }} />
+              <span>{backgroundRunningCount} 个会话在后台运行</span>
+            </button>
+          </div>
+        )}
         <button className="sidebar-foot-btn" onClick={onOpenSettings}>
           <IconGear width={16} height={16} />
           {t('sb.settings')}

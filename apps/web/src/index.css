@@ -5931,4 +5931,60 @@ body.is-resizing-drawer {
   box-shadow: 0 0 4px var(--color-accent);
 }
 
+/* 多会话后台并行推进汇总指示气泡 */
+.header-badge.ok {
+  background: color-mix(in srgb, var(--color-ok) 18%, var(--color-surface));
+  color: var(--color-ok);
+  border: 1px solid color-mix(in srgb, var(--color-ok) 40%, transparent);
+  font-weight: 600;
+  gap: 3px;
+  padding: 0 5px;
+}
+
+.sidebar-running-row {
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.sidebar-running-pill {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--color-ok) 12%, var(--color-surface));
+  color: var(--color-ok);
+  border: 1px solid color-mix(in srgb, var(--color-ok) 30%, transparent);
+  font-weight: 550;
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-soft);
+}
+
+.sidebar-running-pill:hover {
+  background: color-mix(in srgb, var(--color-ok) 22%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-ok) 55%, transparent);
+}
+
+.rail-running-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--color-ok);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  box-shadow: 0 0 0 1.5px var(--color-panel);
+}
+
+
 

@@ -55,6 +55,11 @@ export default function TopBar({
 }: Props) {
   const sessionId = useStore((s) => s.sessionId)
   const session = useStore((s) => s.sessions.find((item) => item.id === s.sessionId))
+  const sessions = useStore((s) => s.sessions)
+  const backgroundRunningCount = useMemo(
+    () => sessions.filter((s) => s.id !== sessionId && Boolean(s.isRunning)).length,
+    [sessions, sessionId],
+  )
   const settings = useStore((s) => s.settings)
   const workspace = settings?.workspace
   const workspaces = settings?.workspaces ?? EMPTY_WORKSPACES
@@ -269,14 +274,23 @@ export default function TopBar({
             type="button"
             className={`header-companion-btn ${activeDrawer === 'details' ? 'is-active' : ''}`}
             onClick={() => (onToggleDrawer ? onToggleDrawer('details') : onOpenDetails())}
-            title={`${t('hd.tasks')} - 查看运行用量、执行轨迹与日志`}
+            title={
+              backgroundRunningCount > 0
+                ? `${t('hd.tasks')} · ${backgroundRunningCount} 个会话在后台运行`
+                : `${t('hd.tasks')} - 查看运行用量、执行轨迹与日志`
+            }
             aria-label={t('hd.tasks')}
           >
             <IconGauge width={13} height={13} />
             <span className="btn-label">{t('hd.tasks')}</span>
-            {activeTasksCount != null && activeTasksCount > 0 && (
+            {backgroundRunningCount > 0 ? (
+              <span className="header-badge ok" title={`${backgroundRunningCount} 个会话在后台运行`}>
+                <span className="dot ok live" style={{ width: 5, height: 5, marginRight: 2 }} />
+                {backgroundRunningCount}
+              </span>
+            ) : activeTasksCount != null && activeTasksCount > 0 ? (
               <span className="dot accent live" style={{ width: 6, height: 6 }} />
-            )}
+            ) : null}
           </button>
 
           <button
