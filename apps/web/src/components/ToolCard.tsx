@@ -50,16 +50,13 @@ const STATUS = {
 } as const
 
 export default function ToolCard({ block, turnDone }: { block: ToolBlock; turnDone?: boolean }) {
-  // Bash 完成后自动展开一次;用户手动操作后完全交还控制权
+  // 工具操作默认不展开（包括 Bash、Read 等工具），保持对话流紧凑整洁；仅在失败时展开异常，或用户手动点击展开
   const [userTouched, setUserTouched] = useState(false)
-  const [autoOpen, setAutoOpen] = useState(false)
   const [open, setOpen] = useState(false)
   useLocale()
   const effectiveStatus = turnDone && (block.status === 'running' || block.status === 'streaming') ? 'done' : block.status
-  const isBashDone = block.toolName === 'Bash' && (effectiveStatus === 'done' || effectiveStatus === 'error')
-  // 失败的工具保持展开,避免异常被折叠成一行状态字
-  if ((isBashDone || effectiveStatus === 'error') && !autoOpen) setAutoOpen(true)
-  const effectiveOpen = userTouched ? open : open || autoOpen
+  const isError = effectiveStatus === 'error'
+  const effectiveOpen = userTouched ? open : isError
   const elapsed = useElapsed(effectiveStatus === 'running' || effectiveStatus === 'streaming')
   const meta = TOOL_META[block.toolName]
   const status = STATUS[effectiveStatus]
