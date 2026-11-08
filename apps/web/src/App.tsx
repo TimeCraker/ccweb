@@ -210,8 +210,9 @@ export default function App() {
   const newSessionRef = useRef<() => void>(() => {})
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest('.native-panel')) return
-      if (e.key === 'Escape' && drawer && !(e.target as HTMLElement)?.closest('.composer')) {
+      const targetEl = e.target instanceof Element ? e.target : null
+      if (targetEl?.closest('.native-panel')) return
+      if (e.key === 'Escape' && drawer && !targetEl?.closest('.composer')) {
         setDrawer(null)
         return
       }

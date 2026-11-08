@@ -890,7 +890,14 @@ export default function Sidebar({
         <div
           className="sidebar-resizer"
           onMouseDown={startResizing}
-          onDoubleClick={() => setSidebarW(DEFAULT_SIDEBAR_W)}
+          onDoubleClick={() => {
+            setSidebarW(DEFAULT_SIDEBAR_W)
+            try {
+              localStorage.setItem(SIDEBAR_W_KEY, String(DEFAULT_SIDEBAR_W))
+            } catch {
+              // ignore
+            }
+          }}
           title="拖动调整侧栏宽度 (双击恢复默认)"
         />
       )}
