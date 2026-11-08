@@ -4939,6 +4939,13 @@ html.dark .session-branch-tag {
   color: var(--color-accent);
   border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
+.header-companion-btn.is-empty-changes {
+  opacity: 0.72;
+}
+.header-companion-btn.is-empty-changes:hover,
+.header-companion-btn.is-empty-changes.is-active {
+  opacity: 1;
+}
 /* 抽屉打开时，顶栏按钮优雅自适应收缩为「纯图标+微徽标」模式，杜绝文字挤压折行 */
 .header-actions.drawer-is-open .header-companion-btn {
   padding: 0 7px;

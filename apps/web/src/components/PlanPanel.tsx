@@ -37,11 +37,13 @@ export default function PlanPanel({
   onSwitchToChanges,
   onSwitchToFiles,
   onSwitchToDetails,
+  style,
 }: {
   onClose: () => void
   onSwitchToChanges?: () => void
   onSwitchToFiles?: () => void
   onSwitchToDetails?: () => void
+  style?: React.CSSProperties
 }) {
   useLocale()
   const workspace = useStore((s) => s.settings?.workspace)
@@ -226,18 +228,23 @@ export default function PlanPanel({
   }
 
   return (
-    <aside className="drawer plan-drawer" aria-label="实施计划伴侣">
+    <aside className="drawer plan-drawer" aria-label="实施计划伴侣" style={style}>
       <DrawerResizer />
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
-          {onSwitchToChanges && (
-            <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
-              {t('dw.tabReview')}
-            </button>
-          )}
           {onSwitchToFiles && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToFiles}>
               {t('dw.tabFiles')}
+            </button>
+          )}
+          {onSwitchToDetails && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
+              {t('dw.tabTasks')}
+            </button>
+          )}
+          {onSwitchToChanges && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
+              {t('dw.tabReview')}
             </button>
           )}
           <button type="button" className="drawer-nav-tab is-active">
@@ -249,11 +256,6 @@ export default function PlanPanel({
               </span>
             )}
           </button>
-          {onSwitchToDetails && (
-            <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
-              {t('dw.tabTasks')}
-            </button>
-          )}
         </div>
         <div className="header-actions">
           <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>

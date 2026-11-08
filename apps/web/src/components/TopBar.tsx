@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t, tf, useLocale } from '../i18n'
 import {
@@ -33,7 +33,10 @@ interface Props {
   activeDrawer?: 'changes' | 'files' | 'plan' | 'details' | null
   onToggleDrawer?: (drawer: 'changes' | 'files' | 'plan' | 'details') => void
   activeTasksCount?: number
+  onSetWorkspace?: (dir: string) => void
 }
+
+const EMPTY_WORKSPACES: Array<{ dir: string; sessions: number; lastModified: string | null }> = []
 
 export default function TopBar({
   onOpenSettings,
@@ -48,10 +51,19 @@ export default function TopBar({
   activeDrawer,
   onToggleDrawer,
   activeTasksCount,
+  onSetWorkspace,
 }: Props) {
   const sessionId = useStore((s) => s.sessionId)
   const session = useStore((s) => s.sessions.find((item) => item.id === s.sessionId))
-  const workspace = useStore((s) => s.settings?.workspace)
+  const settings = useStore((s) => s.settings)
+  const workspace = settings?.workspace
+  const workspaces = settings?.workspaces ?? EMPTY_WORKSPACES
+
+  const otherWorkspaces = useMemo(() => {
+    if (!workspace) return workspaces
+    const norm = workspace.replace(/[/\\]+/g, '/').toLowerCase()
+    return workspaces.filter((w) => w.dir.replace(/[/\\]+/g, '/').toLowerCase() !== norm)
+  }, [workspace, workspaces])
   const firstPrompt = useStore((s) => s.entries.find((entry) => entry.type === 'user'))
   const effectiveSessionTitle =
     session?.title && session.title !== t('sb.untitled') && session.title !== '(无标题)'
@@ -206,6 +218,34 @@ export default function TopBar({
                 >
                   在此项目新建会话
                 </MenuItem>
+                {otherWorkspaces.length > 0 && (
+                  <>
+                    <div className="menu-sep" />
+                    <div style={{ padding: '6px 12px 4px', fontSize: 11, fontWeight: 600, color: 'var(--color-text-faint)' }}>
+                      切换到其他项目
+                    </div>
+                    {otherWorkspaces.slice(0, 6).map((ws) => (
+                      <MenuItem
+                        key={ws.dir}
+                        icon={<IconFolder width={13} height={13} />}
+                        onClick={() => {
+                          close()
+                          if (onSetWorkspace) onSetWorkspace(ws.dir)
+                          onNewSession()
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                          <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {baseName(ws.dir)}
+                          </span>
+                          <span style={{ fontSize: 10, color: 'var(--color-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {ws.dir}
+                          </span>
+                        </div>
+                      </MenuItem>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </Menu>
@@ -214,18 +254,6 @@ export default function TopBar({
 
       <div className={`header-actions ${activeDrawer ? 'drawer-is-open' : ''}`}>
         <div className="header-companion-group">
-          <button
-            type="button"
-            className={`header-companion-btn ${activeDrawer === 'changes' ? 'is-active' : ''}`}
-            onClick={() => (onToggleDrawer ? onToggleDrawer('changes') : onOpenChanges())}
-            title={`${t('hd.review')} (Ctrl+J) - 切换右侧代码 Diff 对比面板`}
-            aria-label={t('hd.review')}
-          >
-            <IconEdit width={13} height={13} />
-            <span className="btn-label">{t('hd.review')}</span>
-            {changeCount > 0 && <span className="header-badge accent">{changeCount}</span>}
-          </button>
-
           <button
             type="button"
             className={`header-companion-btn ${activeDrawer === 'files' ? 'is-active' : ''}`}
@@ -249,6 +277,18 @@ export default function TopBar({
             {activeTasksCount != null && activeTasksCount > 0 && (
               <span className="dot accent live" style={{ width: 6, height: 6 }} />
             )}
+          </button>
+
+          <button
+            type="button"
+            className={`header-companion-btn ${activeDrawer === 'changes' ? 'is-active' : ''} ${changeCount === 0 ? 'is-empty-changes' : ''}`}
+            onClick={() => (onToggleDrawer ? onToggleDrawer('changes') : onOpenChanges())}
+            title={`${t('hd.review')} (Ctrl+J) - 查看代码改动与 Diff`}
+            aria-label={t('hd.review')}
+          >
+            <IconEdit width={13} height={13} />
+            <span className="btn-label">{t('hd.review')}</span>
+            {changeCount > 0 && <span className="header-badge accent">{changeCount}</span>}
           </button>
         </div>
 

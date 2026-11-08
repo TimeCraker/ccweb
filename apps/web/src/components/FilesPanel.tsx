@@ -37,6 +37,7 @@ interface Props {
   onSwitchToChanges?: () => void
   onSwitchToPlan?: () => void
   onSwitchToDetails?: () => void
+  style?: React.CSSProperties
 }
 
 function formatBytes(bytes: number): string {
@@ -277,6 +278,7 @@ export default function FilesPanel({
   onClose,
   onSwitchToChanges,
   onSwitchToDetails,
+  style,
 }: Props) {
   useLocale()
   const workspace = useStore((s) => s.settings?.workspace)
@@ -488,21 +490,21 @@ export default function FilesPanel({
   }, [fileContent, activeFile])
 
   return (
-    <aside className="drawer" aria-label={t('dw.filesTitle')}>
+    <aside className="drawer" aria-label={t('dw.filesTitle')} style={style}>
       <DrawerResizer />
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
-          {onSwitchToChanges && (
-            <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
-              {t('dw.tabReview')}
-            </button>
-          )}
           <button type="button" className="drawer-nav-tab is-active">
             {t('dw.tabFiles')}
           </button>
           {onSwitchToDetails && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToDetails}>
               {t('dw.tabTasks')}
+            </button>
+          )}
+          {onSwitchToChanges && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
+              {t('dw.tabReview')}
             </button>
           )}
         </div>

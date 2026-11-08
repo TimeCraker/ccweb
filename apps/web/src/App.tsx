@@ -68,6 +68,13 @@ export default function App() {
   const [detailsTab, setDetailsTab] = useState<'context' | 'controls'>('context')
   const [nativeOpen, setNativeOpen] = useState(false)
   const [drawer, setDrawer] = useState<'changes' | 'files' | 'plan' | 'details' | null>(null)
+  const [mountedDrawers, setMountedDrawers] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    if (drawer) {
+      setMountedDrawers((prev) => (prev[drawer] ? prev : { ...prev, [drawer]: true }))
+    }
+  }, [drawer])
   const [focusFile, setFocusFile] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -599,6 +606,7 @@ export default function App() {
             activeDrawer={drawer}
             onToggleDrawer={(target) => setDrawer((curr) => (curr === target ? null : target))}
             activeTasksCount={activeTasks.length}
+            onSetWorkspace={setWorkspace}
           />
 
           {nativeOpen ? (
@@ -727,8 +735,9 @@ export default function App() {
           )}
         </main>
 
-        {drawer === 'changes' && (
+        {mountedDrawers['changes'] && (
           <ChangesPanel
+            style={{ display: drawer === 'changes' ? undefined : 'none' }}
             onClose={closeDrawer}
             focusFile={focusFile}
             onSwitchToFiles={() => setDrawer('files')}
@@ -739,8 +748,9 @@ export default function App() {
             }}
           />
         )}
-        {drawer === 'files' && (
+        {mountedDrawers['files'] && (
           <FilesPanel
+            style={{ display: drawer === 'files' ? undefined : 'none' }}
             onClose={closeDrawer}
             onSwitchToChanges={() => setDrawer('changes')}
             onSwitchToPlan={() => setDrawer('plan')}
@@ -750,8 +760,9 @@ export default function App() {
             }}
           />
         )}
-        {drawer === 'plan' && (
+        {mountedDrawers['plan'] && (
           <PlanPanel
+            style={{ display: drawer === 'plan' ? undefined : 'none' }}
             onClose={closeDrawer}
             onSwitchToChanges={() => setDrawer('changes')}
             onSwitchToFiles={() => setDrawer('files')}
@@ -761,8 +772,9 @@ export default function App() {
             }}
           />
         )}
-        {drawer === 'details' && (
+        {mountedDrawers['details'] && (
           <DetailsPanel
+            style={{ display: drawer === 'details' ? undefined : 'none' }}
             onClose={closeDrawer}
             send={sendControl}
             initialTab={detailsTab}

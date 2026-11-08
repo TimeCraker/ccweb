@@ -44,6 +44,7 @@ export default function DetailsPanel({
   initialTab = 'context',
   onSwitchToChanges,
   onSwitchToFiles,
+  style,
 }: {
   onClose: () => void
   send?: (message: Record<string, unknown>) => void
@@ -51,6 +52,7 @@ export default function DetailsPanel({
   onSwitchToChanges?: () => void
   onSwitchToFiles?: () => void
   onSwitchToPlan?: () => void
+  style?: React.CSSProperties
 }) {
   const [tab, setTab] = useState<'context' | 'trajectory'>(initialTab === 'controls' ? 'trajectory' : initialTab)
   const [checkpoint, setCheckpoint] = useState('')
@@ -98,15 +100,10 @@ export default function DetailsPanel({
   const activeTasksList = tasks.filter((t) => t.status === 'running')
 
   return (
-    <aside className="drawer" aria-label={t('dw.details')}>
+    <aside className="drawer" aria-label={t('dw.details')} style={style}>
       <DrawerResizer />
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
-          {onSwitchToChanges && (
-            <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
-              {t('dw.tabReview')}
-            </button>
-          )}
           {onSwitchToFiles && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToFiles}>
               {t('dw.tabFiles')}
@@ -115,6 +112,11 @@ export default function DetailsPanel({
           <button type="button" className="drawer-nav-tab is-active">
             {t('dw.tabTasks')}
           </button>
+          {onSwitchToChanges && (
+            <button type="button" className="drawer-nav-tab" onClick={onSwitchToChanges}>
+              {t('dw.tabReview')}
+            </button>
+          )}
         </div>
         <div className="header-actions">
           <button className="icon-btn" onClick={onClose} aria-label={t('dw.close')} title={`${t('dw.close')} (Esc)`}>

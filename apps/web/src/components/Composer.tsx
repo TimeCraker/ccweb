@@ -22,6 +22,31 @@ const DEFAULT_USER_COMMANDS: UserCommand[] = [
   { id: 'cmd-test', title: '运行项目体检', prompt: '运行当前自动化测试并排查失败用例' },
 ]
 
+function getUserCommands(): UserCommand[] {
+  try {
+    const raw = localStorage.getItem('ccweb.user_commands')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    }
+    // 兼容旧版本 custom_snippets
+    const oldRaw = localStorage.getItem('ccweb.custom_snippets')
+    if (oldRaw) {
+      const oldParsed = JSON.parse(oldRaw)
+      if (Array.isArray(oldParsed) && oldParsed.length > 0) {
+        return oldParsed.map((it: { title: string; prompt: string }, idx: number) => ({
+          id: `legacy-${idx}`,
+          title: it.title || it.prompt.slice(0, 16),
+          prompt: it.prompt,
+        }))
+      }
+    }
+    return DEFAULT_USER_COMMANDS
+  } catch {
+    return DEFAULT_USER_COMMANDS
+  }
+}
+
 function CommandsMenu({
   onSelectCommand,
   currentText,
@@ -36,35 +61,13 @@ function CommandsMenu({
   const [newTitle, setNewTitle] = useState('')
   const [newPrompt, setNewPrompt] = useState('')
 
-  const [commands, setCommands] = useState<UserCommand[]>(() => {
-    try {
-      const raw = localStorage.getItem('ccweb.user_commands')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      }
-      // 兼容旧版本 custom_snippets
-      const oldRaw = localStorage.getItem('ccweb.custom_snippets')
-      if (oldRaw) {
-        const oldParsed = JSON.parse(oldRaw)
-        if (Array.isArray(oldParsed) && oldParsed.length > 0) {
-          return oldParsed.map((it: { title: string; prompt: string }, idx: number) => ({
-            id: `legacy-${idx}`,
-            title: it.title || it.prompt.slice(0, 16),
-            prompt: it.prompt,
-          }))
-        }
-      }
-      return DEFAULT_USER_COMMANDS
-    } catch {
-      return DEFAULT_USER_COMMANDS
-    }
-  })
+  const [commands, setCommands] = useState<UserCommand[]>(getUserCommands)
 
   const persistCommands = (next: UserCommand[]) => {
     setCommands(next)
     try {
       localStorage.setItem('ccweb.user_commands', JSON.stringify(next))
+      window.dispatchEvent(new Event('ccweb:commands-updated'))
     } catch {
       // ignore
     }
@@ -379,6 +382,13 @@ export default function Composer({
   const isKeyNavRef = useRef(false)
   const keyNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [userCommands, setUserCommands] = useState<UserCommand[]>(getUserCommands)
+  useEffect(() => {
+    const onUpdated = () => setUserCommands(getUserCommands())
+    window.addEventListener('ccweb:commands-updated', onUpdated)
+    return () => window.removeEventListener('ccweb:commands-updated', onUpdated)
+  }, [])
+
   useEffect(() => {
     if (draftKey.current === key) return
     const previous = draftKey.current
@@ -569,20 +579,45 @@ export default function Composer({
   /** 斜杠命令补全:输入以 / 开头(且仅首词且未敲空格)时弹出过滤列表 */
   const slashMatches = useMemo(() => {
     if (!text.startsWith('/') || text.includes('\n') || text.slice(1).includes(' ')) return []
-    const word = text.slice(1)
-    const customSkills = (userSkills ?? []).map((sk) => ({
+    const word = text.slice(1).toLowerCase()
+
+    interface SlashItem {
+      name: string
+      description: string
+      prompt?: string
+    }
+
+    const userCmds: SlashItem[] = userCommands.map((cmd) => {
+      const slashCmdMatch = cmd.prompt.match(/^\/([a-zA-Z0-9_-]+)/)
+      const cmdName = (slashCmdMatch && slashCmdMatch[1] ? slashCmdMatch[1] : cmd.title.replace(/\s+/g, '-').toLowerCase()) || 'cmd'
+      return {
+        name: cmdName,
+        description: `(自定义) ${cmd.title}`,
+        prompt: cmd.prompt,
+      }
+    })
+
+    const customSkills: SlashItem[] = (userSkills ?? []).map((sk) => ({
       name: sk.name,
       description: sk.description ? `(Skill) ${sk.description}` : '(Skill) 用户自定义技能',
+      prompt: undefined,
     }))
-    const all = [
-      ...slashCommands,
-      ...DEFAULT_SLASH_COMMANDS.filter((d) => !slashCommands.some((c) => c.name === d.name)),
+    const all: SlashItem[] = [
+      ...userCmds,
+      ...slashCommands.map((c) => ({ name: c.name, description: c.description, prompt: undefined })),
+      ...DEFAULT_SLASH_COMMANDS.filter((d) => !slashCommands.some((c) => c.name === d.name)).map((c) => ({
+        name: c.name,
+        description: c.description,
+        prompt: undefined,
+      })),
       ...customSkills.filter(
         (sk) => !DEFAULT_SLASH_COMMANDS.some((d) => d.name === sk.name) && !slashCommands.some((c) => c.name === sk.name),
       ),
     ]
-    return all.filter((command) => command.name.toLowerCase().includes(word.toLowerCase())).slice(0, 10)
-  }, [text, slashCommands, userSkills])
+    return all
+      .filter((command) => command.name.toLowerCase().includes(word) || command.description.toLowerCase().includes(word))
+      .slice(0, 12)
+  }, [text, slashCommands, userSkills, userCommands])
 
   /** @文件补全:末词以 @ 开头(词边界检测,行首或空白后)时激活 */
   const atQuery = useMemo(() => {
@@ -664,9 +699,17 @@ export default function Composer({
     }
   }
 
-  const pickSlash = (name: string) => {
-    const clean = name.replace(/^\/+/, '')
-    updateText(`/${clean} `)
+  const pickSlash = (item: { name: string; prompt?: string }) => {
+    if (item.prompt) {
+      if (item.prompt.startsWith('/')) {
+        updateText(item.prompt.endsWith(' ') ? item.prompt : `${item.prompt} `)
+      } else {
+        updateText(item.prompt)
+      }
+    } else {
+      const clean = item.name.replace(/^\/+/, '')
+      updateText(`/${clean} `)
+    }
     setSlashSel(0)
     taRef.current?.focus()
   }
@@ -734,7 +777,7 @@ export default function Composer({
               onMouseEnter={() => {
                 if (!isKeyNavRef.current) setSlashSel(index)
               }}
-              onClick={() => pickSlash(command.name)}
+              onClick={() => pickSlash(command)}
             >
               <span className="name">/{command.name}</span>
               <span className="desc">{command.description}</span>
@@ -864,7 +907,8 @@ export default function Composer({
                 }
                 if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
                   e.preventDefault()
-                  pickSlash(slashMatches[slashSel]?.name ?? '')
+                  const sel = slashMatches[slashSel]
+                  if (sel) pickSlash(sel)
                   return
                 }
               } else if (fileMatches.length > 0) {

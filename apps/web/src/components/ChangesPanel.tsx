@@ -6,7 +6,7 @@ import type { ToolBlock } from '../render/blocks'
 import type { FileBaseline } from '../types'
 import { compactPath } from '../lib/path'
 import DiffView from './DiffView'
-import { IconCheck, IconChevron, IconDiffSplit, IconDiffUnified, IconWarn, IconX, IconCopy } from './Icon'
+import { IconCheck, IconChevron, IconDiffSplit, IconDiffUnified, IconWarn, IconX, IconCopy, IconFolder } from './Icon'
 import DrawerResizer from './DrawerResizer'
 
 function FileChange({
@@ -143,12 +143,14 @@ export default function ChangesPanel({
   focusFile,
   onSwitchToFiles,
   onSwitchToDetails,
+  style,
 }: {
   onClose: () => void
   focusFile?: string | null
   onSwitchToFiles?: () => void
   onSwitchToPlan?: () => void
   onSwitchToDetails?: () => void
+  style?: React.CSSProperties
 }) {
   const baselines = useStore((s) => s.fileBaselines)
   const metrics = useStore((s) => s.metrics)
@@ -292,13 +294,10 @@ export default function ChangesPanel({
           : '历史会话，缺少运行终态'
 
   return (
-    <aside className="drawer" aria-label={t('dw.changes')}>
+    <aside className="drawer" aria-label={t('dw.changes')} style={style}>
       <DrawerResizer />
       <header className="drawer-head">
         <div className="drawer-nav-tabs">
-          <button type="button" className="drawer-nav-tab is-active">
-            {t('dw.tabReview')} {changedFiles.size > 0 && <span className="tab-badge">{changedFiles.size}</span>}
-          </button>
           {onSwitchToFiles && (
             <button type="button" className="drawer-nav-tab" onClick={onSwitchToFiles}>
               {t('dw.tabFiles')}
@@ -309,6 +308,9 @@ export default function ChangesPanel({
               {t('dw.tabTasks')}
             </button>
           )}
+          <button type="button" className="drawer-nav-tab is-active">
+            {t('dw.tabReview')} {changedFiles.size > 0 && <span className="tab-badge">{changedFiles.size}</span>}
+          </button>
         </div>
         <div className="header-actions">
           {changes.length > 0 && (
@@ -378,7 +380,22 @@ export default function ChangesPanel({
 
         <section className="drawer-section">
           <h3>{t('dw.files')}</h3>
-          {changes.length === 0 && <p className="menu-empty">{t('dw.noFiles')}</p>}
+          {changes.length === 0 && (
+            <div className="empty-changes-box" style={{ padding: '16px 12px', textAlign: 'center', background: 'var(--color-surface)', borderRadius: 8, border: '1px dashed var(--color-border)' }}>
+              <p className="menu-empty" style={{ margin: 0 }}>{t('dw.noFiles')}</p>
+              {onSwitchToFiles && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  style={{ marginTop: 10, fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  onClick={onSwitchToFiles}
+                >
+                  <IconFolder width={13} height={13} />
+                  <span>浏览工作区文件树</span>
+                </button>
+              )}
+            </div>
+          )}
           {changes.map((block) => {
             const filePath = String(block.input?.file_path ?? block.toolName)
             const isFocused = Boolean(
