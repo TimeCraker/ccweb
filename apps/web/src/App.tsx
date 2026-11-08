@@ -101,6 +101,14 @@ export default function App() {
   const entries = useStore((s) => s.entries)
   const tasks = useStore((s) => s.nativeTasks)
   const activeTasks = tasks.filter((task) => task.status !== 'completed' && task.status !== 'failed')
+
+  const prevActiveTasksRef = useRef(activeTasks.length)
+  useEffect(() => {
+    if (prevActiveTasksRef.current > 0 && activeTasks.length === 0) {
+      useStore.getState().setNotice('后台任务已全部结束')
+    }
+    prevActiveTasksRef.current = activeTasks.length
+  }, [activeTasks.length])
   const empty = entries.length === 0
   const busy = useStore((s) => s.busy)
   const conn = useStore((s) => s.conn)
@@ -679,15 +687,14 @@ export default function App() {
                       <QueueDock onResume={() => sendControl({ t: 'queue.resume' })} onDelete={(uuid) => sendControl({ t: 'queue.delete', uuid })} />
                       <PermissionCard onResolve={resolvePermission} />
                       <QuestionCard onResolve={resolveQuestion} />
-                      {tasks.length > 0 && (
+                      {activeTasks.length > 0 && (
                         <div className="change-strip">
-                          <span className={`dot ${activeTasks.length > 0 ? 'accent live' : 'ok'}`} style={{ marginLeft: 2 }} />
+                          <span className="dot accent live" style={{ marginLeft: 2 }} />
                           <strong>
-                            后台任务 · {tasks.length} 个
-                            {activeTasks.length > 0 ? `（${activeTasks.length} 个进行中）` : '（已结束）'}
+                            后台任务 · {activeTasks.length} 个进行中
                           </strong>
                           <span className="files">
-                            {tasks
+                            {activeTasks
                               .slice(-2)
                               .map((task) => task.description)
                               .join(' · ')}
