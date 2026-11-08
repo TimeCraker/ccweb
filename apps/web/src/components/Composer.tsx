@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { t } from '../i18n'
-import { IconArrowUp, IconStop, IconFile, IconWarn, IconSparkle, IconX, IconTrash, IconChevron } from './Icon'
+import { IconArrowUp, IconStop, IconFile, IconWarn, IconSparkle, IconX, IconChevron } from './Icon'
 import { AttachMenu, ModelMenu, ModeMenu } from './RunMenus'
 import { Menu } from './ui/Menu'
 import Lightbox from './Lightbox'
@@ -816,97 +816,114 @@ export default function Composer({
           </div>
         )}
 
-        <textarea
-          ref={taRef}
-          value={text}
-          aria-label={t('cp.input')}
-          placeholder={
-            waiting
-              ? t('cp.waitingPlaceholder')
-              : busy
-                ? t('cp.queuePlaceholder')
-                : hero
-                  ? '向 Claude 提问，输入 @ 引用工作区文件，/ 快捷指令...'
-                  : '输入提问，输入 @ 引用文件，/ 快捷指令... (Enter 发送)'
-          }
-          onChange={(e) => updateText(e.target.value)}
-          onPaste={(e) => {
-            const files = Array.from(e.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'))
-            if (files.length > 0) {
-              e.preventDefault()
-              addImages(files)
+        <div className="composer-input-wrapper" style={{ position: 'relative', width: '100%' }}>
+          <textarea
+            ref={taRef}
+            value={text}
+            aria-label={t('cp.input')}
+            placeholder={
+              waiting
+                ? t('cp.waitingPlaceholder')
+                : busy
+                  ? t('cp.queuePlaceholder')
+                  : hero
+                    ? '向 Claude 提问，输入 @ 引用工作区文件，/ 快捷指令...'
+                    : '输入提问，输入 @ 引用文件，/ 快捷指令... (Enter 发送)'
             }
-          }}
-          onKeyDown={(e) => {
-            const native = e.nativeEvent as KeyboardEvent & { isComposing?: boolean }
-            if (native.isComposing || native.keyCode === 229) return
-            if (slashMatches.length > 0) {
-              if (e.key === 'ArrowDown') {
+            onChange={(e) => updateText(e.target.value)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'))
+              if (files.length > 0) {
                 e.preventDefault()
-                isKeyNavRef.current = true
-                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
-                keyNavTimerRef.current = setTimeout(() => {
-                  isKeyNavRef.current = false
-                }, 250)
-                setSlashSel((value) => (value + 1) % slashMatches.length)
-                return
+                addImages(files)
               }
-              if (e.key === 'ArrowUp') {
-                e.preventDefault()
-                isKeyNavRef.current = true
-                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
-                keyNavTimerRef.current = setTimeout(() => {
-                  isKeyNavRef.current = false
-                }, 250)
-                setSlashSel((value) => (value - 1 + slashMatches.length) % slashMatches.length)
-                return
-              }
-              if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
-                e.preventDefault()
-                pickSlash(slashMatches[slashSel]?.name ?? '')
-                return
-              }
-            } else if (fileMatches.length > 0) {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault()
-                isKeyNavRef.current = true
-                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
-                keyNavTimerRef.current = setTimeout(() => {
-                  isKeyNavRef.current = false
-                }, 250)
-                setFileSel((value) => (value + 1) % fileMatches.length)
-                return
-              }
-              if (e.key === 'ArrowUp') {
-                e.preventDefault()
-                isKeyNavRef.current = true
-                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
-                keyNavTimerRef.current = setTimeout(() => {
-                  isKeyNavRef.current = false
-                }, 250)
-                setFileSel((value) => (value - 1 + fileMatches.length) % fileMatches.length)
-                return
-              }
-              if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
-                e.preventDefault()
-                pickFile(fileMatches[fileSel] ?? fileMatches[0] ?? '')
-                return
-              }
-            } else {
-              // 提示词历史回溯 (Prompt History): 输入框为空或光标在开头时按 ↑/↓ 翻阅
-              if (e.key === 'ArrowUp') {
-                const isCursorAtStart = taRef.current
-                  ? taRef.current.selectionStart === 0 && taRef.current.selectionEnd === 0
-                  : true
-                if (text === '' || historyIdx >= 0 || isCursorAtStart) {
-                  const history = loadPromptHistory()
-                  if (history.length > 0) {
-                    e.preventDefault()
-                    if (historyIdx === -1) {
-                      draftBeforeHistory.current = text
+            }}
+            onKeyDown={(e) => {
+              const native = e.nativeEvent as KeyboardEvent & { isComposing?: boolean }
+              if (native.isComposing || native.keyCode === 229) return
+              if (slashMatches.length > 0) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  isKeyNavRef.current = true
+                  if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                  keyNavTimerRef.current = setTimeout(() => {
+                    isKeyNavRef.current = false
+                  }, 250)
+                  setSlashSel((value) => (value + 1) % slashMatches.length)
+                  return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  isKeyNavRef.current = true
+                  if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                  keyNavTimerRef.current = setTimeout(() => {
+                    isKeyNavRef.current = false
+                  }, 250)
+                  setSlashSel((value) => (value - 1 + slashMatches.length) % slashMatches.length)
+                  return
+                }
+                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
+                  e.preventDefault()
+                  pickSlash(slashMatches[slashSel]?.name ?? '')
+                  return
+                }
+              } else if (fileMatches.length > 0) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault()
+                  isKeyNavRef.current = true
+                  if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                  keyNavTimerRef.current = setTimeout(() => {
+                    isKeyNavRef.current = false
+                  }, 250)
+                  setFileSel((value) => (value + 1) % fileMatches.length)
+                  return
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  isKeyNavRef.current = true
+                  if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                  keyNavTimerRef.current = setTimeout(() => {
+                    isKeyNavRef.current = false
+                  }, 250)
+                  setFileSel((value) => (value - 1 + fileMatches.length) % fileMatches.length)
+                  return
+                }
+                if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
+                  e.preventDefault()
+                  pickFile(fileMatches[fileSel] ?? fileMatches[0] ?? '')
+                  return
+                }
+              } else {
+                // 提示词历史回溯 (Prompt History): 输入框为空或光标在开头时按 ↑/↓ 翻阅
+                if (e.key === 'ArrowUp') {
+                  const isCursorAtStart = taRef.current
+                    ? taRef.current.selectionStart === 0 && taRef.current.selectionEnd === 0
+                    : true
+                  if (text === '' || historyIdx >= 0 || isCursorAtStart) {
+                    const history = loadPromptHistory()
+                    if (history.length > 0) {
+                      e.preventDefault()
+                      if (historyIdx === -1) {
+                        draftBeforeHistory.current = text
+                      }
+                      const nextIdx = Math.min(historyIdx + 1, history.length - 1)
+                      setHistoryIdx(nextIdx)
+                      const val = history[nextIdx] ?? ''
+                      updateText(val, true)
+                      setTimeout(() => {
+                        if (taRef.current) {
+                          taRef.current.selectionStart = taRef.current.selectionEnd = val.length
+                        }
+                      }, 0)
+                      return
                     }
-                    const nextIdx = Math.min(historyIdx + 1, history.length - 1)
-                    setHistoryIdx(nextIdx)
+                  }
+                } else if (e.key === 'ArrowDown' && historyIdx >= 0) {
+                  e.preventDefault()
+                  const history = loadPromptHistory()
+                  const nextIdx = historyIdx - 1
+                  setHistoryIdx(nextIdx)
+                  if (nextIdx >= 0) {
                     const val = history[nextIdx] ?? ''
                     updateText(val, true)
                     setTimeout(() => {
@@ -914,39 +931,43 @@ export default function Composer({
                         taRef.current.selectionStart = taRef.current.selectionEnd = val.length
                       }
                     }, 0)
-                    return
+                  } else {
+                    updateText(draftBeforeHistory.current, true)
+                    setHistoryIdx(-1)
                   }
+                  return
                 }
-              } else if (e.key === 'ArrowDown' && historyIdx >= 0) {
-                e.preventDefault()
-                const history = loadPromptHistory()
-                const nextIdx = historyIdx - 1
-                setHistoryIdx(nextIdx)
-                if (nextIdx >= 0) {
-                  const val = history[nextIdx] ?? ''
-                  updateText(val, true)
-                  setTimeout(() => {
-                    if (taRef.current) {
-                      taRef.current.selectionStart = taRef.current.selectionEnd = val.length
-                    }
-                  }, 0)
-                } else {
-                  updateText(draftBeforeHistory.current, true)
-                  setHistoryIdx(-1)
-                }
-                return
               }
-            }
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              submit()
-            } else if (e.key === 'Escape' && isBusyOrWaiting) {
-              e.preventDefault()
-              onInterrupt()
-            }
-          }}
-          rows={1}
-        />
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                submit()
+              } else if (e.key === 'Escape') {
+                if (isBusyOrWaiting) {
+                  e.preventDefault()
+                  onInterrupt()
+                } else if (text.trim().length > 0) {
+                  e.preventDefault()
+                  updateText('')
+                }
+              }
+            }}
+            rows={1}
+          />
+          {text.trim().length > 0 && (
+            <button
+              type="button"
+              className="composer-textarea-clear-btn"
+              onClick={() => {
+                updateText('')
+                taRef.current?.focus()
+              }}
+              title="清空草稿 (Esc)"
+              aria-label="清空草稿"
+            >
+              <IconX width={11} height={11} />
+            </button>
+          )}
+        </div>
 
         <div className="composer-bar">
           <AttachMenu onPickImage={() => fileRef.current?.click()} onReferenceFile={referenceFile} />
@@ -964,20 +985,6 @@ export default function Composer({
               setTimeout(() => taRef.current?.focus(), 50)
             }}
           />
-          {text.trim().length > 0 && (
-            <button
-              type="button"
-              className="chip-btn composer-btn-clear"
-              onClick={() => {
-                updateText('')
-                taRef.current?.focus()
-              }}
-              title="清空当前输入草稿"
-              aria-label="清空当前输入草稿"
-            >
-              <IconTrash width={13} height={13} />
-            </button>
-          )}
           {sendControl && <ModeMenu send={sendControl} disabled={conn !== 'open' || !settings} />}
           <div className="composer-right">
             {text.trim().length > 15 && (

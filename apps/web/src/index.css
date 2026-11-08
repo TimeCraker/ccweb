@@ -1160,6 +1160,7 @@ body.is-resizing-sidebar * {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  min-width: 0;
 }
 .ws-tree-node.is-active .ws-tree-name {
   font-weight: 600;
@@ -1173,6 +1174,7 @@ body.is-resizing-sidebar * {
   color: var(--color-accent);
   font-weight: 600;
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 .ws-tree-count {
   font-size: 11px;
@@ -1180,6 +1182,7 @@ body.is-resizing-sidebar * {
   font-variant-numeric: tabular-nums;
   margin-left: 2px;
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 .ws-tree-actions {
   display: none;
@@ -1396,22 +1399,36 @@ html.dark .session-row[aria-current='true'] {
 }
 .session-row .row-actions {
   position: absolute;
-  right: 4px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
   display: none;
-  gap: 1px;
-  padding-left: 12px;
-  background: linear-gradient(90deg, transparent, var(--color-panel) 26%);
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
 }
 .session-row:hover .row-actions,
 .session-row:focus-within .row-actions {
   display: flex;
 }
-.session-row .row-actions .icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
+.row-more-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-hover);
+  color: var(--color-text-faint);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-soft);
+}
+.row-more-btn:hover,
+.row-more-btn.is-active {
+  background: var(--color-panel-2);
+  color: var(--color-text);
+  border-color: var(--color-border);
 }
 
 .session-pinned-icon {
@@ -1989,6 +2006,31 @@ html.dark .ws-item:hover {
 }
 .composer textarea::placeholder {
   color: var(--color-text-faint);
+}
+.composer-textarea-clear-btn {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface-hover);
+  color: var(--color-text-faint);
+  border: 1px solid var(--color-border-subtle);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: all var(--dur-fast) var(--ease-soft);
+  z-index: 5;
+}
+.composer-textarea-clear-btn:hover {
+  opacity: 1;
+  background: var(--color-panel-2);
+  color: var(--color-text);
+  border-color: var(--color-border);
+  transform: scale(1.08);
 }
 .composer-bar {
   display: flex;
@@ -4934,26 +4976,30 @@ html.dark .session-branch-tag {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 3px;
+  padding: 2.5px;
   border-radius: 8px;
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
   box-shadow: inset 0 1px 2px rgba(28, 24, 20, 0.04);
+  max-width: calc(100% - 40px);
+  min-width: 0;
 }
 .drawer-nav-tab {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   height: 25px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--color-text-dim);
   background: transparent;
   cursor: pointer;
   border: 1px solid transparent;
   transition: all var(--dur-fast) var(--ease-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .drawer-nav-tab:hover {
   color: var(--color-text);

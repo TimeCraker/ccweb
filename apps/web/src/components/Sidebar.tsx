@@ -44,7 +44,7 @@ const HIDDEN_KEY = 'ccweb.hiddenWorkspaces'
 const PINNED_KEY = 'ccweb.pinnedWorkspaces'
 const PINNED_SESSIONS_KEY = 'ccweb.pinnedSessions'
 const SIDEBAR_W_KEY = 'ccweb.sidebarWidth'
-const MIN_SIDEBAR_W = 200
+const MIN_SIDEBAR_W = 230
 const MAX_SIDEBAR_W = 500
 const DEFAULT_SIDEBAR_W = 268
 
@@ -1189,52 +1189,66 @@ function SessionRow({
         </span>
       )}
       {!editing && (
-        <span className="row-actions">
-          <button
-            className={`icon-btn ${isPinned ? 'is-active is-pinned' : ''}`}
-            aria-label={isPinned ? '取消置顶' : '置顶会话'}
-            title={isPinned ? '取消置顶' : '置顶会话'}
-            onClick={(e) => {
-              e.stopPropagation()
-              onTogglePin?.(s.id)
-            }}
+        <span className="row-actions" onClick={(e) => e.stopPropagation()}>
+          <Menu
+            label="会话选项"
+            width={160}
+            align="end"
+            trigger={({ open }) => (
+              <button
+                type="button"
+                className={`row-more-btn ${open ? 'is-active' : ''}`}
+                aria-expanded={open}
+                title="会话选项"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <IconMore width={13} height={13} />
+              </button>
+            )}
           >
-            <IconPin width={12} height={12} />
-          </button>
-          <button
-            className="icon-btn"
-            aria-label={t('sb.rename')}
-            title={t('sb.rename')}
-            onClick={(e) => {
-              e.stopPropagation()
-              setDraft(s.title)
-              setEditing(true)
-            }}
-          >
-            <IconPencil width={12} height={12} />
-          </button>
-          <button
-            className="icon-btn"
-            aria-label={t('sb.fork')}
-            title={t('sb.fork')}
-            onClick={(e) => {
-              e.stopPropagation()
-              onFork()
-            }}
-          >
-            <IconFork width={12} height={12} />
-          </button>
-          <button
-            className="icon-btn"
-            aria-label={t('sb.delete')}
-            title={t('sb.delete')}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (window.confirm(tf('sb.deleteConfirm', s.title || s.id.slice(0, 8)))) onDelete(s.id)
-            }}
-          >
-            <IconTrash width={12} height={12} />
-          </button>
+            {(close) => (
+              <div className="p-1">
+                <MenuItem
+                  icon={<IconPin width={13} height={13} style={{ color: isPinned ? 'var(--color-accent)' : undefined }} />}
+                  onClick={() => {
+                    close()
+                    onTogglePin?.(s.id)
+                  }}
+                >
+                  {isPinned ? '取消置顶' : '置顶会话'}
+                </MenuItem>
+                <MenuItem
+                  icon={<IconPencil width={13} height={13} />}
+                  onClick={() => {
+                    close()
+                    setDraft(s.title)
+                    setEditing(true)
+                  }}
+                >
+                  {t('sb.rename')}
+                </MenuItem>
+                <MenuItem
+                  icon={<IconFork width={13} height={13} />}
+                  onClick={() => {
+                    close()
+                    onFork()
+                  }}
+                >
+                  {t('sb.fork')}
+                </MenuItem>
+                <div className="menu-sep" />
+                <MenuItem
+                  icon={<IconTrash width={13} height={13} style={{ color: 'var(--color-danger)' }} />}
+                  onClick={() => {
+                    close()
+                    if (window.confirm(tf('sb.deleteConfirm', s.title || s.id.slice(0, 8)))) onDelete(s.id)
+                  }}
+                >
+                  <span style={{ color: 'var(--color-danger)' }}>{t('sb.delete')}</span>
+                </MenuItem>
+              </div>
+            )}
+          </Menu>
         </span>
       )}
     </div>

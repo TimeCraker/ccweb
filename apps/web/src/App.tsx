@@ -17,16 +17,8 @@ import QuestionCard from './components/QuestionCard'
 import CommandPalette from './components/CommandPalette'
 import Toast from './components/Toast'
 import QueueDock from './components/QueueDock'
-import { BrandMark, IconEdit, IconFile, IconFolder, IconCheckSquare } from './components/Icon'
+import { BrandMark, IconEdit, IconFolder, IconCheckSquare } from './components/Icon'
 import type { SettingsTab } from './components/SettingsCenter'
-
-const CORE_FILES = [
-  'package.json',
-  'README.md',
-  'SPEC.md',
-  'implementation_plan.md',
-  'tsconfig.base.json',
-]
 
 const NativeTerminal = lazy(() => import('./components/NativeTerminal'))
 const SettingsCenter = lazy(() => import('./components/SettingsCenter'))
@@ -642,28 +634,6 @@ export default function App() {
                           {changeInfo.files.length} 个文件已改动
                         </button>
                       )}
-                    </div>
-
-                    <div className="empty-quick-files">
-                      <span className="quick-files-label">核心文件直达</span>
-                      <div className="quick-files-list">
-                        {CORE_FILES.map((fileName) => (
-                          <button
-                            key={fileName}
-                            type="button"
-                            className="quick-file-chip"
-                            onClick={() => {
-                              window.dispatchEvent(
-                                new CustomEvent('ccweb:focus-change', { detail: fileName })
-                              )
-                            }}
-                            title={`在伴侣抽屉中预览 ${fileName}`}
-                          >
-                            <IconFile width={12} height={12} style={{ color: 'var(--color-text-faint)' }} />
-                            <span>{fileName}</span>
-                          </button>
-                        ))}
-                      </div>
                     </div>
 
                     <div className="empty-hint-bar">
