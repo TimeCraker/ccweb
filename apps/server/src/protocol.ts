@@ -157,6 +157,7 @@ export interface SessionMeta {
   title: string
   lastModified: string | null
   gitBranch: string | null
+  isRunning?: boolean
 }
 
 /** 设置快照(下发前端;端点只带 name/url,无凭证) */

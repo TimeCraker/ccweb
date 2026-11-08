@@ -143,6 +143,7 @@ export default function Sidebar({
   const [order, setOrder] = useState<string[]>(() => readList(ORDER_KEY))
   const [dragId, setDragId] = useState<string | null>(null)
   const dragIdRef = useRef<string | null>(null)
+  const [dragOverInfo, setDragOverInfo] = useState<{ id: string; pos: 'before' | 'after' } | null>(null)
   useLocale()
 
   const VIEW_MODE_KEY = 'ccweb.sidebarViewMode'
@@ -318,24 +319,74 @@ export default function Sidebar({
     setDragId(id)
   }
 
-  /** 拖动项 hover 到目标行:交换两者顺序 */
-  const handleItemDragOver = (targetId: string) => {
+  /** 拖动 hover: 记录放置目标与插入方位 (before/after)，不触发跳动重排 */
+  const handleItemDragOver = (targetId: string, pos: 'before' | 'after') => {
     const dragged = dragIdRef.current
     if (!dragged || dragged === targetId) return
-    setOrder((prev) => {
-      const ids = applySessionOrder(sessions, prev).map((s) => s.id)
-      const i = ids.indexOf(dragged)
-      const j = ids.indexOf(targetId)
-      if (i === -1 || j === -1 || i === j) return prev
-      ids[i] = targetId
-      ids[j] = dragged
-      return ids
-    })
+    setDragOverInfo({ id: targetId, pos })
+  }
+
+  /** 拖动释放: 计算目标位置，若拖至顶端或置顶区自动加入置顶，并持久化自定义顺序 */
+  const handleItemDrop = (targetId: string, pos: 'before' | 'after') => {
+    const dragged = dragIdRef.current
+    if (!dragged || dragged === targetId) {
+      dragIdRef.current = null
+      setDragId(null)
+      setDragOverInfo(null)
+      return
+    }
+
+    const currentList = filtered.map((s) => s.id)
+    const filteredIds = currentList.filter((id) => id !== dragged)
+    const targetIdx = filteredIds.indexOf(targetId)
+    if (targetIdx === -1) {
+      dragIdRef.current = null
+      setDragId(null)
+      setDragOverInfo(null)
+      return
+    }
+
+    const insertIdx = pos === 'before' ? targetIdx : targetIdx + 1
+    const newOrderedIds = [...filteredIds.slice(0, insertIdx), dragged, ...filteredIds.slice(insertIdx)]
+
+    // 自动置顶判定: 拖到首位 (insertIdx === 0) 或目标项本为置顶项
+    if (insertIdx === 0 || pinnedSessions.includes(targetId)) {
+      if (!pinnedSessions.includes(dragged)) {
+        const nextPinned = [dragged, ...pinnedSessions]
+        setPinnedSessions(nextPinned)
+        try {
+          localStorage.setItem(PINNED_SESSIONS_KEY, JSON.stringify(nextPinned))
+        } catch {
+          // ignore
+        }
+      }
+    } else if (pinnedSessions.includes(dragged) && !pinnedSessions.includes(targetId)) {
+      // 从置顶区主动拖到了非置顶区下方: 移出置顶
+      const nextPinned = pinnedSessions.filter((x) => x !== dragged)
+      setPinnedSessions(nextPinned)
+      try {
+        localStorage.setItem(PINNED_SESSIONS_KEY, JSON.stringify(nextPinned))
+      } catch {
+        // ignore
+      }
+    }
+
+    setOrder(newOrderedIds)
+    try {
+      localStorage.setItem(ORDER_KEY, JSON.stringify(newOrderedIds))
+    } catch {
+      // ignore
+    }
+
+    dragIdRef.current = null
+    setDragId(null)
+    setDragOverInfo(null)
   }
 
   const handleItemDragEnd = () => {
     dragIdRef.current = null
     setDragId(null)
+    setDragOverInfo(null)
   }
 
   const connDot = conn === 'open' ? 'ok' : conn === 'connecting' ? 'warn live' : 'danger'
@@ -743,10 +794,12 @@ export default function Sidebar({
                           key={s.id}
                           s={s}
                           active={s.id === activeId}
-                          running={s.id === activeId && busy}
+                          running={(s.id === activeId && busy) || Boolean(s.isRunning)}
                           dragging={s.id === dragId}
+                          dropIndicator={dragOverInfo?.id === s.id ? dragOverInfo.pos : null}
                           onItemDragStart={handleItemDragStart}
                           onItemDragOver={handleItemDragOver}
+                          onItemDrop={handleItemDrop}
                           onItemDragEnd={handleItemDragEnd}
                           onOpen={() => onOpenSession(s.id)}
                           onFork={() => onOpenSession(s.id, true)}
@@ -785,17 +838,19 @@ export default function Sidebar({
                     key={s.id}
                     s={s}
                     active={s.id === activeId}
-                    running={s.id === activeId && busy}
+                    running={(s.id === activeId && busy) || Boolean(s.isRunning)}
                     dragging={s.id === dragId}
+                    dropIndicator={dragOverInfo?.id === s.id ? dragOverInfo.pos : null}
                     onItemDragStart={handleItemDragStart}
                     onItemDragOver={handleItemDragOver}
+                    onItemDrop={handleItemDrop}
                     onItemDragEnd={handleItemDragEnd}
                     onOpen={() => onOpenSession(s.id)}
                     onFork={() => onOpenSession(s.id, true)}
                     onRename={(title) => onRename(s.id, title)}
                     onDelete={() => onDelete(s.id)}
-                          isPinned={pinnedSessions.includes(s.id)}
-                          onTogglePin={() => togglePinSession(s.id)}
+                    isPinned={pinnedSessions.includes(s.id)}
+                    onTogglePin={() => togglePinSession(s.id)}
                   />
                 ))}
               </div>
@@ -1076,8 +1131,10 @@ function SessionRow({
   running = false,
   active,
   dragging,
+  dropIndicator,
   onItemDragStart,
   onItemDragOver,
+  onItemDrop,
   onItemDragEnd,
   onOpen,
   onFork,
@@ -1090,8 +1147,10 @@ function SessionRow({
   running?: boolean
   active: boolean
   dragging?: boolean
+  dropIndicator?: 'before' | 'after' | null
   onItemDragStart: (id: string) => void
-  onItemDragOver: (id: string) => void
+  onItemDragOver: (id: string, pos: 'before' | 'after') => void
+  onItemDrop?: (id: string, pos: 'before' | 'after') => void
   onItemDragEnd: () => void
   onOpen: () => void
   onFork: () => void
@@ -1118,7 +1177,17 @@ function SessionRow({
       }}
       onDragOver={(e) => {
         e.preventDefault()
-        onItemDragOver(s.id)
+        e.stopPropagation()
+        const rect = e.currentTarget.getBoundingClientRect()
+        const pos = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
+        onItemDragOver(s.id, pos)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const rect = e.currentTarget.getBoundingClientRect()
+        const pos = e.clientY - rect.top < rect.height / 2 ? 'before' : 'after'
+        onItemDrop?.(s.id, pos)
       }}
       onDragEnd={onItemDragEnd}
       onKeyDown={(e) => {
@@ -1127,7 +1196,7 @@ function SessionRow({
           onOpen()
         }
       }}
-      className="session-row"
+      className={`session-row${dropIndicator === 'before' ? ' drop-before' : dropIndicator === 'after' ? ' drop-after' : ''}`}
       style={dragging ? { opacity: 0.45 } : undefined}
       onClick={() => !editing && onOpen()}
     >

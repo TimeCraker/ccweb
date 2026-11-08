@@ -133,6 +133,23 @@ const observers = new Map<import('ws').WebSocket, AgentSession | null>()
 const journals = new WeakMap<AgentSession, ServerMessage[]>()
 let operationTail: Promise<void> = Promise.resolve()
 
+async function broadcastSessionList(targetWorkspace?: string): Promise<void> {
+  for (const [socket, agent] of observers) {
+    if (socket.readyState !== socket.OPEN) continue
+    const wsDir = targetWorkspace ?? agent?.workspace ?? runtimeSettings.workspace ?? process.cwd()
+    try {
+      const metas = await listSessionMetas(wsDir)
+      const sessions = metas.map((s) => ({
+        ...s,
+        isRunning: Boolean(registry.get(s.id)?.isRunning),
+      }))
+      socket.send(JSON.stringify({ t: 'sessions', seq: ++seq, sessions }))
+    } catch {
+      // ignore
+    }
+  }
+}
+
 server.on('upgrade', (req, socket, head) => {
   const origin = req.headers.origin
   const allowed = !origin || isLoopbackOrigin(origin, PORT) || isLoopbackOrigin(origin)
@@ -176,7 +193,10 @@ wss.on('connection', (ws) => {
       }
       // turn 结束后刷新侧栏列表--新会话/新标题第一时间可见
       if (msg.t === 'message' && (msg.sdkMessage as { type?: string } | undefined)?.type === 'result') {
-        void pushSessionList()
+        void broadcastSessionList(agent.workspace)
+      }
+      if (msg.t === 'state' && (msg.state === 'cancelled' || msg.state === 'failed')) {
+        void broadcastSessionList(agent.workspace)
       }
       const journal = journals.get(agent) ?? []
       journal.push(msg)
@@ -279,11 +299,13 @@ wss.on('connection', (ws) => {
           : (currentSession ?? getOrCreateSession())
         if (agent.workspace !== workspace) throw new Error('Session belongs to another workspace')
         agent.send(msg.text, msg.images, msg.commandId)
+        void broadcastSessionList(workspace)
         emit({ t: 'settings', seq: 0, settings: { ...settingsSnapshot(workspace), workspace, active: { ...agent.settings, providerModel: agent.providerModel() } } })
         break
       }
       case 'interrupt':
         await currentSession?.interrupt()
+        void broadcastSessionList(workspace)
         break
       case 'queue.resume':
         if (nativeWorkspaceBusy(workspace)) throw new Error('原生终端使用中，不能恢复 GUI 队列')
@@ -509,7 +531,11 @@ wss.on('connection', (ws) => {
   }
 
   async function pushSessionList(): Promise<void> {
-    const sessions = await listSessionMetas(workspace)
+    const metas = await listSessionMetas(workspace)
+    const sessions = metas.map((s) => ({
+      ...s,
+      isRunning: Boolean(registry.get(s.id)?.isRunning),
+    }))
     emit({ t: 'sessions', seq: 0, sessions })
   }
 

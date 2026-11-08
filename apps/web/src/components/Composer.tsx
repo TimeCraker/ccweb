@@ -404,6 +404,18 @@ export default function Composer({
   }, [key])
 
   const updateText = (value: string, fromHistory = false) => {
+    if (!activeCommand && value.startsWith('/')) {
+      const match = value.match(/^\/([a-zA-Z0-9_-]+)\s+(.*)$/)
+      if (match && match[1]) {
+        const cmdName = match[1]
+        const param = match[2] ?? ''
+        setActiveCommand({ name: cmdName })
+        setText(param)
+        localStorage.setItem(key, param)
+        if (!fromHistory) setHistoryIdx(-1)
+        return
+      }
+    }
     setText(value)
     localStorage.setItem(key, value)
     if (!fromHistory) {
@@ -502,6 +514,7 @@ export default function Composer({
   const [slashSel, setSlashSel] = useState(0)
   const [fileSel, setFileSel] = useState(0)
   const [lightbox, setLightbox] = useState<string | null>(null)
+  const [activeCommand, setActiveCommand] = useState<{ name: string; description?: string } | null>(null)
   const conn = useStore((s) => s.conn)
   const waiting = useStore((s) => s.permissions.length > 0 || s.question !== null)
   const lastAck = useStore((s) => s.lastAck)
@@ -666,15 +679,16 @@ export default function Composer({
     }
   }, [fileSel, fileMatches.length])
 
-  const canSend = Boolean(text.trim() || images.length)
+  const effectiveText = activeCommand ? `/${activeCommand.name}${text.trim() ? ` ${text.trim()}` : ""}` : text.trim()
+  const canSend = Boolean(effectiveText || images.length)
   const isBusyOrWaiting = busy || waiting
   const isStopMode = isBusyOrWaiting && !canSend
   const blocked = !settingsReady || !!pending || conn !== 'open' || waiting || !canSend
 
   const submit = () => {
-    const trimmed = text.trim()
-    if (!settingsReady || pending || conn !== 'open' || waiting || (!trimmed && images.length === 0)) return
-    const signature = `${trimmed}|${images.length}:${images.reduce((sum, src) => sum + src.length, 0)}`
+    const fullText = activeCommand ? `/${activeCommand.name}${text.trim() ? ` ${text.trim()}` : ''}` : text.trim()
+    if (!settingsReady || pending || conn !== 'open' || waiting || (!fullText && images.length === 0)) return
+    const signature = `${fullText}|${images.length}:${images.reduce((sum, src) => sum + src.length, 0)}`
     const previous = lastSend
     if (
       previous &&
@@ -685,30 +699,31 @@ export default function Composer({
     ) {
       return
     }
-    const request = onSend(trimmed || t('cp.imageOnly'), images.length ? images : undefined)
+    const request = onSend(fullText || t('cp.imageOnly'), images.length ? images : undefined)
     if (request === 'local') {
-      appendPromptHistory(trimmed)
+      appendPromptHistory(fullText)
       setHistoryIdx(-1)
       updateText('')
+      setActiveCommand(null)
       setImages([])
     } else if (request) {
-      appendPromptHistory(trimmed)
+      appendPromptHistory(fullText)
       setHistoryIdx(-1)
       lastSend = { signature, at: Date.now(), acknowledged: false }
       setPending(request)
+      setActiveCommand(null)
     }
   }
 
-  const pickSlash = (item: { name: string; prompt?: string }) => {
-    if (item.prompt) {
-      if (item.prompt.startsWith('/')) {
-        updateText(item.prompt.endsWith(' ') ? item.prompt : `${item.prompt} `)
-      } else {
-        updateText(item.prompt)
-      }
+  const pickSlash = (item: { name: string; description?: string; prompt?: string }) => {
+    if (item.prompt && !item.prompt.startsWith('/')) {
+      updateText(item.prompt)
     } else {
-      const clean = item.name.replace(/^\/+/, '')
-      updateText(`/${clean} `)
+      const firstToken = item.prompt?.startsWith('/') ? item.prompt.replace(/^\/+/, '').split(/\s+/)[0] : item.name
+      const clean = (firstToken ?? item.name).replace(/^\/+/, '')
+      const rest = item.prompt?.startsWith('/') ? item.prompt.replace(/^\/+/, '').split(/\s+/).slice(1).join(' ') : ''
+      setActiveCommand({ name: clean, description: item.description })
+      updateText(rest ? `${rest} ` : '')
     }
     setSlashSel(0)
     taRef.current?.focus()
@@ -860,18 +875,40 @@ export default function Composer({
         )}
 
         <div className="composer-input-wrapper" style={{ position: 'relative', width: '100%' }}>
+          {activeCommand && (
+            <div className="composer-command-chip-container">
+              <span className="composer-command-chip">
+                <span className="chip-prefix">/</span>
+                <span className="chip-name">{activeCommand.name}</span>
+                <button
+                  type="button"
+                  className="chip-remove"
+                  onClick={() => {
+                    setActiveCommand(null)
+                    taRef.current?.focus()
+                  }}
+                  title="移除命令 (Backspace)"
+                  aria-label="移除命令"
+                >
+                  <IconX width={10} height={10} />
+                </button>
+              </span>
+            </div>
+          )}
           <textarea
             ref={taRef}
             value={text}
             aria-label={t('cp.input')}
             placeholder={
-              waiting
-                ? t('cp.waitingPlaceholder')
-                : busy
-                  ? t('cp.queuePlaceholder')
-                  : hero
-                    ? '向 Claude 提问，输入 @ 引用工作区文件，/ 快捷指令...'
-                    : '输入提问，输入 @ 引用文件，/ 快捷指令... (Enter 发送)'
+              activeCommand
+                ? `为 /${activeCommand.name} 输入参数（可选），Enter 发送...`
+                : waiting
+                  ? t('cp.waitingPlaceholder')
+                  : busy
+                    ? t('cp.queuePlaceholder')
+                    : hero
+                      ? '向 Claude 提问，输入 @ 引用工作区文件，/ 快捷指令...'
+                      : '输入提问，输入 @ 引用文件，/ 快捷指令... (Enter 发送)'
             }
             onChange={(e) => updateText(e.target.value)}
             onPaste={(e) => {
@@ -884,6 +921,11 @@ export default function Composer({
             onKeyDown={(e) => {
               const native = e.nativeEvent as KeyboardEvent & { isComposing?: boolean }
               if (native.isComposing || native.keyCode === 229) return
+              if (e.key === 'Backspace' && text === '' && activeCommand) {
+                e.preventDefault()
+                setActiveCommand(null)
+                return
+              }
               if (slashMatches.length > 0) {
                 if (e.key === 'ArrowDown') {
                   e.preventDefault()
@@ -1002,6 +1044,7 @@ export default function Composer({
               type="button"
               className="composer-textarea-clear-btn"
               onClick={() => {
+                setActiveCommand(null)
                 updateText('')
                 taRef.current?.focus()
               }}
@@ -1019,8 +1062,11 @@ export default function Composer({
             currentText={text}
             onSelectCommand={(cmd) => {
               if (cmd.startsWith('/')) {
-                // 指令直接替换或前置插入
-                updateText(cmd)
+                const parts = cmd.replace(/^\/+/, '').split(/\s+/)
+                const name = parts[0] ?? ''
+                const rest = parts.slice(1).join(' ')
+                if (name) setActiveCommand({ name })
+                updateText(rest ? `${rest} ` : '')
               } else if (text.trim().length > 0) {
                 updateText(`${text}\n\n${cmd}`)
               } else {

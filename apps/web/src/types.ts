@@ -38,6 +38,7 @@ export interface SessionMeta {
   title: string
   lastModified: string | null
   gitBranch: string | null
+  isRunning?: boolean
 }
 
 export interface SettingsSnapshot {

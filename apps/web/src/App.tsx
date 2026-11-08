@@ -472,22 +472,11 @@ export default function App() {
     window.confirm('切换项目或会话会放弃尚未发送的图片附件；文字草稿会保留。是否继续？')
 
   /**
-   * 导航前保护:附件 + 运行中任务。
-   * 运行中必须显式确认,确认后先中断再切换——不做"静默杀任务",也不把任务留在后台无法查看。
+   * 导航前保护:附件草稿保护。
+   * 支持多会话后台并行运行:切换会话时不再强制中断原任务，原任务在后台全速推进，侧边栏保持实时状态感知。
    */
   const guardNavigation = (action: () => void) => {
     if (!confirmAttachmentNavigation()) return
-    const state = useStore.getState()
-    if (state.busy || state.permissions.length > 0 || state.question) {
-      if (
-        !window.confirm(
-          '当前任务仍在运行。继续会先停止它；已经生成的内容会保留在原会话里。是否继续？',
-        )
-      )
-        return
-      sendControl({ t: 'interrupt' })
-      useStore.getState().setInterrupted(true)
-    }
     action()
   }
 
