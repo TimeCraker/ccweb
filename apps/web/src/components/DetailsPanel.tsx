@@ -87,14 +87,9 @@ export default function DetailsPanel({
     return items
   }, [entries])
 
-  const composition = metrics
-    ? [
-        { key: t('ctx.fresh'), value: metrics.inputTokens, color: 'var(--color-accent)' },
-        { key: t('ctx.cacheRead'), value: metrics.cacheReadTokens, color: 'var(--color-ok)' },
-        { key: t('ctx.cacheWrite'), value: metrics.cacheCreationTokens, color: 'var(--color-warn)' },
-      ]
-    : []
-  const compositionTotal = composition.reduce((sum, item) => sum + item.value, 0)
+  const totalTokens = metrics ? (metrics.inputTokens || 0) + (metrics.outputTokens || 0) : 0
+  const inputRatio = totalTokens > 0 ? ((metrics?.inputTokens || 0) / totalTokens) * 100 : 0
+  const outputRatio = totalTokens > 0 ? ((metrics?.outputTokens || 0) / totalTokens) * 100 : 0
 
   const currentModelName = settings?.currentModel ?? '未设定模型'
   const activeTasksList = tasks.filter((t) => t.status === 'running')
@@ -288,31 +283,68 @@ export default function DetailsPanel({
                   </button>
                 </div>
 
-                {compositionTotal > 0 && (
+                {totalTokens > 0 && (
                   <div style={{ marginBottom: 10 }}>
-                    <div className="bar-meter" style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
-                      {composition.map((item) => (
-                        <i
-                          key={item.key}
-                          style={{
-                            width: `${(item.value / compositionTotal) * 100}%`,
-                            background: item.color,
-                            borderRadius: 0,
-                          }}
-                        />
-                      ))}
+                    <div
+                      className="bar-meter"
+                      style={{
+                        display: 'flex',
+                        height: 6,
+                        borderRadius: 3,
+                        overflow: 'hidden',
+                        background: 'var(--color-surface-2)',
+                      }}
+                    >
+                      <i
+                        title={`输入 Tokens: ${fmtTokens(metrics.inputTokens)} (${inputRatio.toFixed(1)}%)`}
+                        style={{
+                          width: `${inputRatio}%`,
+                          background: 'var(--color-accent)',
+                          borderRadius: 0,
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
+                      <i
+                        title={`输出 Tokens: ${fmtTokens(metrics.outputTokens)} (${outputRatio.toFixed(1)}%)`}
+                        style={{
+                          width: `${outputRatio}%`,
+                          background: 'var(--color-ok)',
+                          borderRadius: 0,
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
                     </div>
                   </div>
                 )}
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 12px', fontSize: 11.5 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
-                    <span style={{ color: 'var(--color-text-faint)' }}>输入 Tokens</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)' }}>{fmtTokens(metrics.inputTokens)}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--color-text-faint)' }}>
+                      <span style={{ width: 7, height: 7, borderRadius: 2, background: 'var(--color-accent)', flexShrink: 0 }} />
+                      输入 Tokens
+                    </span>
+                    <strong style={{ fontFamily: 'var(--font-mono)' }}>
+                      {fmtTokens(metrics.inputTokens)}
+                      {totalTokens > 0 && (
+                        <span style={{ fontSize: 10, color: 'var(--color-text-faint)', marginLeft: 4, fontWeight: 400 }}>
+                          ({inputRatio.toFixed(0)}%)
+                        </span>
+                      )}
+                    </strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
-                    <span style={{ color: 'var(--color-text-faint)' }}>输出 Tokens</span>
-                    <strong style={{ fontFamily: 'var(--font-mono)' }}>{fmtTokens(metrics.outputTokens)}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--color-text-faint)' }}>
+                      <span style={{ width: 7, height: 7, borderRadius: 2, background: 'var(--color-ok)', flexShrink: 0 }} />
+                      输出 Tokens
+                    </span>
+                    <strong style={{ fontFamily: 'var(--font-mono)' }}>
+                      {fmtTokens(metrics.outputTokens)}
+                      {totalTokens > 0 && (
+                        <span style={{ fontSize: 10, color: 'var(--color-text-faint)', marginLeft: 4, fontWeight: 400 }}>
+                          ({outputRatio.toFixed(0)}%)
+                        </span>
+                      )}
+                    </strong>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
                     <span style={{ color: 'var(--color-text-faint)' }}>预估费用</span>
@@ -325,6 +357,28 @@ export default function DetailsPanel({
                     </strong>
                   </div>
                 </div>
+
+                {Boolean(metrics.cacheReadTokens && metrics.cacheReadTokens > 0) && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: 10.5,
+                      color: 'var(--color-text-faint)',
+                      background: 'var(--color-surface-2)',
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                    }}
+                  >
+                    <span>Prompt 缓存读取</span>
+                    <span style={{ fontFamily: 'var(--font-mono)' }}>
+                      {fmtTokens(metrics.cacheReadTokens)}
+                      {metrics.cacheHitRate != null && ` (命中率 ${(metrics.cacheHitRate * 100).toFixed(0)}%)`}
+                    </span>
+                  </div>
+                )}
               </div>
             ) : null}
 
