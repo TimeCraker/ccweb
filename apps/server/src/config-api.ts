@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync, openSync, readSync, closeSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep, isAbsolute, basename } from 'node:path'
 import { homedir } from 'node:os'
 import { execFile, execFileSync } from 'node:child_process'
@@ -641,18 +641,34 @@ const MIME_TYPES: Record<string, string> = {
   svg: 'image/svg+xml',
   ico: 'image/x-icon',
   bmp: 'image/bmp',
+  avif: 'image/avif',
   mp4: 'video/mp4',
   webm: 'video/webm',
   ogg: 'video/ogg',
+  mov: 'video/quicktime',
+  mkv: 'video/x-matroska',
   mp3: 'audio/mpeg',
   wav: 'audio/wav',
+  m4a: 'audio/mp4',
+  flac: 'audio/flac',
+  aac: 'audio/aac',
   pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  doc: 'application/msword',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xls: 'application/vnd.ms-excel',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ppt: 'application/vnd.ms-powerpoint',
+  zip: 'application/zip',
+  tar: 'application/x-tar',
+  gz: 'application/gzip',
+  '7z': 'application/x-7z-compressed',
   json: 'application/json',
   txt: 'text/plain; charset=utf-8',
   md: 'text/markdown; charset=utf-8',
 };
 
-// 原始工作区文件流读取（用于多媒体与文档预览）
+// 原始工作区文件流读取（用于多媒体与文档预览，支持 Range 分段）
 configApi.get("/workspaces/raw-file", async (c) => {
   const target = (c.req.query("path") || "").trim();
   if (!target) return c.text("请指定文件路径", 400);
@@ -663,16 +679,45 @@ configApi.get("/workspaces/raw-file", async (c) => {
   }
   const stat = statSync(fullPath);
   if (!stat.isFile()) return c.text("不是有效文件", 400);
-  if (stat.size > 50 * 1024 * 1024) {
-    return c.text("文件超出预览大小限制 (50MB)", 413);
+  if (stat.size > 80 * 1024 * 1024) {
+    return c.text("文件超出预览大小限制 (80MB)", 413);
   }
 
   const ext = (target.split('.').pop() || '').toLowerCase();
   const mime = MIME_TYPES[ext] || 'application/octet-stream';
+  const rangeHeader = c.req.header("range");
+
+  if (rangeHeader && rangeHeader.startsWith("bytes=")) {
+    const parts = rangeHeader.replace("bytes=", "").split("-");
+    const start = parseInt(parts[0] || "0", 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+
+    if (start >= stat.size || end >= stat.size || start > end) {
+      return c.text("请求范围不满足", 416, {
+        "Content-Range": `bytes */${stat.size}`,
+      });
+    }
+
+    const chunkLength = end - start + 1;
+    const buffer = Buffer.alloc(chunkLength);
+    const fd = openSync(fullPath, "r");
+    readSync(fd, buffer, 0, chunkLength, start);
+    closeSync(fd);
+
+    return c.body(buffer, 206, {
+      "Content-Type": mime,
+      "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": String(chunkLength),
+      "Cache-Control": "no-cache",
+    });
+  }
+
   const data = readFileSync(fullPath);
   return c.body(data, 200, {
     'Content-Type': mime,
     'Content-Length': String(stat.size),
+    'Accept-Ranges': 'bytes',
     'Cache-Control': 'no-cache',
   });
 });

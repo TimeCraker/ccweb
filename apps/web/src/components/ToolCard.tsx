@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { t, useLocale } from '../i18n'
+import { useStore } from '../store'
 import type { ToolBlock } from '../render/blocks'
 import { ansiToSegments } from '../ansi'
 import DiffView from './DiffView'
@@ -10,6 +11,7 @@ import {
   IconSearch,
   IconGlobe,
   IconSparkle,
+  IconCopy,
 } from './Icon'
 
 /** 执行中耗时:长命令不像卡死 */
@@ -85,6 +87,17 @@ export default function ToolCard({ block, turnDone }: { block: ToolBlock; turnDo
     const newStr = typeof input.new_string === 'string' ? input.new_string : null
     return oldStr != null && newStr != null ? { oldStr, newStr } : null
   }, [block.toolName, block.input, block.inputRaw])
+
+  const [logExpanded, setLogExpanded] = useState(false)
+  const resultLines = useMemo(() => (result ? result.split('\n') : []), [result])
+  const isLongLog = resultLines.length > 20
+
+  const handleCopyResult = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!result) return
+    await navigator.clipboard.writeText(result)
+    useStore.getState().setNotice('已复制工具运行完整输出')
+  }
 
   const isFileEdit = ['Edit', 'Write', 'MultiEdit'].includes(block.toolName)
   const targetFilePath = typeof block.input?.file_path === 'string'
@@ -165,25 +178,55 @@ export default function ToolCard({ block, turnDone }: { block: ToolBlock; turnDo
           )}
           {result != null && (
             <div className="tool-block">
-              <p className="label">{t('tl.result')}</p>
-              <pre className={`tool-pre ${effectiveStatus === 'error' ? 'error' : ''}`}>
-                {hasAnsi
-                  ? ansiToSegments(display).map((segment, index) => (
-                      <span key={index} style={segment.fg ? { color: segment.fg } : undefined} className={segment.bold ? 'font-bold' : undefined}>
-                        {segment.text}
-                      </span>
-                    ))
-                  : numbered
-                    ? display.split('\n').map((line, index) => (
-                        <span key={index} style={{ display: 'block' }}>
-                          <span style={{ display: 'inline-block', width: 30, marginRight: 10, textAlign: 'right', color: 'var(--color-text-faint)', userSelect: 'none' }}>
-                            {index + 1}
-                          </span>
-                          {line}
+              <div className="tool-block-header">
+                <p className="label">{t('tl.result')}</p>
+                <div className="tool-block-actions">
+                  {isLongLog && (
+                    <span className="tool-lines-count">{resultLines.length} 行输出</span>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost tool-copy-btn"
+                    onClick={handleCopyResult}
+                    title="复制完整运行输出"
+                  >
+                    <IconCopy width={11} height={11} />
+                    <span>复制</span>
+                  </button>
+                </div>
+              </div>
+              <div className={`tool-pre-wrap ${isLongLog && !logExpanded ? 'is-collapsed' : ''}`}>
+                <pre className={`tool-pre ${effectiveStatus === 'error' ? 'error' : ''}`}>
+                  {hasAnsi
+                    ? ansiToSegments(display).map((segment, index) => (
+                        <span key={index} style={segment.fg ? { color: segment.fg } : undefined} className={segment.bold ? 'font-bold' : undefined}>
+                          {segment.text}
                         </span>
                       ))
-                    : display}
-              </pre>
+                    : numbered
+                      ? display.split('\n').map((line, index) => (
+                          <span key={index} style={{ display: 'block' }}>
+                            <span style={{ display: 'inline-block', width: 30, marginRight: 10, textAlign: 'right', color: 'var(--color-text-faint)', userSelect: 'none' }}>
+                              {index + 1}
+                            </span>
+                            {line}
+                          </span>
+                        ))
+                      : display}
+                </pre>
+                {isLongLog && !logExpanded && <div className="tool-log-fade" />}
+              </div>
+              {isLongLog && (
+                <button
+                  type="button"
+                  className="tool-log-toggle-btn"
+                  onClick={() => setLogExpanded((v) => !v)}
+                >
+                  {logExpanded
+                    ? '收起日志 ↑'
+                    : `展开其余 ${resultLines.length - 14} 行日志 (共 ${resultLines.length} 行) ↓`}
+                </button>
+              )}
             </div>
           )}
         </div>

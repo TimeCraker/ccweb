@@ -6,7 +6,7 @@ import type { ToolBlock } from '../render/blocks'
 import type { FileBaseline } from '../types'
 import { compactPath } from '../lib/path'
 import DiffView from './DiffView'
-import { IconCheck, IconChevron, IconDiffSplit, IconDiffUnified, IconWarn, IconX } from './Icon'
+import { IconCheck, IconChevron, IconDiffSplit, IconDiffUnified, IconWarn, IconX, IconCopy } from './Icon'
 import DrawerResizer from './DrawerResizer'
 
 function FileChange({
@@ -187,6 +187,100 @@ export default function ChangesPanel({
   const pendingChanges = changes.length - done
   const failedChecks = checks.filter((block) => block.status === 'error').length
 
+  const totalStats = useMemo(() => {
+    let add = 0
+    let del = 0
+    for (const block of changes) {
+      const baseline = block.toolUseId ? baselines[block.toolUseId] : undefined
+      const disk = block.status === 'done' ? baseline?.observed : undefined
+      const requested = block.toolName === 'MultiEdit' && Array.isArray(block.input?.edits)
+        ? block.input.edits : [block.input ?? {}]
+      if (disk && disk.before !== disk.after) {
+        try {
+          const parts = diffLines(disk.before ?? '', disk.after ?? '', { timeout: 80, maxEditLength: 2000 })
+          if (parts) {
+            for (const p of parts) {
+              const count = p.count || p.value.split('\n').length - (p.value.endsWith('\n') ? 1 : 0)
+              if (p.added) add += count
+              else if (p.removed) del += count
+            }
+          }
+        } catch {
+          // ignore
+        }
+      } else {
+        for (const edit of requested) {
+          const record = (edit ?? {}) as Record<string, unknown>
+          const o = block.toolName === 'Write' ? baseline?.content ?? '' : String(record.old_string ?? '')
+          const n = String(record.new_string ?? record.content ?? '')
+          try {
+            const parts = diffLines(o, n, { timeout: 80, maxEditLength: 2000 })
+            if (parts) {
+              for (const p of parts) {
+                const count = p.count || p.value.split('\n').length - (p.value.endsWith('\n') ? 1 : 0)
+                if (p.added) add += count
+                else if (p.removed) del += count
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+    return { add, del }
+  }, [changes, baselines])
+
+  const handleCopyAllDiff = async () => {
+    if (changes.length === 0) return
+    let patch = ''
+    for (const block of changes) {
+      const filePath = String(block.input?.file_path ?? block.toolName)
+      const baseline = block.toolUseId ? baselines[block.toolUseId] : undefined
+      const disk = block.status === 'done' ? baseline?.observed : undefined
+      patch += `--- a/${filePath}\n+++ b/${filePath}\n`
+      if (disk && disk.before !== disk.after) {
+        try {
+          const parts = diffLines(disk.before ?? '', disk.after ?? '', { timeout: 80 })
+          if (parts) {
+            for (const p of parts) {
+              const prefix = p.added ? '+' : p.removed ? '-' : ' '
+              const lines = p.value.split('\n')
+              if (lines[lines.length - 1] === '') lines.pop()
+              patch += lines.map((l) => `${prefix}${l}`).join('\n') + '\n'
+            }
+          }
+        } catch {
+          patch += `@@ 变更行 @@\n${block.resultText || ''}\n`
+        }
+      } else {
+        const requested = block.toolName === 'MultiEdit' && Array.isArray(block.input?.edits)
+          ? block.input.edits : [block.input ?? {}]
+        for (const edit of requested) {
+          const record = (edit ?? {}) as Record<string, unknown>
+          const o = block.toolName === 'Write' ? baseline?.content ?? '' : String(record.old_string ?? '')
+          const n = String(record.new_string ?? record.content ?? '')
+          try {
+            const parts = diffLines(o, n, { timeout: 80 })
+            if (parts) {
+              for (const p of parts) {
+                const prefix = p.added ? '+' : p.removed ? '-' : ' '
+                const lines = p.value.split('\n')
+                if (lines[lines.length - 1] === '') lines.pop()
+                patch += lines.map((l) => `${prefix}${l}`).join('\n') + '\n'
+              }
+            }
+          } catch {
+            patch += `@@ 变更行 @@\n`
+          }
+        }
+      }
+      patch += '\n'
+    }
+    await navigator.clipboard.writeText(patch)
+    useStore.getState().setNotice('已将全部变更补丁 (Diff) 复制到剪贴板')
+  }
+
   const status = busy
     ? '运行中，结果待定'
     : metrics?.terminalStatus === 'completed'
@@ -219,6 +313,22 @@ export default function ChangesPanel({
         <div className="header-actions">
           {changes.length > 0 && (
             <>
+              {(totalStats.add > 0 || totalStats.del > 0) && (
+                <span className="diff-stats-badge" title={`新增 ${totalStats.add} 行，删除 ${totalStats.del} 行`}>
+                  <span className="diff-stats-add">+{totalStats.add}</span>
+                  <span className="diff-stats-del">-{totalStats.del}</span>
+                </span>
+              )}
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                style={{ fontSize: 11, height: 24, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                onClick={handleCopyAllDiff}
+                title="复制全部变更的标准 Diff 补丁"
+              >
+                <IconCopy width={12} height={12} />
+                <span>复制 Diff</span>
+              </button>
               <button
                 type="button"
                 className="btn btn-sm btn-ghost"

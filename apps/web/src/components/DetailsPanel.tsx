@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { contextUsage } from '../context-usage'
 import { useStore } from '../store'
-import { t, tf } from '../i18n'
+import { t } from '../i18n'
 import type { ToolBlock } from '../render/blocks'
-import { IconCopy, IconX } from './Icon'
+import { IconCopy, IconX, IconCpu } from './Icon'
 import { copyText } from '../clipboard'
 import DrawerResizer from './DrawerResizer'
 
@@ -61,11 +61,12 @@ export default function DetailsPanel({
   const tasks = useStore((s) => s.nativeTasks)
   const checkpoints = useStore((s) => s.checkpoints)
   const rewind = useStore((s) => s.rewind)
+  const settings = useStore((s) => s.settings)
+  const conn = useStore((s) => s.conn)
 
   const level = useMemo(() => contextUsage(context?.raw), [context])
   const pct = level ? Math.min(100, (level.used / level.max) * 100) : 0
   const ringColor = pct > 85 ? 'var(--color-danger)' : pct > 60 ? 'var(--color-warn)' : 'var(--color-accent)'
-  const circumference = 2 * Math.PI * 24
 
   const trajectory = useMemo(() => {
     const items: Array<{ id: string; toolName: string; status: ToolBlock['status']; summary: string }> = []
@@ -93,6 +94,9 @@ export default function DetailsPanel({
     : []
   const compositionTotal = composition.reduce((sum, item) => sum + item.value, 0)
 
+  const currentModelName = settings?.currentModel ?? '未设定模型'
+  const activeTasksList = tasks.filter((t) => t.status === 'running')
+
   return (
     <aside className="drawer" aria-label={t('dw.details')}>
       <DrawerResizer />
@@ -119,14 +123,12 @@ export default function DetailsPanel({
         </div>
       </header>
       <div className="drawer-body">
-        {tasks.filter((t) => t.status === 'running').length > 0 && (
+        {activeTasksList.length > 0 && (
           <div className="note" style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontWeight: 600 }}>有后台任务正在运行中</span>
             </div>
-            {tasks
-              .filter((t) => t.status === 'running')
-              .map((task) => (
+            {activeTasksList.map((task) => (
                 <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
                   <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {task.description}
@@ -151,91 +153,123 @@ export default function DetailsPanel({
         </div>
 
         {tab === 'context' && (
-          <>
-            {level ? (
-              <>
-                <div className="ring-gauge">
-                  <svg viewBox="0 0 60 60" width="64" height="64" style={{ transform: 'rotate(-90deg)', flex: '0 0 auto' }}>
-                    <circle cx="30" cy="30" r="24" fill="none" stroke="var(--color-panel-3)" strokeWidth="6" />
-                    <circle
-                      cx="30"
-                      cy="30"
-                      r="24"
-                      fill="none"
-                      stroke={ringColor}
-                      strokeWidth="6"
-                      strokeLinecap="round"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={circumference * (1 - pct / 100)}
-                    />
-                  </svg>
-                  <div className="ring-label">
-                    <strong>{pct.toFixed(0)}%</strong>
-                    <span>
-                      {fmtTokens(level.used)} / {fmtTokens(level.max)} 上下文已用
-                    </span>
-                  </div>
+          <div className="details-dashboard" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* 模型与运行环境概览 */}
+            <div
+              className="runtime-card"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 8,
+                padding: '12px 14px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <IconCpu width={14} height={14} style={{ color: 'var(--color-accent)' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>
+                    AI 运行环境与模型
+                  </span>
                 </div>
-                {pct > 85 && (
-                  <div className="note warn" style={{ marginTop: 12 }}>
-                    <div>{tf('ctx.warn', Math.round(pct))}</div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div
-                style={{
-                  padding: '16px',
-                  background: 'var(--color-panel-2)',
-                  borderRadius: 8,
-                  border: '1px solid var(--color-border)',
-                  marginBottom: 14,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>运行准备就绪</span>
-                  <span className="dot ok" style={{ width: 6, height: 6 }} />
-                </div>
-                <p style={{ fontSize: 11.5, color: 'var(--color-text-dim)', lineHeight: 1.5, margin: 0 }}>
-                  对话启动后将在此处实时呈现上下文 Token 水位、命中率与实时费用。
-                </p>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 11,
+                    color: conn === 'open' ? 'var(--color-ok)' : 'var(--color-warn)',
+                  }}
+                >
+                  <span className={`dot ${conn === 'open' ? 'ok' : 'warn'}`} style={{ width: 6, height: 6 }} />
+                  {conn === 'open' ? '已就绪' : '连接中'}
+                </span>
               </div>
-            )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 11.5 }}>
+                <div style={{ background: 'var(--color-surface-2)', padding: '6px 10px', borderRadius: 6 }}>
+                  <div style={{ color: 'var(--color-text-faint)', fontSize: 10.5, marginBottom: 2 }}>当前模型</div>
+                  <div style={{ fontWeight: 550, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={currentModelName}>
+                    {currentModelName}
+                  </div>
+                </div>
+                <div style={{ background: 'var(--color-surface-2)', padding: '6px 10px', borderRadius: 6 }}>
+                  <div style={{ color: 'var(--color-text-faint)', fontSize: 10.5, marginBottom: 2 }}>端点模板</div>
+                  <div style={{ fontWeight: 550, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {settings?.currentEndpoint ?? '本地原生端点'}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-            {compositionTotal > 0 && (
-              <section className="drawer-section">
-                <h3>{t('ctx.composition')}</h3>
-                <div className="bar-meter" style={{ display: 'flex' }}>
-                  {composition.map((item) => (
-                    <i
-                      key={item.key}
+            {/* 上下文水位与容量 */}
+            <div
+              className="runtime-card"
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border-subtle)',
+                borderRadius: 8,
+                padding: '12px 14px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>上下文水位与容量</span>
+                {level && (
+                  <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600, color: ringColor }}>
+                    {pct.toFixed(0)}%
+                  </span>
+                )}
+              </div>
+
+              {level ? (
+                <>
+                  <div
+                    style={{
+                      height: 8,
+                      width: '100%',
+                      background: 'var(--color-surface-2)',
+                      borderRadius: 4,
+                      overflow: 'hidden',
+                      marginBottom: 8,
+                    }}
+                  >
+                    <div
                       style={{
-                        width: `${(item.value / compositionTotal) * 100}%`,
-                        background: item.color,
-                        borderRadius: 0,
+                        height: '100%',
+                        width: `${Math.min(100, pct)}%`,
+                        background: ringColor,
+                        borderRadius: 4,
+                        transition: 'width 0.3s ease',
                       }}
                     />
-                  ))}
-                </div>
-                <dl className="kv-list" style={{ marginTop: 9 }}>
-                  {composition.map((item) => (
-                    <div key={item.key} style={{ display: 'contents' }}>
-                      <dt>{item.key}</dt>
-                      <dd>{fmtTokens(item.value)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            )}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-faint)', fontFamily: 'var(--font-mono)' }}>
+                    <span>已用 {fmtTokens(level.used)} Tokens</span>
+                    <span>上限 {fmtTokens(level.max)} Tokens</span>
+                  </div>
+                </>
+              ) : (
+                <p style={{ fontSize: 11.5, color: 'var(--color-text-faint)', margin: 0 }}>
+                  对话启动后将在此处实时呈现上下文 Token 水位与容量百分比。
+                </p>
+              )}
+            </div>
 
-            {metrics && (
-              <section className="drawer-section">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <h3>{t('ctx.total')}</h3>
+            {/* Token 用量与成本 */}
+            {metrics ? (
+              <div
+                className="runtime-card"
+                style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border-subtle)',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text)' }}>本次会话消耗统计</span>
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost"
-                    style={{ fontSize: 11, height: 22, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ fontSize: 11, height: 20, padding: '0 6px', display: 'flex', alignItems: 'center', gap: 4 }}
                     onClick={async () => {
                       const lines = [
                         `Token 输入: ${fmtTokens(metrics.inputTokens)}`,
@@ -246,40 +280,70 @@ export default function DetailsPanel({
                       await copyText(lines.join('\n'))
                       useStore.getState().setNotice('已复制运行用量数据')
                     }}
-                    title="复制用量数据"
                   >
-                    <IconCopy width={11} height={11} />
-                    <span>复制摘要</span>
+                    <IconCopy width={10} height={10} />
+                    <span>复制数据</span>
                   </button>
                 </div>
-                <dl className="kv-list">
-                  <dt>{t('ctx.output')}</dt>
-                  <dd>{fmtTokens(metrics.outputTokens)}</dd>
-                  <dt>{t('us.cost')}</dt>
-                  <dd>{money(metrics.totalCostUsd)}</dd>
-                  <dt>{t('us.elapsed')}</dt>
-                  <dd>{metrics.runStartedAt && metrics.completedAt ? `${((metrics.completedAt - metrics.runStartedAt) / 1000).toFixed(1)}s` : '运行中'}</dd>
-                </dl>
-              </section>
-            )}
 
-            <div style={{ display: 'flex', gap: 6, marginTop: 14 }}>
+                {compositionTotal > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div className="bar-meter" style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden' }}>
+                      {composition.map((item) => (
+                        <i
+                          key={item.key}
+                          style={{
+                            width: `${(item.value / compositionTotal) * 100}%`,
+                            background: item.color,
+                            borderRadius: 0,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 12px', fontSize: 11.5 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
+                    <span style={{ color: 'var(--color-text-faint)' }}>输入 Tokens</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)' }}>{fmtTokens(metrics.inputTokens)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
+                    <span style={{ color: 'var(--color-text-faint)' }}>输出 Tokens</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)' }}>{fmtTokens(metrics.outputTokens)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
+                    <span style={{ color: 'var(--color-text-faint)' }}>预估费用</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-accent)' }}>{money(metrics.totalCostUsd)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed var(--color-border-subtle)', paddingBottom: 4 }}>
+                    <span style={{ color: 'var(--color-text-faint)' }}>运行耗时</span>
+                    <strong style={{ fontFamily: 'var(--font-mono)' }}>
+                      {metrics.runStartedAt && metrics.completedAt ? `${((metrics.completedAt - metrics.runStartedAt) / 1000).toFixed(1)}s` : '运行中'}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {/* 快捷会话操作 */}
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
-                style={{ flex: 1, fontSize: 11, height: 26 }}
+                style={{ flex: 1, fontSize: 11.5, height: 28 }}
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('ccweb:insert-prompt', { detail: '/compact' }))
                   useStore.getState().setNotice('已将 /compact 注入输入框')
                 }}
                 title="压缩当前会话上下文并保留关键信息"
               >
-                /compact 压缩上下文
+                /compact 优化上下文
               </button>
               <button
                 type="button"
-                className="btn btn-sm btn-secondary"
-                style={{ flex: 1, fontSize: 11, height: 26 }}
+                className="btn btn-sm btn-ghost"
+                style={{ flex: 1, fontSize: 11.5, height: 28 }}
                 onClick={() => {
                   useStore.getState().clearView()
                   useStore.getState().setNotice('已清空当前屏幕')
@@ -289,7 +353,7 @@ export default function DetailsPanel({
                 清空屏幕
               </button>
             </div>
-          </>
+          </div>
         )}
 
         {tab === 'trajectory' && (
@@ -316,9 +380,9 @@ export default function DetailsPanel({
             {trajectory.length === 0 ? (
               <p className="menu-empty">{t('ctx.noTrajectory')}</p>
             ) : (
-              <ol>
+              <ol style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {trajectory.map((item) => (
-                  <li key={item.id} style={{ display: 'flex', gap: 9, paddingBottom: 10 }}>
+                  <li key={item.id} style={{ display: 'flex', gap: 9, paddingBottom: 10, borderBottom: '1px solid var(--color-border-subtle)', marginBottom: 10 }}>
                     <span
                       className={`dot ${item.status === 'error' ? 'danger' : item.status === 'done' ? 'ok' : 'accent'}`}
                       style={{ marginTop: 6 }}
@@ -353,13 +417,13 @@ export default function DetailsPanel({
           </section>
         )}
 
-        <details className="raw-details" style={{ marginTop: 24, borderTop: '1px solid var(--color-border)', paddingTop: 12 }}>
+        <details className="raw-details" style={{ marginTop: 24, borderTop: '1px solid var(--color-border-subtle)', paddingTop: 12 }}>
           <summary style={{ cursor: 'pointer', color: 'var(--color-text-faint)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>高级排障与检查点文件回退</span>
+            <span>高级排障与检查点文件回退 (高风险)</span>
           </summary>
-          <div style={{ marginTop: 10, padding: 8, background: 'var(--color-panel-2)', borderRadius: 6 }}>
-            <p style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--color-text-faint)', marginBottom: 8 }}>
-              只回退原生跟踪的文件，不回退对话。先预览，再确认执行。
+          <div style={{ marginTop: 10, padding: 12, background: 'var(--color-surface-2)', borderRadius: 6, border: '1px solid var(--color-border-subtle)' }}>
+            <p style={{ fontSize: 11, lineHeight: 1.5, color: 'var(--color-warn)', marginBottom: 8 }}>
+              ⚠️ 注意：回退将重写磁盘上原生跟踪的代码文件，不回退对话历史。请谨慎确认。
             </p>
             <label className="field" style={{ display: 'block', marginBottom: 8 }}>
               <select
@@ -369,7 +433,7 @@ export default function DetailsPanel({
                   setCheckpoint(e.target.value)
                   useStore.setState({ rewind: null })
                 }}
-                style={{ width: '100%', fontSize: 11.5 }}
+                style={{ width: '100%', fontSize: 11.5, padding: '4px 8px', borderRadius: 5 }}
               >
                 <option value="">选择本次连接的用户轮次</option>
                 {checkpoints.map((item) => (
@@ -379,22 +443,26 @@ export default function DetailsPanel({
                 ))}
               </select>
             </label>
-            <div className="row-actions">
+            <div className="row-actions" style={{ display: 'flex', gap: 8 }}>
               <button
+                type="button"
                 className="btn btn-sm"
                 disabled={busy || !checkpoint}
                 onClick={() => send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: true })}
+                style={{ fontSize: 11 }}
               >
                 预览回退
               </button>
               {rewind?.preview && rewind.result.canRewind && (
                 <button
+                  type="button"
                   className="btn btn-sm btn-primary"
                   disabled={busy}
                   onClick={() => {
                     if (!window.confirm('确认按此检查点回退原生跟踪的文件？这会修改文件；Bash 写入与对话不会回退。')) return
                     send?.({ t: 'files.rewind', userMessageId: checkpoint, dryRun: false })
                   }}
+                  style={{ fontSize: 11 }}
                 >
                   确认回退
                 </button>
@@ -410,9 +478,6 @@ export default function DetailsPanel({
                 </div>
               </div>
             )}
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <pre style={{ fontSize: 10 }}>{context ? JSON.stringify(context.raw, null, 2) : '原生运行时尚未提供'}</pre>
           </div>
         </details>
       </div>

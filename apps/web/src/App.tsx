@@ -17,34 +17,15 @@ import QuestionCard from './components/QuestionCard'
 import CommandPalette from './components/CommandPalette'
 import Toast from './components/Toast'
 import QueueDock from './components/QueueDock'
-import { BrandMark, IconEdit, IconSearch, IconSparkle, IconFile, IconCheckSquare } from './components/Icon'
+import { BrandMark, IconEdit, IconFile, IconFolder, IconCheckSquare } from './components/Icon'
 import type { SettingsTab } from './components/SettingsCenter'
 
-const STARTER_ACTIONS = [
-  {
-    title: '梳理项目架构',
-    desc: '模块关系与技术栈概览',
-    icon: <IconSearch width={14} height={14} />,
-    prompt: '分析当前项目的架构目录与核心模块关系，给出总体技术概览',
-  },
-  {
-    title: '运行测试体检',
-    desc: '执行测试并定位报错',
-    icon: <IconSparkle width={14} height={14} />,
-    prompt: '运行当前项目的自动化测试，检查并分析所有失败用例与报错根因',
-  },
-  {
-    title: '审查近期改动',
-    desc: '检查未提交变更与 Diff',
-    icon: <IconFile width={14} height={14} />,
-    prompt: '检查当前工作区未提交的代码变更与最近提交记录，审查是否有潜在缺陷',
-  },
-  {
-    title: '代码规范体检',
-    desc: '静态分析与代码健康度',
-    icon: <IconEdit width={14} height={14} />,
-    prompt: '对当前项目执行代码规范与静态分析检查，列出需要优化的潜在坏味道',
-  },
+const CORE_FILES = [
+  'package.json',
+  'README.md',
+  'SPEC.md',
+  'implementation_plan.md',
+  'tsconfig.base.json',
 ]
 
 const NativeTerminal = lazy(() => import('./components/NativeTerminal'))
@@ -636,42 +617,61 @@ export default function App() {
             <div className="conversation">
               {empty ? (
                 <>
-                  <div className="empty-state">
+                  <div className="empty-state animate-fade-in">
                     <span className="empty-mark">
-                      <BrandMark size={40} />
+                      <BrandMark size={44} />
                     </span>
                     <h1>{t('hero.title2')}</h1>
-                    <p>{t('hero.sub2')}</p>
-                    <div className="empty-hint">
+                    <p className="empty-subtitle">{t('hero.sub2')}</p>
+
+                    <div className="empty-project-pill">
                       {workspace && (
-                        <span>
-                          {t('hero.project')} {workspace.split(/[\\/]/).filter(Boolean).pop()}
+                        <span className="project-badge">
+                          <IconFolder width={13} height={13} style={{ color: 'var(--color-accent)' }} />
+                          <strong>{workspace.split(/[\\/]/).filter(Boolean).pop()}</strong>
                         </span>
                       )}
-                      {workspace && <span>·</span>}
-                      <kbd>Ctrl K</kbd>
-                      <span>{t('hero.paletteHint')}</span>
+                      {changeInfo.files.length > 0 && (
+                        <button
+                          type="button"
+                          className="project-changes-chip"
+                          onClick={() => setDrawer('changes')}
+                          title="查看当前未提交改动"
+                        >
+                          <span className="change-dot" />
+                          {changeInfo.files.length} 个文件已改动
+                        </button>
+                      )}
                     </div>
 
-                    <div className="starter-prompts">
-                      {STARTER_ACTIONS.map((action) => (
-                        <button
-                          key={action.title}
-                          type="button"
-                          className="starter-card"
-                          onClick={() => {
-                            window.dispatchEvent(
-                              new CustomEvent('ccweb:insert-prompt', { detail: action.prompt }),
-                            )
-                          }}
-                        >
-                          <span className="starter-icon">{action.icon}</span>
-                          <div className="starter-content">
-                            <span className="starter-title">{action.title}</span>
-                            <span className="starter-desc">{action.desc}</span>
-                          </div>
-                        </button>
-                      ))}
+                    <div className="empty-quick-files">
+                      <span className="quick-files-label">核心文件直达</span>
+                      <div className="quick-files-list">
+                        {CORE_FILES.map((fileName) => (
+                          <button
+                            key={fileName}
+                            type="button"
+                            className="quick-file-chip"
+                            onClick={() => {
+                              window.dispatchEvent(
+                                new CustomEvent('ccweb:focus-change', { detail: fileName })
+                              )
+                            }}
+                            title={`在伴侣抽屉中预览 ${fileName}`}
+                          >
+                            <IconFile width={12} height={12} style={{ color: 'var(--color-text-faint)' }} />
+                            <span>{fileName}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="empty-hint-bar">
+                      <span><kbd>Ctrl K</kbd> {t('hero.paletteHint')}</span>
+                      <span className="divider">·</span>
+                      <span><kbd>/</kbd> 快捷指令</span>
+                      <span className="divider">·</span>
+                      <span><kbd>@</kbd> 引用文件</span>
                     </div>
                   </div>
                   <div className="dock">

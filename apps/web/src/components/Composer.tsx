@@ -7,12 +7,19 @@ import { Menu } from './ui/Menu'
 import Lightbox from './Lightbox'
 
 const EMPTY_SKILLS: Array<{ name: string; description?: string }> = []
-const DEFAULT_SLASH_ACTIONS = [
-  { name: 'plan', description: '生成或跟踪工程实施计划' },
-  { name: 'review', description: '审查本次代码改动与 Diff' },
-  { name: 'compact', description: '精简会话上下文' },
-  { name: 'cost', description: '查看 Token 消耗与成本' },
-  { name: 'clear', description: '清空当前屏幕内容' },
+
+interface UserCommand {
+  id: string
+  title: string
+  prompt: string
+  isSkill?: boolean
+}
+
+const DEFAULT_USER_COMMANDS: UserCommand[] = [
+  { id: 'cmd-review', title: '代码审查 Diff', prompt: '/review 审查本次代码变更质量与潜在风险' },
+  { id: 'cmd-plan', title: '进入规划模式', prompt: '/plan 分析需求并拟定实施计划' },
+  { id: 'cmd-compact', title: '精简上下文', prompt: '/compact' },
+  { id: 'cmd-test', title: '运行项目体检', prompt: '运行当前自动化测试并排查失败用例' },
 ]
 
 function CommandsMenu({
@@ -24,72 +31,224 @@ function CommandsMenu({
 }) {
   const settings = useStore((s) => s.settings)
   const skills = settings?.skills ?? EMPTY_SKILLS
-  const [customSnippets, setCustomSnippets] = useState<Array<{ title: string; prompt: string }>>(() => {
+  const [filterQuery, setFilterQuery] = useState('')
+  const [isAddingNew, setIsAddingNew] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newPrompt, setNewPrompt] = useState('')
+
+  const [commands, setCommands] = useState<UserCommand[]>(() => {
     try {
-      const raw = localStorage.getItem('ccweb.custom_snippets')
-      return raw ? JSON.parse(raw) : []
+      const raw = localStorage.getItem('ccweb.user_commands')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+      // 兼容旧版本 custom_snippets
+      const oldRaw = localStorage.getItem('ccweb.custom_snippets')
+      if (oldRaw) {
+        const oldParsed = JSON.parse(oldRaw)
+        if (Array.isArray(oldParsed) && oldParsed.length > 0) {
+          return oldParsed.map((it: { title: string; prompt: string }, idx: number) => ({
+            id: `legacy-${idx}`,
+            title: it.title || it.prompt.slice(0, 16),
+            prompt: it.prompt,
+          }))
+        }
+      }
+      return DEFAULT_USER_COMMANDS
     } catch {
-      return []
+      return DEFAULT_USER_COMMANDS
     }
   })
 
-  const handleSaveCustom = (closeMenu: () => void) => {
+  const persistCommands = (next: UserCommand[]) => {
+    setCommands(next)
+    try {
+      localStorage.setItem('ccweb.user_commands', JSON.stringify(next))
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleSaveCurrentInput = (closeMenu: () => void) => {
     const trimmed = currentText.trim()
     if (!trimmed) return
-    const title = trimmed.slice(0, 16) + (trimmed.length > 16 ? '…' : '')
-    const next = [{ title, prompt: trimmed }, ...customSnippets].slice(0, 20)
-    setCustomSnippets(next)
-    try {
-      localStorage.setItem('ccweb.custom_snippets', JSON.stringify(next))
-      useStore.getState().setNotice('已保存为常用指令')
-    } catch {
-      /* ignore */
+    const title = trimmed.replace(/^[\s#*>`-]+/, '').slice(0, 18) + (trimmed.length > 18 ? '…' : '')
+    const newCmd: UserCommand = {
+      id: `cmd-${Date.now()}`,
+      title,
+      prompt: trimmed,
     }
+    const next = [newCmd, ...commands.filter((c) => c.prompt !== trimmed)].slice(0, 30)
+    persistCommands(next)
+    useStore.getState().setNotice(`已保存常用指令「${title}」`)
     closeMenu()
   }
 
-  const handleDeleteCustom = (idx: number, e: React.MouseEvent) => {
-    e.stopPropagation()
-    const next = customSnippets.filter((_, i) => i !== idx)
-    setCustomSnippets(next)
-    try {
-      localStorage.setItem('ccweb.custom_snippets', JSON.stringify(next))
-    } catch {
-      /* ignore */
+  const handleCreateNewCommand = () => {
+    const t = newTitle.trim() || newPrompt.trim().slice(0, 16)
+    const p = newPrompt.trim()
+    if (!p) return
+    const newCmd: UserCommand = {
+      id: `cmd-${Date.now()}`,
+      title: t,
+      prompt: p,
     }
+    persistCommands([newCmd, ...commands])
+    setNewTitle('')
+    setNewPrompt('')
+    setIsAddingNew(false)
+    useStore.getState().setNotice(`已添加指令「${t}」`)
   }
+
+  const handleDeleteCommand = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const next = commands.filter((c) => c.id !== id)
+    persistCommands(next)
+    useStore.getState().setNotice('已移除该指令')
+  }
+
+  const q = filterQuery.toLowerCase().trim()
+  const filteredUserCmds = commands.filter(
+    (c) => !q || c.title.toLowerCase().includes(q) || c.prompt.toLowerCase().includes(q),
+  )
+  const filteredSkills = skills.filter(
+    (s) => !q || s.name.toLowerCase().includes(q) || (s.description && s.description.toLowerCase().includes(q)),
+  )
 
   return (
     <Menu
-      label="快捷指令"
+      label="快捷指令与技能"
       align="start"
-      width={340}
+      width={360}
       trigger={({ open }) => (
         <button
           type="button"
           className={`chip-btn ${open ? 'is-active' : ''}`}
           aria-expanded={open}
-          title="快捷指令与用户技能"
+          title="点击使用我常用的指令与技能"
+          style={{ gap: 5, padding: '0 8px' }}
         >
           <IconSparkle width={13} height={13} style={{ color: 'var(--color-accent)', flexShrink: 0 }} />
-          <span className="chip-label">指令</span>
-          <IconChevron width={11} height={11} />
+          <span className="chip-label" style={{ fontWeight: 500 }}>快捷指令</span>
+          <IconChevron width={11} height={11} style={{ opacity: 0.6 }} />
         </button>
       )}
     >
       {(close) => (
-        <div className="snippets-menu-panel">
-          <div className="snippets-menu-head">
-            <span style={{ fontWeight: 600, fontSize: 11.5, color: 'var(--color-text-dim)' }}>
-              用户技能与快捷指令
-            </span>
+        <div className="snippets-menu-panel" style={{ width: 350, maxHeight: 460, display: 'flex', flexDirection: 'column' }}>
+          <div className="snippets-menu-head" style={{ padding: '8px 10px', borderBottom: '1px solid var(--color-border-subtle)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--color-text)' }}>
+                常用指令与已安装技能
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost"
+                style={{ fontSize: 11, height: 22, padding: '0 6px', color: 'var(--color-accent)' }}
+                onClick={() => setIsAddingNew((v) => !v)}
+              >
+                {isAddingNew ? '取消' : '+ 新增指令'}
+              </button>
+            </div>
+            <input
+              type="text"
+              className="input"
+              placeholder="快速搜索指令或技能…"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              style={{ width: '100%', fontSize: 11.5, padding: '4px 8px', height: 26, borderRadius: 5 }}
+            />
           </div>
 
-          <div className="snippets-list" style={{ maxHeight: 320, overflowY: 'auto' }}>
-            {skills.length > 0 && (
+          {isAddingNew && (
+            <div style={{ padding: 10, background: 'var(--color-surface)', borderBottom: '1px solid var(--color-border-subtle)' }}>
+              <input
+                type="text"
+                className="input"
+                placeholder="指令标题 (如: 代码审查)"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                style={{ width: '100%', fontSize: 11.5, padding: '4px 8px', marginBottom: 6 }}
+              />
+              <textarea
+                className="input"
+                placeholder="输入具体 Prompt 指令内容…"
+                value={newPrompt}
+                onChange={(e) => setNewPrompt(e.target.value)}
+                rows={2}
+                style={{ width: '100%', fontSize: 11.5, padding: '4px 8px', marginBottom: 6, resize: 'none' }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  style={{ fontSize: 11, height: 24 }}
+                  onClick={() => setIsAddingNew(false)}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{ fontSize: 11, height: 24 }}
+                  disabled={!newPrompt.trim()}
+                  onClick={handleCreateNewCommand}
+                >
+                  保存指令
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="snippets-list" style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+            <div className="snippets-divider" style={{ marginTop: 2, marginBottom: 4 }}>
+              我的常用指令 ({filteredUserCmds.length})
+            </div>
+
+            {filteredUserCmds.length === 0 ? (
+              <div style={{ padding: '16px 8px', textAlign: 'center', color: 'var(--color-text-faint)', fontSize: 11.5 }}>
+                {filterQuery ? '未找到匹配的指令' : '暂无常用指令，可点击上方「新增指令」'}
+              </div>
+            ) : (
+              filteredUserCmds.map((cmd) => (
+                <div
+                  key={cmd.id}
+                  className="snippet-item custom"
+                  style={{ cursor: 'pointer', padding: '6px 8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8 }}
+                  onClick={() => {
+                    onSelectCommand(cmd.prompt)
+                    close()
+                  }}
+                  title="点击填入输入框"
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="snippet-title" style={{ fontWeight: 550, fontSize: 12, color: 'var(--color-text)' }}>
+                      {cmd.title}
+                    </div>
+                    <div className="snippet-desc" style={{ fontSize: 11, color: 'var(--color-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {cmd.prompt}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-btn snippet-del-btn"
+                    onClick={(e) => handleDeleteCommand(cmd.id, e)}
+                    title="删除此常用指令"
+                    style={{ opacity: 0.5, flexShrink: 0 }}
+                  >
+                    <IconX width={11} height={11} />
+                  </button>
+                </div>
+              ))
+            )}
+
+            {filteredSkills.length > 0 && (
               <>
-                <div className="snippets-divider" style={{ marginTop: 0 }}>我的自定义技能 (SKILLS)</div>
-                {skills.map((skill) => (
+                <div className="snippets-divider" style={{ marginTop: 10, marginBottom: 4 }}>
+                  已安装技能 (SKILLS: {filteredSkills.length})
+                </div>
+                {filteredSkills.map((skill) => (
                   <button
                     key={skill.name}
                     type="button"
@@ -98,71 +257,29 @@ function CommandsMenu({
                       onSelectCommand(`/${skill.name} `)
                       close()
                     }}
+                    style={{ width: '100%', textAlign: 'left', padding: '6px 8px', borderRadius: 6 }}
                   >
-                    <div className="snippet-title" style={{ color: 'var(--color-accent)' }}>
+                    <div className="snippet-title" style={{ color: 'var(--color-accent)', fontWeight: 600, fontSize: 12 }}>
                       /{skill.name}
                     </div>
-                    {skill.description && <div className="snippet-desc">{skill.description}</div>}
+                    {skill.description && (
+                      <div className="snippet-desc" style={{ fontSize: 11, color: 'var(--color-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {skill.description}
+                      </div>
+                    )}
                   </button>
-                ))}
-              </>
-            )}
-
-            <div className="snippets-divider">工程快捷动作</div>
-            {DEFAULT_SLASH_ACTIONS.map((action) => (
-              <button
-                key={action.name}
-                type="button"
-                className="snippet-item"
-                onClick={() => {
-                  onSelectCommand(`/${action.name} `)
-                  close()
-                }}
-              >
-                <div className="snippet-title" style={{ fontFamily: 'var(--font-mono)' }}>
-                  /{action.name}
-                </div>
-                <div className="snippet-desc">{action.description}</div>
-              </button>
-            ))}
-
-            {customSnippets.length > 0 && (
-              <>
-                <div className="snippets-divider">我的自定义常用语句</div>
-                {customSnippets.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="snippet-item custom"
-                    onClick={() => {
-                      onSelectCommand(item.prompt)
-                      close()
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="snippet-title">{item.title}</div>
-                      <div className="snippet-desc">{item.prompt}</div>
-                    </div>
-                    <button
-                      type="button"
-                      className="icon-btn snippet-del-btn"
-                      onClick={(e) => handleDeleteCustom(idx, e)}
-                      title="删除此项"
-                    >
-                      <IconX width={11} height={11} />
-                    </button>
-                  </div>
                 ))}
               </>
             )}
           </div>
 
           {currentText.trim().length > 0 && (
-            <div className="snippets-menu-foot">
+            <div className="snippets-menu-foot" style={{ padding: '6px 10px', borderTop: '1px solid var(--color-border-subtle)', background: 'var(--color-surface)' }}>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
-                style={{ width: '100%', fontSize: 11.5, padding: '4px 8px' }}
-                onClick={() => handleSaveCustom(close)}
+                style={{ width: '100%', fontSize: 11.5, padding: '4px 8px', justifyContent: 'center' }}
+                onClick={() => handleSaveCurrentInput(close)}
               >
                 + 保存当前输入为常用指令
               </button>
@@ -259,6 +376,8 @@ export default function Composer({
   const draftBeforeHistory = useRef('')
   const slashListRef = useRef<HTMLDivElement>(null)
   const fileListRef = useRef<HTMLDivElement>(null)
+  const isKeyNavRef = useRef(false)
+  const keyNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (draftKey.current === key) return
@@ -493,14 +612,22 @@ export default function Composer({
   useEffect(() => {
     if (slashMatches.length > 0 && slashListRef.current) {
       const activeEl = slashListRef.current.querySelector<HTMLElement>('[data-active="true"]')
-      activeEl?.scrollIntoView({ block: 'nearest' })
+      if (activeEl) {
+        requestAnimationFrame(() => {
+          activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        })
+      }
     }
   }, [slashSel, slashMatches.length])
 
   useEffect(() => {
     if (fileMatches.length > 0 && fileListRef.current) {
       const activeEl = fileListRef.current.querySelector<HTMLElement>('[data-active="true"]')
-      activeEl?.scrollIntoView({ block: 'nearest' })
+      if (activeEl) {
+        requestAnimationFrame(() => {
+          activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        })
+      }
     }
   }, [fileSel, fileMatches.length])
 
@@ -604,7 +731,9 @@ export default function Composer({
               key={command.name}
               className="suggestion"
               data-active={index === slashSel}
-              onMouseEnter={() => setSlashSel(index)}
+              onMouseEnter={() => {
+                if (!isKeyNavRef.current) setSlashSel(index)
+              }}
               onClick={() => pickSlash(command.name)}
             >
               <span className="name">/{command.name}</span>
@@ -625,7 +754,9 @@ export default function Composer({
                   key={file}
                   className="suggestion"
                   data-active={index === fileSel}
-                  onMouseEnter={() => setFileSel(index)}
+                  onMouseEnter={() => {
+                    if (!isKeyNavRef.current) setFileSel(index)
+                  }}
                   onClick={() => pickFile(file)}
                 >
                   <IconFile width={13} height={13} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
@@ -712,12 +843,22 @@ export default function Composer({
             if (slashMatches.length > 0) {
               if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setSlashSel((value) => Math.min(value + 1, slashMatches.length - 1))
+                isKeyNavRef.current = true
+                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                keyNavTimerRef.current = setTimeout(() => {
+                  isKeyNavRef.current = false
+                }, 250)
+                setSlashSel((value) => (value + 1) % slashMatches.length)
                 return
               }
               if (e.key === 'ArrowUp') {
                 e.preventDefault()
-                setSlashSel((value) => Math.max(value - 1, 0))
+                isKeyNavRef.current = true
+                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                keyNavTimerRef.current = setTimeout(() => {
+                  isKeyNavRef.current = false
+                }, 250)
+                setSlashSel((value) => (value - 1 + slashMatches.length) % slashMatches.length)
                 return
               }
               if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {
@@ -728,12 +869,22 @@ export default function Composer({
             } else if (fileMatches.length > 0) {
               if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setFileSel((value) => Math.min(value + 1, fileMatches.length - 1))
+                isKeyNavRef.current = true
+                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                keyNavTimerRef.current = setTimeout(() => {
+                  isKeyNavRef.current = false
+                }, 250)
+                setFileSel((value) => (value + 1) % fileMatches.length)
                 return
               }
               if (e.key === 'ArrowUp') {
                 e.preventDefault()
-                setFileSel((value) => Math.max(value - 1, 0))
+                isKeyNavRef.current = true
+                if (keyNavTimerRef.current) clearTimeout(keyNavTimerRef.current)
+                keyNavTimerRef.current = setTimeout(() => {
+                  isKeyNavRef.current = false
+                }, 250)
+                setFileSel((value) => (value - 1 + fileMatches.length) % fileMatches.length)
                 return
               }
               if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey)) {

@@ -6,6 +6,24 @@ import { copyText } from '../clipboard'
 import { baseName } from '../lib/path'
 import DrawerResizer from './DrawerResizer'
 import Markdown from './Markdown'
+import Lightbox from './Lightbox'
+
+const OFFICE_FORMAT_MAP: Record<string, { label: string; color: string; app: string }> = {
+  docx: { label: 'Microsoft Word 文档', color: '#2b579a', app: 'Word' },
+  doc: { label: 'Microsoft Word 97-2003 文档', color: '#2b579a', app: 'Word' },
+  xlsx: { label: 'Microsoft Excel 电子表格', color: '#217346', app: 'Excel' },
+  xls: { label: 'Microsoft Excel 97-2003 工作表', color: '#217346', app: 'Excel' },
+  pptx: { label: 'Microsoft PowerPoint 演示文稿', color: '#d24726', app: 'PowerPoint' },
+  ppt: { label: 'Microsoft PowerPoint 97-2003 演示文稿', color: '#d24726', app: 'PowerPoint' },
+  zip: { label: 'ZIP 压缩文件', color: '#7c3aed', app: '资源管理器 / 解压程序' },
+  tar: { label: 'TAR 归档文件', color: '#7c3aed', app: '归档管理器' },
+  gz: { label: 'GZIP 压缩文件', color: '#7c3aed', app: '归档管理器' },
+  '7z': { label: '7-Zip 压缩文件', color: '#7c3aed', app: '7-Zip' },
+}
+
+function colorMix(hexColor: string): string {
+  return `color-mix(in srgb, ${hexColor} 14%, transparent)`
+}
 
 interface TreeNode {
   name: string
@@ -272,6 +290,8 @@ export default function FilesPanel({
   const [contentLoading, setContentLoading] = useState(false)
   const [contentError, setContentError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const [imgDimensions, setImgDimensions] = useState<{ w: number; h: number } | null>(null)
 
   const changedFilesSet = useMemo(() => {
     const set = new Set<string>()
@@ -364,6 +384,7 @@ export default function FilesPanel({
     setActiveFile(filePath)
     setContentError(null)
     setFileContent(null)
+    setImgDimensions(null)
 
     const ext = (filePath.split('.').pop() || '').toLowerCase()
     const isBinaryMedia = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'pdf', 'mp4', 'webm', 'ogg', 'mov', 'mp3', 'wav', 'm4a', 'docx', 'xlsx', 'pptx', 'doc', 'xls', 'ppt', 'zip', 'tar', 'gz', '7z'].includes(ext)
@@ -642,84 +663,231 @@ export default function FilesPanel({
                 </div>
               </div>
             ) : isImage && activeFile ? (
-              <div
-                className="file-preview-media file-preview-image"
-                style={{
-                  padding: 24,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 320,
-                  background: 'var(--color-panel-2)',
-                  borderRadius: 8,
-                  margin: 16,
-                }}
-              >
-                <img
-                  src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
-                  alt={activeFile}
+              <div className="file-preview-media file-preview-image-container" style={{ padding: 16 }}>
+                <div
+                  className="file-preview-image-canvas"
                   style={{
-                    maxWidth: '100%',
-                    maxHeight: '65vh',
-                    objectFit: 'contain',
-                    borderRadius: 6,
-                    boxShadow: 'var(--shadow-card)',
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: 320,
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border-subtle)',
+                    borderRadius: 8,
+                    padding: 24,
+                    overflow: 'hidden',
                   }}
-                />
+                >
+                  <div
+                    className="file-preview-checker"
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      opacity: 0.15,
+                      backgroundImage: `repeating-conic-gradient(var(--color-border) 0% 25%, transparent 0% 50%)`,
+                      backgroundSize: '16px 16px',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <img
+                    src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                    alt={activeFile}
+                    onLoad={(e) => {
+                      const img = e.currentTarget
+                      setImgDimensions({ w: img.naturalWidth, h: img.naturalHeight })
+                    }}
+                    onClick={() => setLightboxSrc(`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`)}
+                    style={{
+                      position: 'relative',
+                      zIndex: 1,
+                      maxWidth: '100%',
+                      maxHeight: '60vh',
+                      objectFit: 'contain',
+                      borderRadius: 6,
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                      cursor: 'zoom-in',
+                    }}
+                    title="点击放大查看原图"
+                  />
+                  {imgDimensions && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 8,
+                        right: 8,
+                        zIndex: 2,
+                        background: 'rgba(0, 0, 0, 0.72)',
+                        backdropFilter: 'blur(4px)',
+                        color: '#fff',
+                        fontSize: 10.5,
+                        fontFamily: 'var(--font-mono)',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                      }}
+                    >
+                      {imgDimensions.w} × {imgDimensions.h} px
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, padding: '0 4px' }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--color-text-faint)' }}>
+                    点击图片可放大沉浸浏览
+                  </span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <a
+                      href={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm btn-ghost"
+                      style={{ fontSize: 11.5 }}
+                    >
+                      新标签页查看 ↗
+                    </a>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      style={{ fontSize: 11.5 }}
+                      onClick={handleRevealInExplorer}
+                    >
+                      在文件夹中定位
+                    </button>
+                  </div>
+                </div>
               </div>
             ) : isPdf && activeFile ? (
-              <div className="file-preview-media file-preview-pdf" style={{ height: '70vh', padding: 12 }}>
+              <div className="file-preview-media file-preview-pdf" style={{ display: 'flex', flexDirection: 'column', height: '76vh', padding: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, padding: '0 4px' }}>
+                  <span style={{ fontSize: 12, fontWeight: 550, color: 'var(--color-text)' }}>
+                    PDF 文档内嵌阅读
+                  </span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <a
+                      href={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-sm btn-secondary"
+                      style={{ fontSize: 11.5 }}
+                    >
+                      全屏独立阅读 ↗
+                    </a>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-ghost"
+                      style={{ fontSize: 11.5 }}
+                      onClick={handleRevealInExplorer}
+                    >
+                      定位文件
+                    </button>
+                  </div>
+                </div>
                 <iframe
                   src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
                   title={activeFile}
-                  style={{ width: '100%', height: '100%', border: 'none', borderRadius: 6 }}
+                  style={{ width: '100%', flex: 1, border: '1px solid var(--color-border)', borderRadius: 6, background: '#fff' }}
                 />
               </div>
             ) : isVideo && activeFile ? (
-              <div className="file-preview-media file-preview-video" style={{ padding: 20, textAlign: 'center' }}>
-                <video
-                  controls
-                  src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
-                  style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: 6 }}
-                />
+              <div className="file-preview-media file-preview-video" style={{ padding: 20 }}>
+                <div
+                  style={{
+                    background: '#000',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: 'var(--shadow-card)',
+                  }}
+                >
+                  <video
+                    controls
+                    playsInline
+                    src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                    style={{ width: '100%', maxHeight: '62vh' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost"
+                    style={{ fontSize: 11.5 }}
+                    onClick={handleRevealInExplorer}
+                  >
+                    在文件夹中定位
+                  </button>
+                </div>
               </div>
             ) : isAudio && activeFile ? (
-              <div className="file-preview-media file-preview-audio" style={{ padding: 36, textAlign: 'center' }}>
-                <audio
-                  controls
-                  src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
-                  style={{ width: '100%' }}
-                />
+              <div className="file-preview-media file-preview-audio" style={{ padding: 32 }}>
+                <div
+                  style={{
+                    background: 'var(--color-surface)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 10,
+                    padding: 24,
+                    textAlign: 'center',
+                    boxShadow: 'var(--shadow-card)',
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{baseName(activeFile)}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--color-text-faint)', marginBottom: 20 }}>
+                    工作区音频资源
+                  </div>
+                  <audio
+                    controls
+                    src={`/api/workspaces/raw-file?path=${encodeURIComponent(activeFile)}`}
+                    style={{ width: '100%', outline: 'none' }}
+                  />
+                </div>
               </div>
             ) : isDoc && activeFile ? (
               <div
                 className="file-preview-doc-card"
                 style={{
-                  padding: 32,
+                  padding: 36,
                   textAlign: 'center',
-                  margin: 16,
-                  background: 'var(--color-panel-2)',
-                  borderRadius: 8,
-                  border: '1px solid var(--color-border)',
+                  margin: 20,
+                  background: 'var(--color-surface)',
+                  borderRadius: 10,
+                  border: '1px solid var(--color-border-subtle)',
+                  boxShadow: 'var(--shadow-card)',
                 }}
               >
-                <IconFile width={36} height={36} style={{ margin: '0 auto 12px', color: 'var(--color-accent)' }} />
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{baseName(activeFile)}</div>
-                <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 4, marginBottom: 16 }}>
-                  {activeExt.toUpperCase()} 二进制文件 (建议使用本地关联程序查看)
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    margin: '0 auto 16px',
+                    borderRadius: 10,
+                    background: colorMix(OFFICE_FORMAT_MAP[activeExt]?.color || 'var(--color-accent)'),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: OFFICE_FORMAT_MAP[activeExt]?.color || 'var(--color-accent)',
+                  }}
+                >
+                  <IconFile width={28} height={28} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--color-text)' }}>{baseName(activeFile)}</div>
+                <div style={{ color: 'var(--color-text-faint)', fontSize: 12, marginTop: 6, marginBottom: 24 }}>
+                  {OFFICE_FORMAT_MAP[activeExt]?.label || `${activeExt.toUpperCase()} 二进制文件`}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     type="button"
                     className="btn btn-sm btn-primary"
                     onClick={handleOpenFileWithDefaultApp}
+                    style={{ height: 30, padding: '0 14px', fontSize: 12 }}
                   >
-                    用系统默认程序打开
+                    用本地关联程序打开 ({OFFICE_FORMAT_MAP[activeExt]?.app || '默认应用'})
                   </button>
                   <button
                     type="button"
                     className="btn btn-sm btn-secondary"
                     onClick={handleRevealInExplorer}
+                    style={{ height: 30, padding: '0 14px', fontSize: 12 }}
                   >
                     在资源管理器中定位
                   </button>
@@ -814,6 +982,7 @@ export default function FilesPanel({
           </div>
         )}
       </div>
+      {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
     </aside>
   )
 }
