@@ -17,7 +17,7 @@ import QuestionCard from './components/QuestionCard'
 import CommandPalette from './components/CommandPalette'
 import Toast from './components/Toast'
 import QueueDock from './components/QueueDock'
-import { BrandMark, IconEdit, IconFolder, IconCheckSquare } from './components/Icon'
+import { BrandMark, IconEdit, IconFolder, IconCheckSquare, IconX } from './components/Icon'
 import type { SettingsTab } from './components/SettingsCenter'
 
 const NativeTerminal = lazy(() => import('./components/NativeTerminal'))
@@ -136,6 +136,41 @@ export default function App() {
     }
     return { count, files }
   }, [entries])
+
+  const sessionId = useStore((s) => s.sessionId)
+  const [dismissedChangeCount, setDismissedChangeCount] = useState<number>(0)
+  const prevSessionIdRef = useRef<string | null>(null)
+  const prevChangeCountRef = useRef<number>(0)
+  const changeDismissTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // 会话切换时，重置并忽略该历史会话已有的旧改动，避免打开历史会话霸屏
+  useEffect(() => {
+    if (sessionId !== prevSessionIdRef.current) {
+      prevSessionIdRef.current = sessionId
+      setDismissedChangeCount(changeInfo.count)
+      prevChangeCountRef.current = changeInfo.count
+      if (changeDismissTimerRef.current) clearTimeout(changeDismissTimerRef.current)
+    }
+  }, [sessionId, changeInfo.count])
+
+  // 当产生新的实时改动时：展示提示条，并在 10 秒后自动淡出隐藏
+  useEffect(() => {
+    if (changeInfo.count > prevChangeCountRef.current) {
+      prevChangeCountRef.current = changeInfo.count
+      if (changeDismissTimerRef.current) clearTimeout(changeDismissTimerRef.current)
+      changeDismissTimerRef.current = setTimeout(() => {
+        setDismissedChangeCount(changeInfo.count)
+      }, 10000)
+    }
+  }, [changeInfo.count])
+
+  // 打开改动面板时，自动收起改动提示条
+  useEffect(() => {
+    if (drawer === 'changes') {
+      setDismissedChangeCount(changeInfo.count)
+      if (changeDismissTimerRef.current) clearTimeout(changeDismissTimerRef.current)
+    }
+  }, [drawer, changeInfo.count])
 
   const openSettings = useCallback((tab?: SettingsTab) => {
     if (tab) setSettingsTab(tab)
@@ -699,16 +734,33 @@ export default function App() {
                           </button>
                         </div>
                       )}
-                      {changeInfo.count > 0 && (
+                      {changeInfo.count > dismissedChangeCount && (
                         <div className="change-strip">
                           <IconEdit width={14} height={14} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
                           <strong>
                             本次改动 · {changeInfo.files.length} 个文件
                           </strong>
                           <span className="files">{changeInfo.files.slice(0, 3).join(' · ')}</span>
-                          <button className="btn btn-sm" onClick={() => setDrawer('changes')}>
-                            查看
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                            <button
+                              className="btn btn-sm"
+                              onClick={() => {
+                                setDrawer('changes')
+                                setDismissedChangeCount(changeInfo.count)
+                              }}
+                            >
+                              查看
+                            </button>
+                            <button
+                              className="icon-btn"
+                              style={{ width: 22, height: 22, opacity: 0.6 }}
+                              onClick={() => setDismissedChangeCount(changeInfo.count)}
+                              title="关闭提示"
+                              aria-label="关闭提示"
+                            >
+                              <IconX width={11} height={11} />
+                            </button>
+                          </div>
                         </div>
                       )}
                       {isPlanMode && (
