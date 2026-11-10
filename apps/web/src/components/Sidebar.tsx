@@ -48,6 +48,13 @@ const MIN_SIDEBAR_W = 230
 const MAX_SIDEBAR_W = 500
 const DEFAULT_SIDEBAR_W = 268
 
+export interface PinnedSessionItem {
+  id: string
+  title: string
+  workspace: string
+  lastModified?: string | null
+}
+
 function readList(key: string): string[] {
   try {
     const value = JSON.parse(localStorage.getItem(key) ?? '[]') as unknown
@@ -55,6 +62,34 @@ function readList(key: string): string[] {
   } catch {
     return []
   }
+}
+
+function readPinnedSessions(): PinnedSessionItem[] {
+  try {
+    const raw = localStorage.getItem(PINNED_SESSIONS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed)) {
+      const list: PinnedSessionItem[] = []
+      for (const item of parsed) {
+        if (typeof item === 'string') {
+          list.push({ id: item, title: '', workspace: '', lastModified: null })
+        } else if (item && typeof item === 'object' && 'id' in item) {
+          const p = item as Record<string, unknown>
+          list.push({
+            id: String(p.id),
+            title: typeof p.title === 'string' ? p.title : '',
+            workspace: typeof p.workspace === 'string' ? p.workspace : '',
+            lastModified: typeof p.lastModified === 'string' ? p.lastModified : null,
+          })
+        }
+      }
+      return list.filter((x) => Boolean(x.id))
+    }
+  } catch {
+    // ignore
+  }
+  return []
 }
 
 /** 稳定排序:order 里的按序,不在 order 里的按原序追加(派生放 selector 外,防 React #185) */
@@ -255,11 +290,25 @@ export default function Sidebar({
   const workspaces = settings?.workspaces ?? []
   const [hiddenWs, setHiddenWs] = useState<string[]>(() => readList(HIDDEN_KEY))
   const [pinnedWs] = useState<string[]>(() => readList(PINNED_KEY))
-  const [pinnedSessions, setPinnedSessions] = useState<string[]>(() => readList(PINNED_SESSIONS_KEY))
+  const [pinnedItems, setPinnedItems] = useState<PinnedSessionItem[]>(() => readPinnedSessions())
+  const [pinnedCollapsed, setPinnedCollapsed] = useState(false)
+  const [tempWsCollapsed, setTempWsCollapsed] = useState(true)
 
-  const togglePinSession = (id: string) => {
-    setPinnedSessions((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev]
+  const togglePinSession = (target: { id: string; title?: string; workspace?: string; lastModified?: string | null }) => {
+    setPinnedItems((prev) => {
+      const exists = prev.some((x) => x.id === target.id)
+      let next: PinnedSessionItem[]
+      if (exists) {
+        next = prev.filter((x) => x.id !== target.id)
+      } else {
+        const item: PinnedSessionItem = {
+          id: target.id,
+          title: target.title || t('sb.untitled'),
+          workspace: target.workspace || currentWorkspace || '',
+          lastModified: target.lastModified ?? null,
+        }
+        next = [item, ...prev]
+      }
       try {
         localStorage.setItem(PINNED_SESSIONS_KEY, JSON.stringify(next))
       } catch {
@@ -268,6 +317,46 @@ export default function Sidebar({
       return next
     })
   }
+
+  const pinnedSessionIds = useMemo(() => new Set(pinnedItems.map((x) => x.id)), [pinnedItems])
+
+  // 跨工作区直达处理器: 自动切工作区并打开会话
+  const handleOpenPinned = (item: PinnedSessionItem) => {
+    if (item.workspace && item.workspace !== currentWorkspace) {
+      onSetWorkspace(item.workspace)
+    }
+    onOpenSession(item.id)
+  }
+
+  // 监听当前工作区会话加载，自动补齐置顶项的标题与工作区元数据
+  useEffect(() => {
+    if (savedSessions.length === 0) return
+    setPinnedItems((prev) => {
+      let changed = false
+      const next = prev.map((item) => {
+        const found = savedSessions.find((s) => s.id === item.id)
+        if (found) {
+          const newTitle = found.title || item.title
+          const newWs = item.workspace || currentWorkspace || ''
+          const newMod = found.lastModified || item.lastModified
+          if (newTitle !== item.title || newWs !== item.workspace || newMod !== item.lastModified) {
+            changed = true
+            return { ...item, title: newTitle, workspace: newWs, lastModified: newMod }
+          }
+        }
+        return item
+      })
+      if (changed) {
+        try {
+          localStorage.setItem(PINNED_SESSIONS_KEY, JSON.stringify(next))
+        } catch {
+          // ignore
+        }
+        return next
+      }
+      return prev
+    })
+  }, [savedSessions, currentWorkspace])
   const visibleWorkspaces = workspaces
     .filter((w) => !hiddenWs.includes(w.dir))
     .sort(
@@ -355,25 +444,19 @@ export default function Sidebar({
     const newOrderedIds = [...filteredIds.slice(0, insertIdx), dragged, ...filteredIds.slice(insertIdx)]
 
     // 自动置顶判定: 拖到首位 (insertIdx === 0) 或目标项本为置顶项
-    if (insertIdx === 0 || pinnedSessions.includes(targetId)) {
-      if (!pinnedSessions.includes(dragged)) {
-        const nextPinned = [dragged, ...pinnedSessions]
-        setPinnedSessions(nextPinned)
-        try {
-          localStorage.setItem(PINNED_SESSIONS_KEY, JSON.stringify(nextPinned))
-        } catch {
-          // ignore
-        }
+    if (insertIdx === 0 || pinnedSessionIds.has(targetId)) {
+      if (!pinnedSessionIds.has(dragged)) {
+        const found = sessions.find((s) => s.id === dragged)
+        togglePinSession({
+          id: dragged,
+          title: found?.title,
+          workspace: currentWorkspace ?? undefined,
+          lastModified: found?.lastModified,
+        })
       }
-    } else if (pinnedSessions.includes(dragged) && !pinnedSessions.includes(targetId)) {
+    } else if (pinnedSessionIds.has(dragged) && !pinnedSessionIds.has(targetId)) {
       // 从置顶区主动拖到了非置顶区下方: 移出置顶
-      const nextPinned = pinnedSessions.filter((x) => x !== dragged)
-      setPinnedSessions(nextPinned)
-      try {
-        localStorage.setItem(PINNED_SESSIONS_KEY, JSON.stringify(nextPinned))
-      } catch {
-        // ignore
-      }
+      togglePinSession({ id: dragged })
     }
 
     setOrder(newOrderedIds)
@@ -487,14 +570,14 @@ export default function Sidebar({
 
   const ordered = applySessionOrder(sessions, order)
   const sortedWithPin = [
-    ...ordered.filter((s) => pinnedSessions.includes(s.id)),
-    ...ordered.filter((s) => !pinnedSessions.includes(s.id)),
+    ...ordered.filter((s) => pinnedSessionIds.has(s.id)),
+    ...ordered.filter((s) => !pinnedSessionIds.has(s.id)),
   ]
   const filtered = query
     ? sortedWithPin.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
     : sortedWithPin
-  const pinnedInFiltered = filtered.filter((s) => pinnedSessions.includes(s.id))
-  const unpinnedInFiltered = filtered.filter((s) => !pinnedSessions.includes(s.id))
+  const pinnedInFiltered = filtered.filter((s) => pinnedSessionIds.has(s.id))
+  const unpinnedInFiltered = filtered.filter((s) => !pinnedSessionIds.has(s.id))
   const groups: Array<{ bucket: Bucket; items: SessionMeta[] }> = [
     ...(pinnedInFiltered.length > 0 ? [{ bucket: 'pinned' as const, items: pinnedInFiltered }] : []),
     ...TIME_BUCKET_ORDER.map((bucket) => ({
@@ -502,6 +585,24 @@ export default function Sidebar({
       items: unpinnedInFiltered.filter((s) => bucketOf(s.lastModified) === bucket),
     })).filter((group) => group.items.length > 0),
   ]
+
+  const allWorkspaceDirs = visibleWorkspaces.map((w) => w.dir)
+  const getDisambiguatedWsName = (dir: string) => {
+    const base = baseName(dir)
+    const duplicates = allWorkspaceDirs.filter((d) => baseName(d) === base)
+    if (duplicates.length <= 1) return base
+    const normalized = dir.replace(/[\\/]+$/, '')
+    const parts = normalized.split(/[\\/]/)
+    if (parts.length >= 2) {
+      const parent = parts[parts.length - 2] ?? ''
+      const shortParent = parent.length > 18 ? `${parent.slice(0, 10)}…${parent.slice(-6)}` : parent
+      return `${base} (${shortParent})`
+    }
+    return base
+  }
+
+  const regularWorkspaces = visibleWorkspaces.filter((w) => !isTempWs(w.dir))
+  const tempWorkspaces = visibleWorkspaces.filter((w) => isTempWs(w.dir))
 
   return (
     <aside className="sidebar">
@@ -525,6 +626,136 @@ export default function Sidebar({
         {t('sb.new')}
         <kbd aria-hidden="true">Ctrl N</kbd>
       </button>
+
+      {/* 📌 置顶会话独立常驻专区 (跨工作区聚合直达) */}
+      {pinnedItems.length > 0 && (
+        <div className="pinned-section">
+          <div
+            className="pinned-section-header"
+            onClick={() => setPinnedCollapsed(!pinnedCollapsed)}
+            title="点击折叠或展开置顶会话"
+          >
+            <div className="flex items-center gap-1.5">
+              <IconPin width={11} height={11} style={{ color: 'var(--color-accent)' }} />
+              <span className="pinned-section-title">{t('sb.pinned')}</span>
+              <span className="pinned-section-badge">{pinnedItems.length}</span>
+            </div>
+            <button
+              type="button"
+              className="icon-btn"
+              style={{ width: 18, height: 18 }}
+              onClick={(e) => {
+                e.stopPropagation()
+                setPinnedCollapsed(!pinnedCollapsed)
+              }}
+              title={pinnedCollapsed ? '展开置顶' : '折叠置顶'}
+            >
+              <IconChevron
+                width={10}
+                height={10}
+                className={`chev ${!pinnedCollapsed ? 'is-open' : ''}`}
+              />
+            </button>
+          </div>
+
+          {!pinnedCollapsed && (
+            <div className="pinned-section-list">
+              {pinnedItems.map((item) => {
+                const isCurrentActive = item.id === activeId
+                const wsBase = item.workspace ? baseName(item.workspace) : ''
+                return (
+                  <div
+                    key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    className={`pinned-session-item ${isCurrentActive ? 'is-active' : ''}`}
+                    onClick={() => handleOpenPinned(item)}
+                    onContextMenu={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      const btn = e.currentTarget.querySelector<HTMLButtonElement>('.row-more-btn')
+                      btn?.click()
+                    }}
+                    title={`打开会话${item.workspace ? ` [${item.workspace}]` : ''}`}
+                  >
+                    <div className="pinned-item-main">
+                      <div className="pinned-item-title-row">
+                        <span className="pinned-item-title">{item.title || t('sb.untitled')}</span>
+                      </div>
+                      <div className="pinned-item-sub-row">
+                        {wsBase && <span className="pinned-item-ws-tag">{wsBase}</span>}
+                        {item.lastModified && (
+                          <span className="pinned-item-time">{timeAgo(item.lastModified)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="pinned-item-actions" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="row-action-btn row-pin-btn is-pinned"
+                        title={t('sb.unpin')}
+                        aria-label={t('sb.unpin')}
+                        onClick={() => togglePinSession(item)}
+                      >
+                        <IconPin width={11} height={11} style={{ color: 'var(--color-accent)' }} />
+                      </button>
+                      <Menu
+                        label="会话选项"
+                        width={160}
+                        align="end"
+                        trigger={({ open }) => (
+                          <button
+                            type="button"
+                            className={`row-action-btn row-more-btn ${open ? 'is-active' : ''}`}
+                            aria-expanded={open}
+                            title="更多选项"
+                          >
+                            <IconMore width={13} height={13} />
+                          </button>
+                        )}
+                      >
+                        {(close) => (
+                          <div className="p-1">
+                            <MenuItem
+                              icon={<IconPlus width={13} height={13} />}
+                              onClick={() => {
+                                close()
+                                handleOpenPinned(item)
+                              }}
+                            >
+                              打开会话
+                            </MenuItem>
+                            <MenuItem
+                              icon={<IconPin width={13} height={13} />}
+                              onClick={() => {
+                                close()
+                                togglePinSession(item)
+                              }}
+                            >
+                              取消置顶
+                            </MenuItem>
+                            <div className="menu-sep" />
+                            <MenuItem
+                              icon={<IconTrash width={13} height={13} style={{ color: 'var(--color-danger)' }} />}
+                              onClick={() => {
+                                close()
+                                togglePinSession(item)
+                                onDelete(item.id)
+                              }}
+                            >
+                              <span style={{ color: 'var(--color-danger)' }}>{t('sb.delete')}</span>
+                            </MenuItem>
+                          </div>
+                        )}
+                      </Menu>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 工作区标题与动作区 (对标 DeepSeek Harness 架构) */}
       <div className="ws-section-header">
@@ -680,9 +911,11 @@ export default function Sidebar({
         {viewMode === 'workspace' ? (
           /* 按工作区分组的树形视图 (对标 DeepSeek Harness 截图 2) */
           <div className="ws-tree-container">
-            {visibleWorkspaces.map((w) => {
+            {(() => {
+              const renderWorkspaceNode = (w: (typeof visibleWorkspaces)[0]) => {
               const isActive = w.dir === currentWorkspace
               const isExpanded = expandedWs.includes(w.dir)
+              const displayName = getDisambiguatedWsName(w.dir)
               return (
                 <div key={w.dir} className={`ws-tree-node ${isActive ? 'is-active' : ''}`}>
                   <div
@@ -716,7 +949,7 @@ export default function Sidebar({
                       <IconFolder width={14} height={14} />
                     </span>
                     <span className="ws-tree-name" title={w.dir}>
-                      {baseName(w.dir)}
+                      {displayName}
                     </span>
                     {isActive && <span className="ws-tree-active-pill">当前</span>}
                     <span className="ws-tree-count">{w.sessions}</span>
@@ -809,40 +1042,7 @@ export default function Sidebar({
                   {/* 展开的会话子树 */}
                   {isExpanded && isActive && (
                     <div className="ws-tree-children animate-slide-down">
-                      {pinnedInFiltered.length > 0 && (
-                        <div className="session-pinned-group">
-                          <div className="session-group-subhead">
-                            <IconPin width={10} height={10} style={{ color: 'var(--color-accent)' }} />
-                            <span>{t('sb.pinned')} · {pinnedInFiltered.length}</span>
-                          </div>
-                          {pinnedInFiltered.map((s) => (
-                            <SessionRow
-                              key={s.id}
-                              s={s}
-                              active={s.id === activeId}
-                              running={(s.id === activeId && busy) || Boolean(s.isRunning)}
-                              dragging={s.id === dragId}
-                              dropIndicator={dragOverInfo?.id === s.id ? dragOverInfo.pos : null}
-                              onItemDragStart={handleItemDragStart}
-                              onItemDragOver={handleItemDragOver}
-                              onItemDrop={handleItemDrop}
-                              onItemDragEnd={handleItemDragEnd}
-                              onOpen={() => onOpenSession(s.id)}
-                              onFork={() => onOpenSession(s.id, true)}
-                              onRename={(title) => onRename(s.id, title)}
-                              onDelete={() => onDelete(s.id)}
-                              isPinned={true}
-                              onTogglePin={() => togglePinSession(s.id)}
-                            />
-                          ))}
-                        </div>
-                      )}
-                      {pinnedInFiltered.length > 0 && unpinnedInFiltered.length > 0 && (
-                        <div className="session-group-subhead" style={{ marginTop: 4 }}>
-                          <span>{t('sb.otherSessions')}</span>
-                        </div>
-                      )}
-                      {unpinnedInFiltered.map((s) => (
+                      {filtered.map((s) => (
                         <SessionRow
                           key={s.id}
                           s={s}
@@ -858,8 +1058,8 @@ export default function Sidebar({
                           onFork={() => onOpenSession(s.id, true)}
                           onRename={(title) => onRename(s.id, title)}
                           onDelete={() => onDelete(s.id)}
-                          isPinned={false}
-                          onTogglePin={() => togglePinSession(s.id)}
+                          isPinned={pinnedSessionIds.has(s.id)}
+                          onTogglePin={() => togglePinSession({ id: s.id, title: s.title, workspace: currentWorkspace ?? undefined, lastModified: s.lastModified })}
                         />
                       ))}
                       {filtered.length === 0 && (
@@ -871,13 +1071,54 @@ export default function Sidebar({
                   )}
                 </div>
               )
-            })}
-            {visibleWorkspaces.length === 0 && (
-              <p className="menu-empty" style={{ padding: '22px 10px' }}>
-                暂无工作区，点击右上角「+」添加
-              </p>
-            )}
-          </div>
+            }
+              return (
+                <>
+                  {regularWorkspaces.map((w) => renderWorkspaceNode(w))}
+                  {tempWorkspaces.length > 0 && (
+                    <div className="ws-temp-group">
+                      <div
+                        className="ws-temp-header"
+                        onClick={() => setTempWsCollapsed(!tempWsCollapsed)}
+                        title="点击折叠或展开临时与测试项目"
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <IconChevron
+                            width={11}
+                            height={11}
+                            className={`chev ${!tempWsCollapsed ? 'is-open' : ''}`}
+                          />
+                          <span className="ws-temp-title">临时 / 测试工作区</span>
+                          <span className="ws-temp-badge">{tempWorkspaces.length}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          style={{ width: 18, height: 18 }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            cleanTempWorkspaces()
+                          }}
+                          title="清理并隐藏所有临时工作区"
+                        >
+                          <IconTrash width={11} height={11} style={{ color: 'var(--color-danger)' }} />
+                        </button>
+                      </div>
+                      {!tempWsCollapsed && (
+                        <div className="ws-temp-list animate-slide-down">
+                          {tempWorkspaces.map((w) => renderWorkspaceNode(w))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {visibleWorkspaces.length === 0 && (
+                    <p className="menu-empty" style={{ padding: '22px 10px' }}>
+                      暂无工作区，点击右上角「+」添加
+                    </p>
+                  )}
+                </>
+              )
+            })()}</div>
         ) : (
           /* 单列表视图 */
           <>
@@ -902,8 +1143,8 @@ export default function Sidebar({
                     onFork={() => onOpenSession(s.id, true)}
                     onRename={(title) => onRename(s.id, title)}
                     onDelete={() => onDelete(s.id)}
-                    isPinned={pinnedSessions.includes(s.id)}
-                    onTogglePin={() => togglePinSession(s.id)}
+                    isPinned={pinnedSessionIds.has(s.id)}
+                    onTogglePin={() => togglePinSession({ id: s.id, title: s.title, workspace: currentWorkspace ?? undefined, lastModified: s.lastModified })}
                   />
                 ))}
               </div>

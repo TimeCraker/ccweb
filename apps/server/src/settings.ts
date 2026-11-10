@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync, mkdirSync, writeFileSync, renameSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { CC_DIR, APP_DIR } from './dirs.js'
 import { connectionEnv, listConnections, templateKeyOf } from './connections.js'
 
@@ -198,7 +198,10 @@ export function listWorkspaces(): WorkspaceInfo[] {
   } catch {
     return []
   }
-  const out: WorkspaceInfo[] = []
+  // 使用 Map 按规范化路径聚合去重, 累加会话数并取最新修改时间
+  const map = new Map<string, WorkspaceInfo>()
+  const isWin = process.platform === 'win32'
+
   for (const d of dirs) {
     const pdir = join(root, d)
     let files: string[]
@@ -217,16 +220,31 @@ export function listWorkspaces(): WorkspaceInfo[] {
       const first = readFileSync(join(pdir, newest.f), 'utf8').slice(0, 4096)
       const cwdMatch = first.match(/"cwd":"([^"]+)"/)
       if (!cwdMatch?.[1]) continue
-      out.push({
-        dir: cwdMatch[1].replace(/\\\\/g, '\\'),
-        sessions: files.length,
-        lastModified: new Date(newest.m).toISOString(),
-      })
+
+      const rawDir = cwdMatch[1].replace(/\\/g, '\\')
+      const resolvedDir = resolve(rawDir)
+      const key = isWin ? resolvedDir.toLowerCase() : resolvedDir
+
+      const existing = map.get(key)
+      const modifiedIso = new Date(newest.m).toISOString()
+      if (existing) {
+        existing.sessions += files.length
+        if (!existing.lastModified || modifiedIso > existing.lastModified) {
+          existing.lastModified = modifiedIso
+          existing.dir = resolvedDir
+        }
+      } else {
+        map.set(key, {
+          dir: resolvedDir,
+          sessions: files.length,
+          lastModified: modifiedIso,
+        })
+      }
     } catch {
       continue
     }
   }
-  return out.sort((a, b) => (b.lastModified ?? '').localeCompare(a.lastModified ?? ''))
+  return Array.from(map.values()).sort((a, b) => (b.lastModified ?? '').localeCompare(a.lastModified ?? ''))
 }
 
 // ---------- ~/.claude 配置面板数据(Skills / Rules / CLAUDE.md) ----------

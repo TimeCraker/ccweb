@@ -72,7 +72,7 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
       setAtBottom(true)
       virtuoso.current?.scrollToIndex({ index: entryCount.current - 1, align: 'end', behavior: 'auto' })
     }
-    const timers = [0, 120, 400, 900].map((ms) => window.setTimeout(jump, ms))
+    const timers = [0, 50, 150].map((ms) => window.setTimeout(jump, ms))
     return () => timers.forEach((timer) => window.clearTimeout(timer))
   }, [historyVersion, entries.length, historyFocus])
 

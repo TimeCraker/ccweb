@@ -4458,76 +4458,116 @@ html.dark .overlay {
   border: 0;
   border-top: 1px solid var(--color-border);
 }
+/* 代码块高亮与卡片风格: 浅色模式下采用 Claude / GitHub Light 暖灰温润融合风, 深色模式下精致暗夜风 */
 .md .codeblock {
   position: relative;
-}
-.md .hljs-keyword,
-.md .hljs-selector-tag,
-.md .hljs-meta {
-  color: #c792ea;
-}
-.md .hljs-string,
-.md .hljs-attr {
-  color: #a5d68a;
-}
-.md .hljs-number,
-.md .hljs-literal {
-  color: #f0916a;
-}
-.md .hljs-title,
-.md .hljs-name,
-.md .hljs-function {
-  color: #82aaff;
-}
-.md .hljs-comment,
-.md .hljs-quote {
-  color: var(--color-text-faint);
-  font-style: italic;
-}
-.md .hljs-built_in,
-.md .hljs-type {
-  color: #ffcb6b;
-}
-.md .codeblock {
-  position: relative;
-  background: #181a1d;
-  border: 1px solid #2e333a;
-  border-radius: 10px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.15);
-  margin: 10px 0;
+  box-shadow: var(--shadow-card);
+  margin: 12px 0;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
+
 html.dark .md .codeblock {
-  background: #151816;
-  border-color: #2b312b;
-  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.4);
+  background: #171a17;
+  border-color: var(--color-border);
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.35);
 }
+
 .md .codeblock > div:first-child {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 6px 12px;
-  background: #212429;
-  border-bottom: 1px solid #2e333a;
+  background: var(--color-panel-2);
+  border-bottom: 1px solid var(--color-border);
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: #9da5b4;
+  color: var(--color-text-dim);
 }
+
 html.dark .md .codeblock > div:first-child {
-  background: #1d211e;
-  border-color: #2b312b;
-  color: #9ca396;
+  background: #1e221f;
+  border-color: var(--color-border);
+  color: var(--color-text-dim);
 }
+
 .md .codeblock pre {
   margin: 0;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background: transparent !important;
 }
+
 .md .codeblock pre code {
-  color: #e5e9f0;
+  color: var(--color-text);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.6;
+}
+
+/* 语法高亮 - 浅色模式 (GitHub Light 优雅配色) */
+.md .hljs-keyword,
+.md .hljs-selector-tag {
+  color: #cf222e;
+  font-weight: 500;
+}
+.md .hljs-meta {
+  color: #0550ae;
+}
+.md .hljs-string,
+.md .hljs-attr {
+  color: #116329;
+}
+.md .hljs-number,
+.md .hljs-literal {
+  color: #953800;
+}
+.md .hljs-title,
+.md .hljs-name,
+.md .hljs-function {
+  color: #8250df;
+}
+.md .hljs-comment,
+.md .hljs-quote {
+  color: var(--color-text-faint);
+  font-style: italic;
+  opacity: 0.85;
+}
+.md .hljs-built_in,
+.md .hljs-type {
+  color: #953800;
+}
+
+/* 语法高亮 - 暗色模式 (自适应柔和荧光) */
+html.dark .md .hljs-keyword,
+html.dark .md .hljs-selector-tag,
+html.dark .md .hljs-meta {
+  color: #c792ea;
+}
+html.dark .md .hljs-string,
+html.dark .md .hljs-attr {
+  color: #a5d68a;
+}
+html.dark .md .hljs-number,
+html.dark .md .hljs-literal {
+  color: #f0916a;
+}
+html.dark .md .hljs-title,
+html.dark .md .hljs-name,
+html.dark .md .hljs-function {
+  color: #82aaff;
+}
+html.dark .md .hljs-comment,
+html.dark .md .hljs-quote {
+  color: var(--color-text-faint);
+  font-style: italic;
+  opacity: 1;
+}
+html.dark .md .hljs-built_in,
+html.dark .md .hljs-type {
+  color: #ffcb6b;
 }
 
 /* codeblock 折叠与展开 */
@@ -4535,19 +4575,22 @@ html.dark .md .codeblock > div:first-child {
   overflow: hidden;
 }
 .codeblock-gradient-mask {
-  background: linear-gradient(to top, var(--color-panel), transparent);
+  background: linear-gradient(to top, var(--color-surface-2), transparent);
+}
+html.dark .codeblock-gradient-mask {
+  background: linear-gradient(to top, #171a17, transparent);
 }
 html:not(.dark) .codeblock-gradient-mask {
-  background: linear-gradient(to top, #1b1d20, transparent);
+  background: linear-gradient(to top, var(--color-surface-2), transparent);
 }
 html:not(.dark) .codeblock-expand-btn {
-  background: #24272b;
-  border-color: #33383d;
-  color: #b6bab2;
+  background: var(--color-panel-2);
+  border-color: var(--color-border);
+  color: var(--color-text-dim);
 }
 html:not(.dark) .codeblock-expand-btn:hover {
-  background: #2d3137;
-  color: #fff;
+  background: var(--color-panel-3);
+  color: var(--color-text);
 }
 
 
@@ -6028,6 +6071,194 @@ body.is-resizing-drawer {
   justify-content: center;
   padding: 0 3px;
   box-shadow: 0 0 0 1.5px var(--color-panel);
+}
+
+/* 侧边栏「置顶会话」独立常驻专区 (跨工作区聚合直达) */
+.pinned-section {
+  margin: 4px 10px 10px;
+  padding: 6px;
+  background: color-mix(in srgb, var(--color-panel-2) 40%, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-card);
+}
+
+.pinned-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  transition: background var(--dur-fast);
+}
+
+.pinned-section-header:hover {
+  background: var(--color-hover);
+}
+
+.pinned-section-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-text-dim);
+}
+
+.pinned-section-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0.5px 5.5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  color: var(--color-accent);
+}
+
+.pinned-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.pinned-session-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 7px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+  position: relative;
+}
+
+.pinned-session-item:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border-subtle);
+}
+
+.pinned-session-item.is-active {
+  background: var(--color-surface-hover);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+
+.pinned-session-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2.5px;
+  background: var(--color-accent);
+  border-radius: 2px;
+}
+
+.pinned-item-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pinned-item-title-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pinned-item-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 175px;
+}
+
+.pinned-item-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pinned-item-ws-tag {
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  color: var(--color-text-faint);
+  background: color-mix(in srgb, var(--color-border) 45%, transparent);
+  padding: 0 4px;
+  border-radius: 3px;
+  max-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pinned-item-time {
+  font-size: 10px;
+  color: var(--color-text-faint);
+}
+
+.pinned-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+
+.pinned-session-item:hover .pinned-item-actions,
+.pinned-session-item:has(.is-active) .pinned-item-actions {
+  opacity: 1;
+}
+
+/* 临时/测试工作区折叠收纳组 */
+.ws-temp-group {
+  margin: 10px 8px 6px;
+  border-top: 1px dashed var(--color-border);
+  padding-top: 8px;
+}
+
+.ws-temp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  color: var(--color-text-faint);
+  transition: all var(--dur-fast);
+}
+
+.ws-temp-header:hover {
+  background: var(--color-hover);
+  color: var(--color-text-dim);
+}
+
+.ws-temp-title {
+  font-size: 11px;
+  font-weight: 550;
+}
+
+.ws-temp-badge {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-border) 60%, transparent);
+  color: var(--color-text-faint);
+}
+
+.ws-temp-list {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 

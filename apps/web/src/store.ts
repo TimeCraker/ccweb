@@ -196,6 +196,30 @@ interface AppState {
   setBusy: (b: boolean) => void
 }
 
+function closeTurn(
+  entries: Entry[],
+  stats?: { totalS: number; ttftMs: number | null; tps: number | null } | null,
+): Entry[] {
+  const t = currentTurn(entries)
+  if (!t) return entries
+  return entries.map((e) =>
+    e.type === 'turn' && e.id === (t as TurnEntry).id
+      ? {
+          ...e,
+          done: true,
+          tail: stats ? stats : e.tail,
+          blocks: e.blocks.map((b) =>
+            b.kind === 'tool' && (b.status === 'running' || b.status === 'streaming')
+              ? { ...b, status: 'done' as const }
+              : b.kind !== 'tool' && b.streaming
+                ? { ...b, streaming: false }
+                : b,
+          ),
+        }
+      : e,
+  )
+}
+
 export const useStore = create<AppState>((set) => ({
   attachmentDraft: false,
   conn: 'connecting',
@@ -310,24 +334,21 @@ export const useStore = create<AppState>((set) => ({
    * assistant 消息经对账追加,tool_result 回填;新用户消息前收束上一 turn) */
   replayHistory: (messages, limit = HISTORY_PAGE) => {
     const page = historySlice(messages, limit)
-    set({
-      fileBaselines: {}, nativeTasks: [], checkpoints: [], rewind: null, runtimeDiagnostics: [], availableModels: [], entries: [], busy: false, permissions: [], question: null, metrics: null, context: null, turnStartedAt: null,
-      historyRaw: messages,
-      historyLimit: Math.min(messages.length, limit),
-      historyHasMore: page.length < messages.length,
-      historyFocus: -1,
-      historyVersion: useStore.getState().historyVersion + 1,
-    })
+    let curEntries: Entry[] = []
+    let curMetrics: SessionMetrics | null = null
+    let curTurnStartedAt: number | null = null
+
     for (const raw of page) {
       const m = raw as { type?: string; uuid?: string; ccwebMetrics?: SessionMetrics; message?: { content?: unknown } } | null
       if (!m?.type) continue
-      const st = useStore.getState()
+
       if (m.type === 'user') {
         const content = m.message?.content
         const texts: string[] = []
         const images: string[] = []
         let hasToolResult = false
         let interruptedMarker = false
+
         if (typeof content === 'string') {
           texts.push(content)
         } else if (Array.isArray(content)) {
@@ -335,40 +356,71 @@ export const useStore = create<AppState>((set) => ({
             if (c && typeof c === 'object' && 'type' in c) {
               const block = c as { type: string; text?: unknown; source?: { type?: string; media_type?: string; data?: string } }
               if (block.type === 'text' && typeof block.text === 'string') {
-                // SDK 中断标记回放为中性提示行,不当用户消息渲染
                 if (block.text === '[Request interrupted by user]') interruptedMarker = true
                 else texts.push(block.text)
               }
-              if (block.type === 'image' && block.source?.type === 'base64' && ['image/png','image/jpeg','image/webp','image/gif'].includes(block.source.media_type ?? '')) images.push(`data:${block.source.media_type};base64,${block.source.data}`)
+              if (block.type === 'image' && block.source?.type === 'base64' && ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(block.source.media_type ?? '')) {
+                images.push(`data:${block.source.media_type};base64,${block.source.data}`)
+              }
               if (block.type === 'tool_result') hasToolResult = true
             }
           }
         }
-        if (hasToolResult) st.onUserMessage(m)
-        if (interruptedMarker) {
-          // 中断标记:收束当前 turn 并追加中性提示行
-          st.finishTurn()
-          useStore.setState((s) => ({
-            entries: [
-              ...s.entries,
-              { type: 'turnError' as const, id: nextEntryId(), text: t('ms.interrupted'), muted: true },
-            ],
-          }))
+
+        if (hasToolResult) {
+          curEntries = applyToolResults(curEntries, m as Parameters<typeof applyToolResults>[1])
         }
+
+        if (interruptedMarker) {
+          curEntries = closeTurn(curEntries)
+          curEntries = [
+            ...curEntries,
+            { type: 'turnError' as const, id: nextEntryId(), text: t('ms.interrupted'), muted: true },
+          ]
+        }
+
         if (texts.length > 0) {
-          st.finishTurn()
-          useStore.setState({ metrics: m.ccwebMetrics ?? null, turnStartedAt: m.ccwebMetrics?.runStartedAt ?? null })
-          for (const t of texts) {
-            useStore.setState((s) => ({
-              entries: [...s.entries, { type: 'user' as const, id: nextEntryId(), text: t, nativeUuid: m.uuid, images }],
-            }))
+          curEntries = closeTurn(curEntries)
+          curMetrics = m.ccwebMetrics ?? null
+          curTurnStartedAt = m.ccwebMetrics?.runStartedAt ?? null
+          for (const txt of texts) {
+            curEntries = [
+              ...curEntries,
+              { type: 'user' as const, id: nextEntryId(), text: txt, nativeUuid: m.uuid, images },
+            ]
           }
         }
       } else if (m.type === 'assistant') {
-        st.onAssistantMessage(m)
+        curEntries = reconcileAssistant(
+          curEntries,
+          m as Parameters<typeof reconcileAssistant>[1],
+        )
       }
     }
-    useStore.getState().finishTurn()
+
+    curEntries = closeTurn(curEntries)
+
+    // 一次性原子提交 store, 消除反复重绘与虚拟列表从首条逐行漫长下坠
+    set((s) => ({
+      fileBaselines: {},
+      nativeTasks: [],
+      checkpoints: [],
+      rewind: null,
+      runtimeDiagnostics: [],
+      availableModels: [],
+      entries: curEntries,
+      busy: false,
+      permissions: [],
+      question: null,
+      metrics: curMetrics,
+      context: null,
+      turnStartedAt: curTurnStartedAt,
+      historyRaw: messages,
+      historyLimit: Math.min(messages.length, limit),
+      historyHasMore: page.length < messages.length,
+      historyFocus: -1,
+      historyVersion: s.historyVersion + 1,
+    }))
   },
   loadEarlierHistory: () => {
     const state = useStore.getState()
