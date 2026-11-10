@@ -81,7 +81,7 @@ function timeAgo(iso: string | null): string {
   return tf('time.day', day)
 }
 
-type Bucket = 'today' | 'yesterday' | 'week' | 'earlier'
+type Bucket = 'pinned' | 'today' | 'yesterday' | 'week' | 'earlier'
 
 function bucketOf(iso: string | null): Bucket {
   if (!iso) return 'earlier'
@@ -97,8 +97,9 @@ function bucketOf(iso: string | null): Bucket {
   return 'earlier'
 }
 
-const BUCKET_ORDER: Bucket[] = ['today', 'yesterday', 'week', 'earlier']
+const TIME_BUCKET_ORDER: Array<Exclude<Bucket, 'pinned'>> = ['today', 'yesterday', 'week', 'earlier']
 const BUCKET_LABEL: Record<Bucket, () => string> = {
+  pinned: () => t('sb.pinned'),
   today: () => t('sb.today'),
   yesterday: () => t('sb.yesterday'),
   week: () => t('sb.week'),
@@ -492,10 +493,15 @@ export default function Sidebar({
   const filtered = query
     ? sortedWithPin.filter((s) => s.title.toLowerCase().includes(query.toLowerCase()))
     : sortedWithPin
-  const groups = BUCKET_ORDER.map((bucket) => ({
-    bucket,
-    items: filtered.filter((s) => bucketOf(s.lastModified) === bucket),
-  })).filter((group) => group.items.length > 0)
+  const pinnedInFiltered = filtered.filter((s) => pinnedSessions.includes(s.id))
+  const unpinnedInFiltered = filtered.filter((s) => !pinnedSessions.includes(s.id))
+  const groups: Array<{ bucket: Bucket; items: SessionMeta[] }> = [
+    ...(pinnedInFiltered.length > 0 ? [{ bucket: 'pinned' as const, items: pinnedInFiltered }] : []),
+    ...TIME_BUCKET_ORDER.map((bucket) => ({
+      bucket,
+      items: unpinnedInFiltered.filter((s) => bucketOf(s.lastModified) === bucket),
+    })).filter((group) => group.items.length > 0),
+  ]
 
   return (
     <aside className="sidebar">
@@ -803,7 +809,40 @@ export default function Sidebar({
                   {/* 展开的会话子树 */}
                   {isExpanded && isActive && (
                     <div className="ws-tree-children animate-slide-down">
-                      {filtered.map((s) => (
+                      {pinnedInFiltered.length > 0 && (
+                        <div className="session-pinned-group">
+                          <div className="session-group-subhead">
+                            <IconPin width={10} height={10} style={{ color: 'var(--color-accent)' }} />
+                            <span>{t('sb.pinned')} · {pinnedInFiltered.length}</span>
+                          </div>
+                          {pinnedInFiltered.map((s) => (
+                            <SessionRow
+                              key={s.id}
+                              s={s}
+                              active={s.id === activeId}
+                              running={(s.id === activeId && busy) || Boolean(s.isRunning)}
+                              dragging={s.id === dragId}
+                              dropIndicator={dragOverInfo?.id === s.id ? dragOverInfo.pos : null}
+                              onItemDragStart={handleItemDragStart}
+                              onItemDragOver={handleItemDragOver}
+                              onItemDrop={handleItemDrop}
+                              onItemDragEnd={handleItemDragEnd}
+                              onOpen={() => onOpenSession(s.id)}
+                              onFork={() => onOpenSession(s.id, true)}
+                              onRename={(title) => onRename(s.id, title)}
+                              onDelete={() => onDelete(s.id)}
+                              isPinned={true}
+                              onTogglePin={() => togglePinSession(s.id)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {pinnedInFiltered.length > 0 && unpinnedInFiltered.length > 0 && (
+                        <div className="session-group-subhead" style={{ marginTop: 4 }}>
+                          <span>{t('sb.otherSessions')}</span>
+                        </div>
+                      )}
+                      {unpinnedInFiltered.map((s) => (
                         <SessionRow
                           key={s.id}
                           s={s}
@@ -819,7 +858,7 @@ export default function Sidebar({
                           onFork={() => onOpenSession(s.id, true)}
                           onRename={(title) => onRename(s.id, title)}
                           onDelete={() => onDelete(s.id)}
-                          isPinned={pinnedSessions.includes(s.id)}
+                          isPinned={false}
                           onTogglePin={() => togglePinSession(s.id)}
                         />
                       ))}
@@ -1233,8 +1272,15 @@ function SessionRow({
           onOpen()
         }
       }}
-      className={`session-row${dropIndicator === 'before' ? ' drop-before' : dropIndicator === 'after' ? ' drop-after' : ''}`}
+      className={`session-row${isPinned ? ' is-pinned' : ''}${dropIndicator === 'before' ? ' drop-before' : dropIndicator === 'after' ? ' drop-after' : ''}`}
       style={dragging ? { opacity: 0.45 } : undefined}
+      onContextMenu={(e) => {
+        if (editing) return
+        e.preventDefault()
+        e.stopPropagation()
+        const btn = e.currentTarget.querySelector<HTMLButtonElement>('.row-more-btn')
+        btn?.click()
+      }}
       onClick={() => !editing && onOpen()}
     >
       {editing ? (
@@ -1296,6 +1342,18 @@ function SessionRow({
       )}
       {!editing && (
         <span className="row-actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className={`row-action-btn row-pin-btn ${isPinned ? 'is-pinned' : ''}`}
+            title={isPinned ? t('sb.unpin') : t('sb.pin')}
+            aria-label={isPinned ? t('sb.unpin') : t('sb.pin')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onTogglePin?.(s.id)
+            }}
+          >
+            <IconPin width={12} height={12} />
+          </button>
           <Menu
             label="会话选项"
             width={160}
@@ -1306,7 +1364,6 @@ function SessionRow({
                 className={`row-more-btn ${open ? 'is-active' : ''}`}
                 aria-expanded={open}
                 title="会话选项"
-                onClick={(e) => e.stopPropagation()}
               >
                 <IconMore width={13} height={13} />
               </button>
@@ -1321,7 +1378,7 @@ function SessionRow({
                     onTogglePin?.(s.id)
                   }}
                 >
-                  {isPinned ? '取消置顶' : '置顶会话'}
+                  {isPinned ? t('sb.unpin') : t('sb.pin')}
                 </MenuItem>
                 <MenuItem
                   icon={<IconPencil width={13} height={13} />}

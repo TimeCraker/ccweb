@@ -1411,8 +1411,52 @@ html.dark .session-row[aria-current='true'] {
   z-index: 2;
 }
 .session-row:hover .row-actions,
-.session-row:focus-within .row-actions {
+.session-row:focus-within .row-actions,
+.session-row .row-actions:has(.is-active) {
   display: flex;
+}
+.row-pin-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-hover);
+  color: var(--color-text-faint);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-soft);
+  margin-right: 3px;
+}
+.row-pin-btn:hover {
+  background: var(--color-panel-2);
+  color: var(--color-accent);
+  border-color: var(--color-border);
+}
+.row-pin-btn.is-pinned {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 15%, var(--color-panel-2));
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+.session-pinned-group {
+  margin-bottom: 4px;
+}
+.session-group-subhead {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 6px 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  letter-spacing: 0.02em;
+}
+.session-row.is-pinned {
+  border-left: 2px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+}
+.session-row.is-pinned[aria-current='true'] {
+  border-left: 2px solid var(--color-accent);
 }
 .row-more-btn {
   display: flex;

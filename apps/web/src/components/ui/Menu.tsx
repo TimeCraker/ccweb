@@ -15,6 +15,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 
 let activeId: symbol | null = null
 const listeners = new Set<(id: symbol | null) => void>()
@@ -186,31 +187,33 @@ export function Menu({
       <span ref={anchor} className="inline-flex" onClick={toggle}>
         {trigger({ open })}
       </span>
-      {open && (
-        <div
-          ref={panel}
-          id={id}
-          role="menu"
-          aria-label={label}
-          tabIndex={-1}
-          onKeyDown={onPanelKeyDown}
-          onBlur={(event) => {
-            const next = event.relatedTarget as Node | null
-            if (next && panel.current?.contains(next)) return
-            close(false)
-          }}
-          className={`menu ${className ?? ''}`}
-          style={{
-            left: pos?.left ?? 0,
-            top: pos?.top ?? 0,
-            width: Math.min(width, Math.max(0, (window.innerWidth ?? 1024) - 16)),
-            maxHeight: pos?.maxHeight ?? 460,
-            visibility: pos ? 'visible' : 'hidden',
-          }}
-        >
-          {children(() => close(true))}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panel}
+            id={id}
+            role="menu"
+            aria-label={label}
+            tabIndex={-1}
+            onKeyDown={onPanelKeyDown}
+            onBlur={(event) => {
+              const next = event.relatedTarget as Node | null
+              if (next && panel.current?.contains(next)) return
+              close(false)
+            }}
+            className={`menu ${className ?? ''}`}
+            style={{
+              left: pos?.left ?? 0,
+              top: pos?.top ?? 0,
+              width: Math.min(width, Math.max(0, (window.innerWidth ?? 1024) - 16)),
+              maxHeight: pos?.maxHeight ?? 460,
+              visibility: pos ? 'visible' : 'hidden',
+            }}
+          >
+            {children(() => close(true))}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }
