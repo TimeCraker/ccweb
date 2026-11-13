@@ -35,6 +35,10 @@ export function parseHeadings(markdown: string): HeadingItem[] {
   return headings
 }
 
+function StreamFooterSpacer() {
+  return <div className="stream-footer-spacer" style={{ height: 36, pointerEvents: 'none' }} aria-hidden="true" />
+}
+
 interface StreamProps {
   onRegenerate?: () => void
   /** Only expose message-level forks when a native UUID is known. */
@@ -100,7 +104,7 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
         ref={virtuoso}
         data={entries}
         className="h-full"
-        components={{ Header: HistoryHeader }}
+        components={{ Header: HistoryHeader, Footer: StreamFooterSpacer }}
         initialTopMostItemIndex={historyFocus >= 0 ? historyFocus : Math.max(0, entries.length - 1)}
         followOutput={atBottom ? 'auto' : false}
         atBottomStateChange={(b: boolean) => setAtBottom(b)}

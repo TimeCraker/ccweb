@@ -75,11 +75,19 @@ export default function App() {
       setMountedDrawers((prev) => (prev[drawer] ? prev : { ...prev, [drawer]: true }))
     }
   }, [drawer])
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [navOpen, setNavOpen] = useState(false)
   const [focusFile, setFocusFile] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [navOpen, setNavOpen] = useState(false)
+
+  // 视口联动：中窄屏打开伴侣抽屉时，自动将侧栏收拢为 Rail 模式，保障主对话区与输入框宽阔不遮挡
+  useEffect(() => {
+    if (drawer && window.innerWidth <= 1160 && !sidebarCollapsed) {
+      setSidebarCollapsed(true)
+    }
+  }, [drawer, sidebarCollapsed])
   useLocale()
 
   useEffect(() => {
@@ -656,12 +664,12 @@ export default function App() {
               <NativeTerminal onClose={() => setNativeOpen(false)} />
             </Suspense>
           ) : (
-            <div className="conversation">
+            <div className={`conversation ${empty ? 'is-empty' : ''}`}>
               {empty ? (
-                <>
-                  <div className="empty-state animate-fade-in">
+                <div className="empty-stage animate-fade-in">
+                  <div className="empty-hero">
                     <span className="empty-mark">
-                      <BrandMark size={44} />
+                      <BrandMark size={48} />
                     </span>
                     <h1>{t('hero.title2')}</h1>
                     <p className="empty-subtitle">{t('hero.sub2')}</p>
@@ -685,32 +693,30 @@ export default function App() {
                         </button>
                       )}
                     </div>
+                  </div>
 
-                    <div className="empty-hint-bar">
-                      <span><kbd>Ctrl K</kbd> {t('hero.paletteHint')}</span>
-                      <span className="divider">·</span>
-                      <span><kbd>/</kbd> 快捷指令</span>
-                      <span className="divider">·</span>
-                      <span><kbd>@</kbd> 引用文件</span>
-                    </div>
+                  <div className="empty-composer-card">
+                    {isPlanMode && (
+                      <div className="change-strip plan-strip">
+                        <IconCheckSquare width={14} height={14} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
+                        <strong>规划模式 (Plan Mode) · 已激活</strong>
+                        <span className="files">可在此处或对话流中同步生成实施大纲</span>
+                        <button className="btn btn-sm" onClick={() => setDrawer('plan')}>
+                          查看大纲 ↗
+                        </button>
+                      </div>
+                    )}
+                    {composer}
                   </div>
-                  <div className="dock">
-                    <div className="dock-inner">
-                      {isPlanMode && (
-                        <div className="change-strip plan-strip">
-                          <IconCheckSquare width={14} height={14} style={{ color: 'var(--color-accent)', flex: '0 0 auto' }} />
-                          <strong>规划模式 (Plan Mode) · 已激活</strong>
-                          <span className="files">可在此处或对话流中同步生成实施大纲</span>
-                          <button className="btn btn-sm" onClick={() => setDrawer('plan')}>
-                            查看大纲 ↗
-                          </button>
-                        </div>
-                      )}
-                      {composer}
-                      <UsageBar onOpenDetails={(tab) => { setDetailsTab(tab ?? 'context'); setDrawer('details'); }} />
-                    </div>
+
+                  <div className="empty-hint-bar">
+                    <span><kbd>Ctrl K</kbd> {t('hero.paletteHint')}</span>
+                    <span className="divider">·</span>
+                    <span><kbd>/</kbd> 快捷指令</span>
+                    <span className="divider">·</span>
+                    <span><kbd>@</kbd> 引用文件</span>
                   </div>
-                </>
+                </div>
               ) : (
                 <>
                   <div className="stream-wrap">
@@ -792,6 +798,10 @@ export default function App() {
             </div>
           )}
         </main>
+
+        {drawer && (
+          <div className="drawer-scrim" onClick={closeDrawer} aria-hidden="true" />
+        )}
 
         {mountedDrawers['changes'] && (
           <ChangesPanel

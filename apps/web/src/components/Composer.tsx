@@ -550,6 +550,14 @@ export default function Composer({
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // 空态 Hero 模式下自动平滑聚焦输入框
+  useEffect(() => {
+    if (hero) {
+      const timer = setTimeout(() => taRef.current?.focus(), 80)
+      return () => clearTimeout(timer)
+    }
+  }, [hero])
+
   const liveModel = useStore((s) => s.model)
   const hasConnection = Boolean(
     settings &&

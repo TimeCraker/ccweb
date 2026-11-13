@@ -1850,6 +1850,53 @@ html.dark .ws-item:hover {
   color: var(--color-text-dim);
 }
 
+/* 现代化居中空态舞台 (Hero + Composer 一体化聚拢) */
+.conversation.is-empty {
+  justify-content: center;
+  align-items: center;
+  padding: 24px 20px 48px;
+  overflow-y: auto;
+}
+.empty-stage {
+  width: 100%;
+  max-width: min(780px, 94vw);
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  text-align: center;
+}
+.empty-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.empty-hero .empty-mark {
+  margin-bottom: 12px;
+  opacity: 0.95;
+  filter: drop-shadow(0 2px 10px rgba(201, 93, 44, 0.15));
+}
+.empty-hero h1 {
+  font-size: 27px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+}
+.empty-hero .empty-subtitle {
+  font-size: 13.5px;
+  color: var(--color-text-dim);
+  max-width: 480px;
+  line-height: 1.5;
+}
+.empty-composer-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .empty-project-pill {
   display: inline-flex;
   align-items: center;
@@ -2411,15 +2458,17 @@ html.dark .ws-item:hover {
 /* 自动完成浮层 */
 .suggestions {
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 8px);
   left: 0;
   right: 0;
   z-index: 30;
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
-  padding: 5px;
+  overscroll-behavior: contain;
+  padding: 6px 6px 10px;
+  scroll-padding-bottom: 8px;
   border: 1px solid var(--color-border-strong);
-  border-radius: 11px;
+  border-radius: 12px;
   background: var(--color-panel);
   box-shadow: var(--shadow-pop);
   animation: pop-in var(--dur-fast) var(--ease-out) both;
@@ -3315,12 +3364,46 @@ html.dark .msg-user .bubble {
 }
 @media (max-width: 1100px) {
   .drawer {
+    width: min(var(--drawer-w, 380px), 40vw);
+    max-width: min(400px, 42vw);
+    min-width: 280px;
+  }
+  .chip-btn .chip-model-name {
+    max-width: 76px;
+  }
+  .chip-btn {
+    padding: 0 6px;
+    font-size: 11.5px;
+  }
+  .composer-bar {
+    gap: 4px;
+    padding: 4px 6px 6px;
+  }
+}
+@media (max-width: 768px) {
+  .drawer {
     position: fixed;
     top: 0;
     right: 0;
     bottom: 0;
     width: min(452px, 92vw);
     min-width: 0;
+    z-index: 60;
+  }
+}
+.drawer-scrim {
+  display: none;
+}
+@media (max-width: 768px) {
+  .drawer-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 55;
+    animation: fade-in var(--dur-fast) var(--ease-out) both;
   }
 }
 .drawer-head {
