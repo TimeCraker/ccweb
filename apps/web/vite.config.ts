@@ -23,4 +23,31 @@ export default defineConfig({
       '/healthz': apiTarget,
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          const normalized = id.replace(/\\/g, '/')
+          if (normalized.includes('/node_modules/')) {
+            if (normalized.includes('@xterm')) {
+              return 'vendor-xterm'
+            }
+            if (
+              normalized.includes('highlight.js') ||
+              normalized.includes('rehype-highlight') ||
+              normalized.includes('lowlight')
+            ) {
+              return 'vendor-highlight'
+            }
+            if (
+              normalized.includes('/diff/') ||
+              normalized.includes('/.pnpm/diff@')
+            ) {
+              return 'vendor-diff'
+            }
+          }
+        },
+      },
+    },
+  },
 })

@@ -36,7 +36,7 @@ export function parseHeadings(markdown: string): HeadingItem[] {
 }
 
 function StreamFooterSpacer() {
-  return <div className="stream-footer-spacer" style={{ height: 36, pointerEvents: 'none' }} aria-hidden="true" />
+  return <div className="stream-footer-spacer" style={{ height: 56, pointerEvents: 'none' }} aria-hidden="true" />
 }
 
 interface StreamProps {
@@ -58,6 +58,7 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
   const historyFocus = useStore((s) => s.historyFocus)
   const virtuoso = useRef<VirtuosoHandle>(null)
   const [atBottom, setAtBottom] = useState(true)
+  const userScrolledUp = useRef(false)
   const lastUserId = useRef<string | undefined>(undefined)
   const range = useRef({ startIndex: 0, endIndex: 0 })
   useLocale()
@@ -73,6 +74,7 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
     if (jumpedVersion.current === historyVersion) return
     jumpedVersion.current = historyVersion
     const jump = () => {
+      userScrolledUp.current = false
       setAtBottom(true)
       virtuoso.current?.scrollToIndex({ index: entryCount.current - 1, align: 'end', behavior: 'auto' })
     }
@@ -83,22 +85,25 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
   useEffect(() => {
     if (!newest || newest === lastUserId.current) return
     lastUserId.current = newest
+    userScrolledUp.current = false
     setAtBottom(true)
     const frame = requestAnimationFrame(() => virtuoso.current?.scrollToIndex({ index: entryCount.current - 1, align: 'end', behavior: 'auto' }))
     return () => cancelAnimationFrame(frame)
   }, [newest])
 
-  useEffect(() => {
-    if (entries.length === 0) return
-    if (atBottom) virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'auto' })
-  }, [entries, busy, atBottom])
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.deltaY < 0) {
+      userScrolledUp.current = true
+      setAtBottom(false)
+    }
+  }
 
   if (entries.length === 0) {
     return <div className="flex-1" />
   }
 
   return (
-    <div className="relative flex-1" role="log" aria-label="conversation">
+    <div className="relative flex-1" role="log" aria-label="conversation" onWheel={handleWheel}>
       <Virtuoso
         key={historyVersion}
         ref={virtuoso}
@@ -106,8 +111,14 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
         className="h-full"
         components={{ Header: HistoryHeader, Footer: StreamFooterSpacer }}
         initialTopMostItemIndex={historyFocus >= 0 ? historyFocus : Math.max(0, entries.length - 1)}
-        followOutput={atBottom ? 'auto' : false}
-        atBottomStateChange={(b: boolean) => setAtBottom(b)}
+        followOutput={atBottom && !userScrolledUp.current ? 'auto' : false}
+        atBottomThreshold={32}
+        atBottomStateChange={(bottom: boolean) => {
+          setAtBottom(bottom)
+          if (bottom) {
+            userScrolledUp.current = false
+          }
+        }}
         rangeChanged={(r) => {
           range.current = { startIndex: r.startIndex, endIndex: r.endIndex }
         }}
@@ -141,8 +152,9 @@ export default function MessageStream({ onRegenerate, onForkFromMessage }: Strea
         <button
           type="button"
           onClick={() => {
-            virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'smooth' })
+            userScrolledUp.current = false
             setAtBottom(true)
+            virtuoso.current?.scrollToIndex({ index: entries.length - 1, align: 'end', behavior: 'smooth' })
           }}
           aria-label={t('ms.toBottom')}
           className="scroll-to-bottom-pill animate-pop-in"
