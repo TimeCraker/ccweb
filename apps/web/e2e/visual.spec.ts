@@ -49,7 +49,7 @@ test('running, tool and approval surfaces retain readable proportions', async ({
   await expect(page.locator('.permission-card')).toBeVisible()
   await page.setViewportSize({ width: 1440, height: 960 })
   await page.screenshot({ path: info.outputPath('approval-dark-1440.png'), animations: 'disabled' })
-  await page.getByRole('button', { name: '拒绝', exact: true }).click()
+  await page.getByRole('button', { name: /拒绝/ }).click()
 })
 
 test('skill editor keeps source badges, shared draft and reachable save actions', async ({ page }, info) => {

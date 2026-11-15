@@ -2,6 +2,7 @@ import { expect, type Page } from '@playwright/test'
 
 /** 原生终端已从默认工作流移除:只能从设置 → 关于与更新进入(开发者排障入口)。 */
 export async function openNativeTerminal(page: Page): Promise<void> {
+  await expect(page.getByRole('textbox', { name: '任务输入' })).toBeVisible()
   await page.keyboard.press('Control+,')
   const dialog = page.getByRole('dialog', { name: '设置', exact: true })
   await expect(dialog).toBeVisible()

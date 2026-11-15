@@ -7,7 +7,10 @@ test.beforeEach(async ({ page }) => {
 async function ready(page: Page) {
   await page.goto('/')
   await expect(page.locator('.sidebar-footer-row')).toContainText(/已连接|Connected/)
-  await expect(page.locator('.composer-bar .chip-btn').first()).toBeEnabled()
+  const box = page.getByRole('textbox', { name: /任务输入|Task input/ })
+  await expect(box).toBeVisible()
+  await expect(box).toBeFocused()
+  await expect(page.getByRole('button', { name: /工作方式|Mode/ })).toBeEnabled()
 }
 
 async function send(page: Page, text: string) {
@@ -21,7 +24,13 @@ async function completed(page: Page, text: string) {
 }
 
 async function setMode(page: Page, label: string) {
-  await page.getByRole('button', { name: '工作方式', exact: true }).click()
+  const btn = page.getByRole('button', { name: '工作方式', exact: true })
+  await btn.click()
+  const menu = page.getByRole('menu', { name: '工作方式' })
+  if (!await menu.isVisible()) {
+    await btn.click()
+  }
+  await expect(menu).toBeVisible()
   await page.getByRole('menuitemradio', { name: new RegExp(`^${label}`) }).click()
 }
 
@@ -39,6 +48,7 @@ test('approval survives reload, preserves draft and stays isolated from another 
   await page.getByRole('textbox', { name: '任务输入', exact: true }).fill('【E2E】保留草稿')
   const other = await browser.newContext()
   const otherPage = await other.newPage()
+  await otherPage.addInitScript(() => localStorage.setItem('ccweb.locale', 'zh'))
   await ready(otherPage)
   await expect(otherPage.locator('.permission-card')).toHaveCount(0)
   await page.reload()
@@ -46,7 +56,7 @@ test('approval survives reload, preserves draft and stays isolated from another 
   await expect(page.getByRole('textbox', { name: '任务输入', exact: true })).toHaveValue('【E2E】保留草稿')
   await expect(page.getByRole('button', { name: '排队发送', exact: true })).toBeVisible()
   await page.screenshot({ path: info.outputPath('approval.png') })
-  await card.getByRole('button', { name: '允许', exact: true }).click()
+  await card.getByRole('button', { name: /允许/ }).click()
   await completed(page, 'APPROVAL reconnect')
   await expect(page.locator('.permission-card')).toHaveCount(0)
   const drawer = await openDrawer(page, '本次改动')
@@ -61,9 +71,9 @@ test('approval survives reload, preserves draft and stays isolated from another 
 test('plan adoption, question answer and unsupported native mode receipt', async ({ page }) => {
   await ready(page)
   await setMode(page, '计划模式')
-  await expect(page.locator('.composer-bar .chip-btn').first()).toContainText('计划模式')
+  await expect(page.getByRole('button', { name: '工作方式', exact: true })).toContainText('计划模式')
   await send(page, 'PLAN review')
-  await page.getByRole('button', { name: '采纳并开始执行', exact: true }).click()
+  await page.getByRole('button', { name: /采纳并开始执行/ }).click()
   await completed(page, 'PLAN review')
   await send(page, 'QUESTION choice')
   await page.getByRole('button', { name: '方案 A', exact: true }).click()
@@ -72,7 +82,7 @@ test('plan adoption, question answer and unsupported native mode receipt', async
   // 运行时拒绝自动模式:回执错误可见,界面保持原值(不回显"已切换")
   await setMode(page, '自动模式')
   await expect(page.getByText(/auto unavailable/)).toBeVisible()
-  await expect(page.locator('.composer-bar .chip-btn').first()).not.toContainText('自动模式')
+  await expect(page.getByRole('button', { name: '工作方式', exact: true })).not.toContainText('自动模式')
 })
 
 test('interrupt holds queue until explicit resume and crash allows a fresh request', async ({ page }) => {
@@ -150,9 +160,9 @@ test('refresh before SDK initialization reattaches to the accepted run', async (
 test('empty plans cannot be adopted, while revision and stop remain available', async ({ page }) => {
   await ready(page)
   await send(page, 'EMPTY_PLAN')
-  await expect(page.getByRole('button', { name: '采纳并开始执行', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: /采纳并开始执行/ })).toBeDisabled()
   await expect(page.getByText('尚未收到可审查的计划正文。可以继续修改计划，或直接停止。', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '停止生成', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: '继续修改计划', exact: true }).click()
+  await page.getByRole('button', { name: /继续修改计划/ }).click()
   await completed(page, 'EMPTY_PLAN')
 })

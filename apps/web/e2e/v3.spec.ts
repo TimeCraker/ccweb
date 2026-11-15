@@ -5,6 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('ccweb.locale', 'zh')
     localStorage.setItem('ccweb.theme', 'light')
+    localStorage.setItem('ccweb.sidebarViewMode', 'flat')
   })
 })
 
@@ -12,6 +13,7 @@ async function ready(page: Page) {
   await page.goto('/')
   await expect(page.getByText(/^(已连接|Connected)$/)).toBeVisible()
   await expect(page.getByRole('button', { name: '工作方式', exact: true })).toBeEnabled()
+  await expect(page.getByRole('textbox', { name: '任务输入' })).toBeFocused()
 }
 
 async function send(page: Page, text: string) {
@@ -31,15 +33,21 @@ test('only one menu layer is open, outside click closes, Esc returns focus', asy
   await expect(page.getByRole('menu', { name: '模型' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '模型', exact: true })).toBeFocused()
 
-  await page.locator('.workspace-trigger').click()
-  await expect(page.getByRole('menu', { name: '最近项目' })).toBeVisible()
+  const projectBtn = page.locator('.header-project-btn')
+  await expect(projectBtn).toBeVisible()
+  await projectBtn.click()
+  const projectMenu = page.getByRole('menu', { name: '当前项目选项' })
+  await expect(projectMenu).toBeVisible()
   await page.locator('.header h1').click()
-  await expect(page.getByRole('menu', { name: '最近项目' })).toHaveCount(0)
+  await expect(projectMenu).toHaveCount(0)
 })
 
 test('menus are keyboard navigable and Chinese IME Enter never sends', async ({ page }) => {
   await ready(page)
   await page.getByRole('button', { name: '工作方式', exact: true }).click()
+  const modeMenu = page.getByRole('menu', { name: '工作方式' })
+  await expect(modeMenu).toBeVisible()
+  await modeMenu.focus()
   await page.keyboard.press('ArrowDown')
   await expect(page.locator('[role=menuitemradio]:focus')).toHaveCount(1)
   await page.keyboard.press('Escape')
@@ -61,7 +69,8 @@ test('usage popover opens on demand, survives inner interaction and returns focu
   await expect(usage).toContainText('tok/s')
   await expect(usage).toContainText('上下文')
 
-  const trigger = page.getByRole('button', { name: '用量', exact: true })
+  const trigger = page.locator('.usage-trigger')
+  await expect(trigger).toBeVisible()
   await trigger.click()
   const panel = page.locator('.usage-panel')
   await expect(panel).toBeVisible()
@@ -148,7 +157,7 @@ test('drawers keep the conversation mounted and composer reachable', async ({ pa
   await expect(page.getByText('【E2E】模拟完成：VISUAL drawer contract', { exact: true })).toBeVisible()
   await expect(page.locator('.composer')).toBeInViewport()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await drawer.getByRole('tab', { name: '调用轨迹', exact: true }).click()
+  await drawer.getByRole('tab', { name: /调用轨迹/ }).click()
   await expect(drawer.getByText('Read', { exact: true })).toBeVisible()
   await drawer.getByRole('button', { name: '关闭面板' }).click()
   await expect(drawer).toHaveCount(0)
@@ -283,7 +292,7 @@ test('long history opens at the newest message and loads earlier pages', async (
   await expect(page.getByText('【E2E】模拟完成：SEED_HISTORY', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: '新建会话' }).click()
-  await page.getByRole('button', { name: /历史会话（200 条）/ }).click()
+  await page.locator('.session-row').filter({ hasText: '历史会话（200 条）' }).click()
   await expect(page.getByRole('button', { name: '加载更早的消息' })).toBeVisible()
   await expect(page.getByText('历史回答 99', { exact: true })).toBeVisible()
   const scroller = page.locator('[data-virtuoso-scroller="true"], [data-virtuoso-scroller]').first()

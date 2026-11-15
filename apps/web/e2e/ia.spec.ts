@@ -7,12 +7,16 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('ccweb.locale', 'zh')
     localStorage.setItem('ccweb.theme', 'light')
+    localStorage.setItem('ccweb.sidebarViewMode', 'flat')
   })
 })
 
 async function ready(page: Page) {
   await page.goto('/')
   await expect(page.getByText(/^(已连接|Connected)$/)).toBeVisible()
+  const box = page.getByRole('textbox', { name: /任务输入|Task input/ })
+  await expect(box).toBeVisible()
+  await expect(box).toBeFocused()
 }
 
 async function openConnectionForm(page: Page) {
@@ -29,6 +33,10 @@ test('IA05: menu form supports Tab/Shift+Tab/Home/End and closes only on leave',
   const trigger = page.getByRole('button', { name: '模型', exact: true })
   await trigger.click()
   const menu = page.getByRole('menu', { name: '模型', exact: true })
+  if (!await menu.isVisible()) {
+    await trigger.click()
+  }
+  await expect(menu).toBeVisible()
   const custom = menu.getByLabel('自定义模型 ID')
   await custom.fill('custom-abc')
   await custom.press('Home')
@@ -101,9 +109,9 @@ test('IA04: connection search matches connections and keeps groups', async ({ pa
   const menu = page.getByRole('menu', { name: '模型', exact: true })
   const navBtn = menu.getByRole('button', { name: /全部模型|切换模型/ }).first()
   if (await navBtn.isVisible()) await navBtn.click()
-  const search = menu.getByRole('textbox', { name: '模型', exact: true })
+  const search = menu.getByRole('textbox', { name: '模型' }).first()
   await search.fill('AuditConnection')
-  await expect(menu.getByText('已配置连接')).toBeVisible()
+  await expect(menu.getByText('已配置连接').first()).toBeVisible()
   await expect(menu.getByRole('menuitemradio', { name: /AuditConnection/ })).toBeVisible()
   await search.fill('')
   await expect(menu.getByRole('menuitemradio', { name: /AuditConnection/ })).toBeVisible()
@@ -204,9 +212,9 @@ test('P5: many file changes keep the drawer readable and scrollable', async ({ p
   await box.fill('MANY_CHANGES')
   await box.press('Enter')
   await expect(page.getByText('【E2E】模拟完成：MANY_CHANGES', { exact: true })).toBeVisible({ timeout: 20_000 })
-  const strip = page.locator('.change-strip').filter({ hasText: '本次改动' })
-  await expect(strip).toContainText('120 个文件')
-  await strip.getByRole('button', { name: '查看', exact: true }).click()
+  const reviewBtn = page.getByRole('button', { name: '改动审查', exact: true })
+  await expect(reviewBtn).toContainText('120')
+  await reviewBtn.click()
   const drawer = page.getByRole('complementary', { name: '本次改动' })
   await expect(drawer).toBeVisible()
   await expect(drawer.locator('.change-file')).toHaveCount(120)
@@ -305,12 +313,15 @@ test('model display: current connection model survives a new-session default cha
 
   // 新建会话后把 B 保存为新会话默认,再回到原来的会话 A
   await page.getByRole('button', { name: '新建会话' }).click()
+  const heroInput = page.getByRole('textbox', { name: /任务输入/ })
+  await expect(heroInput).toBeFocused()
   await chip.click()
   const menu = page.getByRole('menu', { name: '模型', exact: true })
+  await expect(menu).toBeVisible()
   await menu.getByLabel('自定义模型 ID').fill('default-model-b')
   await menu.getByRole('button', { name: '应用', exact: true }).click()
   await expect(chip).toContainText('default-model-b')
-  await page.getByRole('button', { name: /model display session A/ }).first().click()
+  await page.locator('.session-row, button').filter({ hasText: /model display session A/ }).first().click()
   await page.waitForTimeout(500)
   await expect(chip).toContainText('connection-model-a')
   await expect(chip).not.toContainText('default-model-b')

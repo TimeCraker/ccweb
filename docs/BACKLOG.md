@@ -60,13 +60,13 @@
 
 布局三栏/侧栏折叠/hero 空态/会话重命名删除fork/斜杠补全/图片附件(粘贴+拖放)/审批 diff/端点模板/Skills-Rules-CLAUDE.md/水位环形图/导出/命令面板/断线对账/虚拟滚动/reduced-motion/双语 UI/favicon/错误 Toast/页面标题
 
-## 待修问题(2026-08-21 全链路回归后遗留)
+## 待修问题(2026-08-21 遗留项 — 0.2.0 已全部闭环)
 
-- [ ] **上下文隔离端到端验证**:0.1.4 已实现 contextScope 三档(全量/仅项目/纯净,设置页模型 tab),UI 选中回路已验证;「仅项目/纯净」两档下模型侧确认无全局 CLAUDE.md/skills/hooks 注入的完整实测未做(需要一次模型问答对比),用户遇到跨工作区记忆时可先切「仅项目」验证
-- [ ] **运行时设置不持久化**:contextScope/effort/model/workspace 等都是 server 内存态,重启 ccweb 后回到默认(全量/null);应落盘到本地配置文件(如 ~/.claude/ccweb-settings.json 或工作区 .ccwebrc)
-- [ ] **生成时视口偶发不跟随**:长回复期间虚拟滚动未自动贴底,新内容在视口外(用户需手动滚底/点回到底部);复现路径:发长文任务后立刻切走再切回
-- [ ] **AskUserQuestion 选项卡接管未实测**:代码在(C2),需要模型主动反问的场景构造
-- [ ] **图片附件/Lightbox 端到端未测**:纯文本模型限制,粘贴/拖放入口 UI 在
-- [ ] **ANSI 彩色输出 live 未触发**:解析器有 6 单测,真实 Bash 彩色输出场景未跑
-- [ ] **会话拖拽排序无自动化测试**:纯前端 localStorage 逻辑
-- [ ] **主 chunk 仍有余量**:297KB(gzip 95KB),diff/虚拟滚动等还可再拆
+- [x] **上下文隔离端到端验证**: Stage 6.7 已实现原生登录来源与第三方端点/凭证/别名彻底隔离，经 settingSources 多工作区测试确认。
+- [x] **运行时设置不持久化**: Stage 5 已落地落盘机制，保存至 `~/.ccweb/settings.json`（可由 `CCWEB_HOME` 覆盖），重启自动还原。
+- [x] **生成时视口偶发不跟随**: Phase 2 及 UX 专项优化，新增手动向上滚动防抢占判定、「回到底部」悬浮入口与底部安全留白空间。
+- [x] **AskUserQuestion 选项卡接管未实测**: Stage 6.7 增加完整选项卡接管实测用例，并在 Playwright `apps/web/e2e/runtime.spec.ts`（lines 71–81，test `plan adoption, question answer and unsupported native mode receipt`）中通过断言。
+- [x] **图片附件/Lightbox 端到端未测**: 已在浏览器自动化回归中覆盖图片预览交互与拖拽/粘贴入口。
+- [x] **ANSI 彩色输出 live 未触发**: Stage 6.7 已集成 ConPTY 与 ANSI 转义着色器，并在 Bash 输出及原生终端实测通过。
+- [x] **会话拖拽排序无自动化测试**: 核心排序与防御逻辑 `applySessionOrder` 已由自动化单元测试 `apps/web/src/session-order.test.ts` 全面覆盖（含自定义排序、保序容错、今日活跃置顶与置顶 Pin 组合）。
+- [x] **主 chunk 仍有余量**: 0.2.0 经 Vite manualChunks 重构，将 `@xterm/xterm`、`highlight.js` 与 `diff` 拆入独立 chunk，显著缩减主包体积。

@@ -1,6 +1,6 @@
 {
   "name": "ccweb-console",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "type": "module",
   "description": "Professional local web console for Claude Code — sessions, live metrics, visual approvals",
   "license": "MIT",
@@ -17,7 +17,8 @@
   },
   "author": "TimeCraker",
   "bin": {
-    "ccweb": "bin/ccweb.mjs"
+    "ccweb": "bin/ccweb.mjs",
+    "ccweb-console": "bin/ccweb.mjs"
   },
   "files": [
     "dist",

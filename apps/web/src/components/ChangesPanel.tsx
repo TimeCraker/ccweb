@@ -159,7 +159,8 @@ export default function ChangesPanel({
   const [allExpanded, setAllExpanded] = useState<boolean | null>(null)
   const [diffMode, setDiffMode] = useState<'unified' | 'split'>(() => {
     try {
-      return (localStorage.getItem('ccweb_diff_mode') as 'unified' | 'split') || 'unified'
+      const raw = localStorage.getItem('ccweb_diff_mode')
+      return raw === 'split' || raw === 'unified' ? raw : 'unified'
     } catch {
       return 'unified'
     }

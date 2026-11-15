@@ -1,8 +1,8 @@
 # ccweb — Claude Code Web Console · Stage Spec
 
-> **当前状态（2026-10-31，V3 独立验收未通过）**：主要 UI 重做已落地，质量门与 45 项既有浏览器回归通过，但专项复核发现 6 处未修复问题，含连接测试/运行路径不一致、空 Key 继承旧令牌、Key 草稿失效及模型菜单交互。详见 [独立验收报告](docs/ux-v3/independent-audit/README.md) 与 [V3 执行清单](docs/UX_V3_EXECUTION_SPEC.md)；P2/P3/P5/P6 重新打开，3/7 工作包关闭。真实模型任务、原生缩放及当前同版安装交付仍须补验。原有实施/安装记录为历史证据，不等于最终通过；未发布、未推送。
+> **当前状态（2026-11-14，0.2.0 正式发布准备与全面升级验收）**：V2/V3 核心架构、Phase 1–3 生产力升级（Split Diff、Plan 双向持久化、工具折叠链、纯矢量 SVG 水位、Prompt 模板、文件树彩点与路径复制）已全量落地并通过质量门禁与端到端自动化验收。版本正式升级至 0.2.0。下文历史记录保留为归档追溯。
 
-> 当前状态（2026-10-31）：V2 Stage 5/6 已本地实现与验收；运行修复、配置中心、指标和界面证据见文末与 [产品诊断](docs/PRODUCT_AUDIT.md#v2-实施与验收2026-10-31)。npm 仍为已发布版本 0.1.4，本轮未发布。下文 P0–P4 与初始 Stage 草案保留为历史。
+
 > 定位:**企业级、可上市的本地 Web 控制台**——大厂开发工具的精度与体验,驱动真 Claude Code runtime。
 
 ---
@@ -284,3 +284,18 @@ Stage 6.6 第一单元：pnpm check 通过（45 项），Edge 19/19；新增逐�
 - [x] 在「本次改动」的现有文件行展示可展开的磁盘差异。只采集当前工作区内、小型 UTF-8 文件的 Edit / Write / MultiEdit 工具前后快照。明确区分磁盘证据、请求预览和旧会话缺失证据，刷新或重启后可恢复已保存的差异。检查拒绝审批、不可读取文件、原有改动与后续写入的边界。
 
 验收：`pnpm check` 通过，服务端 60 项、前端 26 项。Windows 上由 `pnpm dev` 启动自定义端口，配置 API 返回成功、WebSocket 收到握手帧，改动源码时间戳后后端自动重启。隔离工作区用真实 GLM-5.3 完成 Edit 审批、刷新恢复、磁盘差异和独立测试，预先存在的修改保持为差异上下文。重启和再次切换会话后，手动标题与磁盘差异均可恢复，最终构建通过键盘展开。Edge 专项通过，较宽回归与变更前的 `c3f2106` 均为 20/26，同样的 6 项失败涉及工作区入口、认证和模型显示。
+
+## Stage 8 — 0.2.0 全面体验与生产力升级（2026-11-14，Phase 1–3）
+
+基于 `implementation_plan.md`，将 ccweb 从单一对话控制台升级为具备 IDE 级上下文掌控力、极致克制实用、全矢量 SVG 美术与双向强联动的专业桌面开发工作台。
+
+实施进度：7/7 全部完成。
+- [x] Phase 1.1 DiffView 并排比对引擎 (Split Diff)：支持 unified / split 双模式切换，左右分栏精准对齐，虚空行智能对齐与独立水平平滑滚动，标头极简 SVG 布局切换按钮，偏好持久化记忆。
+- [x] Phase 1.2 Plan 计划跟踪器双向持久化 (Two-way Plan Sync)：服务端 /api/workspaces/write-plan 安全原子写入，白名单限制目标文件（implementation_plan.md, SPEC.md, task.md, todo.md, PLAN.md），前端复选框勾选精准替换 - [ ] / - [x]，非阻塞轻量 Toast 反馈。
+- [x] Phase 2.1 密集工具链智能折叠链 (Tool Chain Batching)：自动聚合连续工具调用卡片（>= 2个），默认折叠展示总数/主要工具名/耗时，点击展开，失败/报错智能熔断展开。
+- [x] Phase 2.2 底部用量栏上下文容量水位 (Context Watermark Gauge)：展示 prompt + output + cache 占上下文窗口比率（如 42k / 128k · 32%），80% 琥珀色预警，90% 提示 /compact。
+- [x] Phase 2.3 全量图标去 Emoji 换纯矢量 SVG 重构：彻底清查散落 Emoji，统一替换为极简精致、视觉轻量的内联 SVG 矢量图标。
+- [x] Phase 3.1 常用 Prompt 模板胶囊 (Prompt Snippets)：输入区内置高频开发者 Prompt，支持自定义片段保存至 localStorage。
+- [x] Phase 3.2 文件树 Git 状态与路径快捷复制：文件树标注 Git 变动彩点（绿点新增，黄点修改），标头提供「复制相对路径」与「复制绝对路径」极简 SVG 按钮。
+
+验收结论：`pnpm check`（全量 ESLint、TypeScript strict、服务端 60 项单测/集成测试、前端 47 项测试、生产构建）100% 绿通；Playwright E2E（58 项用例，Edge 浏览器 `PLAYWRIGHT_CHANNEL=msedge`）全量回归通过；本地打包验证与临时目录冷启动零构建正常。

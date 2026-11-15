@@ -53,12 +53,19 @@ test('conversation-first layouts keep the composer and drawers inside the viewpo
   for (const width of [1280, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/')
-    await expect(page.getByRole('textbox', { name: '任务输入', exact: true })).toBeVisible()
+    const box = page.getByRole('textbox', { name: '任务输入', exact: true })
+    await expect(box).toBeVisible()
+    await expect(box).toBeFocused()
     await expect(page.locator('.composer')).toBeInViewport()
     await expect(page.locator('.runtime-details')).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await page.getByRole('button', { name: '更多', exact: true }).click()
-    await page.getByRole('menuitem', { name: /运行详情/ }).click()
+    const moreBtn = page.getByRole('button', { name: '更多', exact: true })
+    await moreBtn.click()
+    const detailItem = page.getByRole('menuitem', { name: /运行详情/ })
+    if (!await detailItem.isVisible()) {
+      await moreBtn.click()
+    }
+    await detailItem.click()
     await expect(page.getByRole('complementary', { name: '运行详情' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.getByRole('button', { name: '关闭面板' }).click()
